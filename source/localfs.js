@@ -214,6 +214,7 @@ function srvListen() {
     lfNotify();
   };
   es.addEventListener("reload", () => srvLoadAll().then(lfNotify).catch(() => {}));
+  es.addEventListener("github", ev => { try { if (SRV.info) SRV.info.github = JSON.parse(ev.data); srvGhRefresh(); } catch (e) {} });
   es.onerror = () => { dropped = true; SRV.online = false; lfStatus("Reconnecting to the codex computer…", true); };
   es.onopen = () => { SRV.online = true; if (dropped) { dropped = false; srvLoadAll().then(() => { lfNotify(); lfStatus("Saved"); srvFlush(); }).catch(() => {}); } };
 }
@@ -296,8 +297,45 @@ function srvPinHtml() {
     <div class="row"><label><span class="sr">New GM password</span><input id="srvnewpin" type="password" placeholder="New GM password (4+ characters)" autocomplete="new-password"></label><button class="btn" data-act="srvsetpin">Save password</button></div>
     <p style="margin-top:14px"><strong>Player password</strong> <span class="muted small">${window.__CODEX_PLAYER_PW_SET || (SRV.info && SRV.info.playerPwSet) ? "Set. Changing it signs every player out." : "Not set yet: players can't join from the internet, and join freely on your home Wi-Fi."}</span></p>
     <div class="row"><label><span class="sr">New player password</span><input id="srvnewppw" type="password" placeholder="New player password (4+ characters)" autocomplete="new-password"></label><button class="btn" data-act="srvsetppw">Save password</button></div>
-    <p class="muted small">This computer is always the GM. Players see everything except entries and books marked hidden, and can only change characters. Once a player password is set, players need it on your home Wi-Fi too. Five wrong passwords lock that device out for 15 minutes.</p></div>`;
+    <p class="muted small">This computer is always the GM. Players see everything except entries and books marked hidden, and can only change characters. Once a player password is set, players need it on your home Wi-Fi too. Five wrong passwords lock that device out for 15 minutes.</p></div>
+    <div id="ghsync">${srvGhInner()}</div>`;
 }
+// ---------- Sync with GitHub (GM): the library and pictures kept in a private repository ----------
+function srvGhInner() {
+  const g = (SRV.info && SRV.info.github) || {}, host = window.__CODEX_HOST;
+  const ago = t => { if (!t) return "never"; const m = Math.round((Date.now() - Date.parse(t)) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : new Date(t).toLocaleString(); };
+  if (g.connected) return `<div class="gmpin ghsync"><p><strong>Sync with GitHub</strong> <span class="muted small">On: <strong>${esc(g.repo)}</strong></span></p>
+    <p class="small">Last sync: <strong>${esc(ago(g.lastSync))}</strong>${g.busy ? " · syncing…" : ""}${g.note && !g.lastError ? ` <span class="muted">(${esc(g.note)})</span>` : ""}</p>
+    ${g.lastError ? `<p class="small" style="color:var(--bad)">Last try didn't work: ${esc(g.lastError)}</p>` : ""}
+    <div class="row"><button class="btn" data-act="ghsync">Sync now</button>${host ? `<button class="btn ghost small" data-act="ghoff">Turn off</button>` : ""}</div>
+    <p class="muted small">Syncs when the codex starts, a minute after changes (at most every 5 minutes during a game), and when you close it. Edits made elsewhere are combined entry by entry; if the same entry was changed in both places, this computer's version is kept, and a copy of the library from before is saved in backups.</p></div>`;
+  return `<div class="gmpin ghsync"><p><strong>Sync with GitHub</strong> <span class="muted small">Off</span></p>
+    ${host ? `<p class="muted small">Keep your library and pictures in a <strong>private</strong> GitHub repository, so other computers (and the phone version) can load it without this computer being on.</p>
+    <details class="ghhow"><summary>How to make the key</summary><ol class="small">
+      <li>On github.com, signed in as you, open <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong>, then <strong>Generate new token</strong>.</li>
+      <li>Name it "DnD Codex", and pick an expiry (a year is fine).</li>
+      <li>Repository access: <strong>Only select repositories</strong>, and choose your library repository.</li>
+      <li>Permissions: <strong>Contents → Read and write</strong>. Nothing else.</li>
+      <li>Generate it, copy it, and paste it below. GitHub only shows it once.</li></ol></details>
+    <div class="row"><label><span class="sr">Repository</span><input id="ghrepo" type="text" value="InitialGalaxy/dnd-codex-library" placeholder="owner/repository" autocomplete="off" spellcheck="false"></label></div>
+    <div class="row"><label><span class="sr">Key</span><input id="ghtoken" type="password" placeholder="Paste the key (github_pat_…)" autocomplete="off" spellcheck="false"></label><button class="btn" data-act="ghon">Connect</button></div>
+    <p class="muted small">The key is kept only on this computer (in codex-config.json) and is only ever sent to GitHub. Other devices and players never see it. The repository must be private.</p>`
+      : `<p class="muted small">Set this up on the computer that runs the codex.</p>`}</div>`;
+}
+function srvGhRefresh() { const box = document.getElementById("ghsync"); if (box) box.innerHTML = srvGhInner(); }
+document.addEventListener("click", async ev => {
+  if (!SERVER) return;
+  const el = ev.target.closest("[data-act]"); if (!el || !/^gh(on|off|sync)$/.test(el.dataset.act)) return;
+  const a = el.dataset.act, post = body => fetch("api/github", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(r => r.json().catch(() => ({})));
+  el.disabled = true; const was = el.textContent; el.textContent = a === "ghoff" ? "Turning off…" : a === "ghon" ? "Connecting…" : "Syncing…";
+  let r;
+  if (a === "ghon") r = await post({ action: "connect", repo: (document.getElementById("ghrepo") || {}).value || "", token: (document.getElementById("ghtoken") || {}).value || "" });
+  else if (a === "ghoff") { if (!(await confirmBox("Stop syncing with GitHub? Your library stays on this computer and on GitHub; the key is removed from this computer.", "Turn off"))) { el.disabled = false; el.textContent = was; return; } r = await post({ action: "disconnect" }); }
+  else r = await post({ action: "sync" });
+  if (SRV.info) SRV.info.github = { connected: r.connected, repo: r.repo, lastSync: r.lastSync, lastError: r.lastError, note: r.note, busy: false };
+  if (r.error && !r.connected) toast(r.error, "bad"); else if (r.error) toast("GitHub: " + r.error, "bad"); else if (a !== "ghoff") toast("GitHub: " + (r.note || "done"));
+  srvGhRefresh();
+});
 document.addEventListener("click", async ev => {
   if (!SERVER) return;
   const el = ev.target.closest("[data-act]"); if (!el) return;

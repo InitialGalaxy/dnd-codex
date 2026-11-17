@@ -45,6 +45,13 @@ Updating
   Close the DnD Codex window first. Your library.json, images, backups and
   passwords (codex-config.json) are never touched.
 
+Sync with GitHub (optional)
+  Keeps your library and pictures in a private GitHub repository, so other computers
+  (and the phone version) can load it without this computer being on.
+  Set it up in the codex on this computer: Library file > Sync with GitHub. It explains
+  how to make the key. The key stays in codex-config.json here and only goes to GitHub.
+  github-base.json is the library as it was at the last sync (used to combine changes).
+
 What's in this folder
   library.json      everything in your codex (same format as a downloaded library file)
   images\           pictures
@@ -52,7 +59,7 @@ What's in this folder
   DnD Codex.html    the codex itself
   server.js         the small program that shares it on your network
   Update Codex.bat  gets the newest version from GitHub
-  codex-config.json the GM and player passwords (scrambled) and who's signed in
+  codex-config.json the GM and player passwords (scrambled), who's signed in, and the GitHub key
 
 GM and players
   This computer is always the GM. Other devices are asked who's joining:

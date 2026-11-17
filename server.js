@@ -177,7 +177,7 @@ function dailyBackup() {
 // Measurements left up by a device that went away disappear after an hour.
 setInterval(() => { const now = Date.now(); for (const k of Object.keys(docs)) if (k.startsWith("vttlive/") && now - (docs[k]._at || 0) > 3600000) { delete docs[k]; broadcast({ path: k, doc: null }); } }, 300000).unref();
 let saveTimer = null, saving = false, again = false;
-function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); ghSoon(); }
 function save() {
   if (saving) { again = true; return; }
   saving = true;
@@ -189,6 +189,128 @@ function save() {
   } catch (e) { console.error("  Couldn't save library.json: " + e.message + " (will try again)"); setTimeout(scheduleSave, 3000); }
   saving = false;
   if (again) { again = false; scheduleSave(); }
+}
+
+// ---------- GitHub sync: the library and its pictures, kept in a private repository ----------
+// conf.github = { repo: "owner/name", token, branch, lastSync, lastError, lastSha }. The token stays in codex-config.json
+// on this computer and is only ever sent to GitHub. github-base.json is the library as it was at the last sync, so
+// changes made here and elsewhere can be combined entry by entry: if both sides changed the same entry, this computer wins.
+const GH_BASE = path.join(DIR, "github-base.json"), GH_API = (process.env.GH_API || "https://api.github.com").replace(/\/$/, "");
+const ghConf = () => conf.github && conf.github.token && conf.github.repo ? conf.github : null;
+let ghTimer = null, ghBusy = null, ghDirty = false;
+function ghStatus() { const g = conf.github || {}; return { connected: !!ghConf(), repo: g.repo || "", lastSync: g.lastSync || "", lastError: g.lastError || "", note: g.note || "", busy: !!ghBusy }; }
+// After changes settle for a minute, and no more than every five minutes while a game is running (fog of war changes a lot).
+function ghSoon(now) {
+  if (!ghConf()) return; ghDirty = true; clearTimeout(ghTimer);
+  const since = Date.now() - (Date.parse((conf.github || {}).lastSync || "") || 0);
+  ghTimer = setTimeout(() => ghSync("after changes"), now ? 1500 : Math.max(60000, 300000 - since));
+}
+// Same library, whatever order the entries are in.
+function ghSame(a, b) { const ka = Object.keys(a), kb = Object.keys(b); if (ka.length !== kb.length) return false; for (const k of ka) if (!(k in b) || ghJ(a[k]) !== ghJ(b[k])) return false; return true; }
+async function ghReq(method, url, body, token) {
+  if (typeof fetch !== "function") throw new Error("GitHub sync needs Node.js 18 or newer: update it from nodejs.org");
+  const r = await fetch(GH_API + url, { method, headers: { Authorization: "Bearer " + (token || conf.github.token), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "dnd-codex", "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const text = await r.text(); let data = null; try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!r.ok) { const err = new Error((data && data.message) || ("GitHub said " + r.status)); err.status = r.status; throw err; }
+  return data;
+}
+async function ghConnect(repo, token) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return { ok: false, error: "Write the repository as owner/name, e.g. InitialGalaxy/dnd-codex-library." };
+  if (!token) return { ok: false, error: "Paste the key (token) from GitHub." };
+  let info;
+  try { info = await ghReq("GET", "/repos/" + repo, null, token); }
+  catch (e) { return { ok: false, error: e.status === 401 ? "GitHub didn't accept that key. Check it was copied in full and hasn't expired." : e.status === 404 ? "Couldn't find that repository with this key. Check the name, and that the key was given access to it." : e.message }; }
+  if (!info.private) return { ok: false, error: "That repository is public, so anyone could read your library. Make it private on GitHub first." };
+  if (info.permissions && !info.permissions.push) return { ok: false, error: "That key can read the repository but not save to it. Give it Contents: Read and write." };
+  conf.github = { repo, token, branch: info.default_branch || "main" }; saveConf();
+  try { fs.unlinkSync(GH_BASE); } catch (e) {}
+  const r = await ghSync("first link");
+  return r.ok ? { ok: true, note: r.note } : r;
+}
+const ghJ = v => v === undefined ? undefined : JSON.stringify(v);
+// Entry-by-entry merge of three versions of the library ({ "entries/abc": {...} } maps).
+function ghMerge(base, local, remote) {
+  const out = {}; let fromRemote = 0, clashes = 0;
+  for (const k of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+    const b = ghJ(base[k]), l = ghJ(local[k]), r = ghJ(remote[k]);
+    let pick = l;
+    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l; else clashes++;
+    if (pick !== undefined) out[k] = pick === l ? local[k] : remote[k];
+  }
+  return { out, fromRemote, clashes };
+}
+function ghSync(why) {
+  if (!ghConf()) return Promise.resolve({ ok: false, error: "GitHub sync isn't set up." });
+  if (ghBusy) { ghDirty = true; return ghBusy; }
+  ghBusy = ghSyncOnce(why).catch(e => ({ ok: false, error: e.message })).then(r => {
+    ghBusy = null; const g = conf.github; if (!g) return r;
+    if (r.ok) { g.lastSync = new Date().toISOString(); g.lastError = ""; g.note = r.note; } else g.lastError = r.error;
+    saveConf(); const st = "event: github\ndata: " + JSON.stringify(ghStatus()) + "\n\n"; for (const c of clients) if (c.role === "gm") c.write(st);
+    if (r.ok && ghDirty) ghSoon();
+    return r;
+  });
+  return ghBusy;
+}
+async function ghSyncOnce(why, retry) {
+  const g = conf.github, R = "/repos/" + g.repo, br = g.branch || "main";
+  ghDirty = false;
+  // 1. What's on GitHub now.
+  let head;
+  try { head = await ghReq("GET", R + "/git/ref/heads/" + br); }
+  catch (e) { if (e.status === 404 || e.status === 409) throw new Error("The repository is empty. On GitHub, add a README to it first, then sync again."); throw e; }
+  const headSha = head.object.sha, commit = await ghReq("GET", R + "/git/commits/" + headSha);
+  const tree = await ghReq("GET", R + "/git/trees/" + commit.tree.sha + "?recursive=1");
+  const files = new Map((tree.tree || []).filter(t => t.type === "blob").map(t => [t.path, t.sha]));
+  let remote = {}, remoteFile = null;
+  if (files.has("library.json")) {
+    const blob = await ghReq("GET", R + "/git/blobs/" + files.get("library.json"));
+    remoteFile = JSON.parse(Buffer.from(blob.content, "base64").toString("utf8"));
+    remote = fromFile(remoteFile);
+  }
+  // 2. Combine with what's here.
+  let base = {}; try { base = fromFile(JSON.parse(fs.readFileSync(GH_BASE, "utf8"))); } catch (e) {}
+  const local = fromFile(toFile());
+  const { out, fromRemote, clashes } = ghMerge(base, local, remote);
+  const live = Object.fromEntries(Object.entries(docs).filter(([k]) => k.startsWith("vttlive/")));
+  const changedHere = !ghSame(out, local);
+  if (changedHere) {
+    if (fs.existsSync(LIB)) { fs.mkdirSync(BAK, { recursive: true }); fs.copyFileSync(LIB, path.join(BAK, "library-before-sync-" + new Date().toISOString().slice(0, 10) + ".json")); }
+    docs = Object.assign({}, out, live); clearTimeout(saveTimer); save(); broadcast({}, "reload");
+  }
+  // Pictures: fetch ones only GitHub has, send ones only this computer has.
+  fs.mkdirSync(IMG, { recursive: true });
+  const localImgs = new Set(fs.readdirSync(IMG).filter(f => !f.startsWith(".")));
+  let got = 0;
+  for (const [pth, sha] of files) {
+    if (!pth.startsWith("images/") || pth.split("/").length !== 2) continue;
+    const name = pth.slice(7); if (localImgs.has(name) || !/^[A-Za-z0-9._-]+$/.test(name)) continue;
+    const b = await ghReq("GET", R + "/git/blobs/" + sha); fs.writeFileSync(path.join(IMG, name), Buffer.from(b.content, "base64")); localImgs.add(name); got++;
+  }
+  const newImgs = [...localImgs].filter(n => !files.has("images/" + n) && /^[A-Za-z0-9._-]+$/.test(n));
+  const needLib = !remoteFile || !ghSame(fromFile(toFile()), remote);
+  let sent = 0;
+  if (needLib || newImgs.length) {
+    // 3. One commit with the library and any new pictures.
+    const entries = [];
+    if (needLib) { const b = await ghReq("POST", R + "/git/blobs", { content: Buffer.from(JSON.stringify(toFile(), null, 1)).toString("base64"), encoding: "base64" }); entries.push({ path: "library.json", mode: "100644", type: "blob", sha: b.sha }); }
+    for (const n of newImgs) { const b = await ghReq("POST", R + "/git/blobs", { content: fs.readFileSync(path.join(IMG, n)).toString("base64"), encoding: "base64" }); entries.push({ path: "images/" + n, mode: "100644", type: "blob", sha: b.sha }); sent++; }
+    const t = await ghReq("POST", R + "/git/trees", { base_tree: commit.tree.sha, tree: entries });
+    const c = await ghReq("POST", R + "/git/commits", { message: "Codex sync (" + why + ")" + (sent ? ", " + sent + " picture" + (sent === 1 ? "" : "s") : ""), tree: t.sha, parents: [headSha] });
+    try { await ghReq("PATCH", R + "/git/refs/heads/" + br, { sha: c.sha, force: false }); }
+    catch (e) {
+      // Someone else saved in the meantime: start again from their version (once).
+      if ((e.status === 422 || e.status === 409) && !retry) return ghSyncOnce(why, true);
+      throw e;
+    }
+  }
+  fs.writeFileSync(GH_BASE, JSON.stringify(toFile()));
+  const bits = [];
+  if (fromRemote) bits.push(fromRemote + " change" + (fromRemote === 1 ? "" : "s") + " from GitHub");
+  if (needLib) bits.push("saved to GitHub");
+  if (got) bits.push(got + " picture" + (got === 1 ? "" : "s") + " downloaded");
+  if (sent) bits.push(sent + " picture" + (sent === 1 ? "" : "s") + " uploaded");
+  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept this computer's)");
+  return { ok: true, note: bits.length ? bits.join(", ") : "already up to date", fromRemote, clashes };
 }
 
 // ---------- pictures: data: URLs inside saved documents are written to images/ and replaced by a link ----------
@@ -292,9 +414,20 @@ async function handle(req, res) {
       saveConf(); for (const c of clients) if (c.role === "player") c.write("event: reload\ndata: {}\n\n");
       return send(res, 200, { ok: true });
     }
+    if (p === "/api/github") {
+      if (role !== "gm") return send(res, 403, { error: "gm only" });
+      if (req.method === "GET") return send(res, 200, ghStatus());
+      const body = req.method === "POST" ? JSON.parse((await readBody(req, 64 * 1024)).toString("utf8") || "{}") : {};
+      if (body.action === "sync") { const r = await ghSync("by hand"); return send(res, r.ok ? 200 : 400, Object.assign(ghStatus(), r)); }
+      // Connecting and disconnecting only from this computer itself: the key never travels over the network.
+      if (!isLocal(req)) return send(res, 403, { error: "Set up GitHub sync on the computer that runs the codex." });
+      if (body.action === "disconnect") { delete conf.github; saveConf(); try { fs.unlinkSync(GH_BASE); } catch (e) {} return send(res, 200, ghStatus()); }
+      if (body.action === "connect") { const r = await ghConnect(String(body.repo || "").trim(), String(body.token || "").trim()); return send(res, r.ok ? 200 : 400, Object.assign(ghStatus(), r)); }
+      return send(res, 400, { error: "unknown action" });
+    }
     if (p === "/api/all" && req.method === "GET") {
       const out = role === "gm" ? docs : Object.fromEntries(Object.entries(docs).filter(([k, d]) => playerSees(k, d)).map(([k, d]) => [k, playerCopy(k, d)]));
-      return send(res, 200, { docs: out, info: { urls: addresses(PORT), role, pinSet: !!conf.pinHash, playerPwSet: !!conf.playerHash, publicUrl: role === "gm" ? publicUrl : "", funnel: role === "gm" ? funnelNote : "" } });
+      return send(res, 200, { docs: out, info: { urls: addresses(PORT), role, pinSet: !!conf.pinHash, playerPwSet: !!conf.playerHash, publicUrl: role === "gm" ? publicUrl : "", funnel: role === "gm" ? funnelNote : "", github: role === "gm" ? ghStatus() : null } });
     }
     if (p === "/api/events") {
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
@@ -323,7 +456,7 @@ async function handle(req, res) {
       const data = JSON.parse((await readBody(req, 300 * 1024 * 1024)).toString("utf8"));
       if (!data || data.kind !== "lore-codex-backup") return send(res, 400, { error: "not a library file" });
       if (fs.existsSync(LIB)) { fs.mkdirSync(BAK, { recursive: true }); fs.copyFileSync(LIB, path.join(BAK, "library-before-import-" + Date.now() + ".json")); }
-      docs = unpackImages(fromFile(data)); save(); broadcast({}, "reload");
+      docs = unpackImages(fromFile(data)); save(); broadcast({}, "reload"); ghSoon(true);
       console.log("  Library loaded: " + Object.keys(docs).filter(k => k.startsWith("entries/")).length + " entries.");
       return send(res, 200, { ok: true });
     }
@@ -416,6 +549,12 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("\n  Keep this window open while you use the codex. Close it (or press Ctrl+C) to stop.\n");
   if (!process.env.NO_BROWSER) exec((process.platform === "win32" ? 'start "" ' : process.platform === "darwin" ? "open " : "xdg-open ") + "http://localhost:" + PORT + "/", () => {});
   publicServer.listen(PUBLIC_PORT, "127.0.0.1", () => { startFunnel(); });
+  if (ghConf()) ghSync("on start").then(r => console.log(r.ok ? "  GitHub: " + r.note : "  GitHub sync didn't work: " + r.error));
 });
-function shutdown() { clearTimeout(saveTimer); try { save(); } catch (e) {} stopFunnel(); process.exit(0); }
+function shutdown() {
+  clearTimeout(saveTimer); try { save(); } catch (e) {} stopFunnel();
+  // Give GitHub a few seconds to take the last changes (Windows allows about five when the window is closed).
+  if (ghConf() && ghDirty) { const done = () => process.exit(0); ghSync("on close").then(done, done); setTimeout(done, 4000); return; }
+  process.exit(0);
+}
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown); process.on("SIGHUP", shutdown); process.on("SIGBREAK", shutdown);
