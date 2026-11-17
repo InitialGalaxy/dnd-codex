@@ -234,7 +234,12 @@ function ghMerge(base, local, remote) {
   for (const k of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
     const b = ghJ(base[k]), l = ghJ(local[k]), r = ghJ(remote[k]);
     let pick = l;
-    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l; else clashes++;
+    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l;
+    else {
+      // Changed in both places: the more recently edited version wins (by its "updated" time); otherwise this side's.
+      clashes++; const tl = Date.parse((local[k] || {}).updated || ""), tr = Date.parse((remote[k] || {}).updated || "");
+      if (tr > tl) { pick = r; fromRemote++; }
+    }
     if (pick !== undefined) out[k] = pick === l ? local[k] : remote[k];
   }
   return { out, fromRemote, clashes };
@@ -265,7 +270,8 @@ async function ghSyncOnce(why, retry) {
   if (files.has("library.json")) {
     const blob = await ghReq("GET", R + "/git/blobs/" + files.get("library.json"));
     remoteFile = JSON.parse(Buffer.from(blob.content, "base64").toString("utf8"));
-    remote = fromFile(remoteFile);
+    // Pictures packed into the file (from an export or the web version) become files in images/, named as they'd be here.
+    remote = unpackImages(fromFile(remoteFile));
   }
   // 2. Combine with what's here.
   let base = {}; try { base = fromFile(JSON.parse(fs.readFileSync(GH_BASE, "utf8"))); } catch (e) {}
@@ -309,7 +315,7 @@ async function ghSyncOnce(why, retry) {
   if (needLib) bits.push("saved to GitHub");
   if (got) bits.push(got + " picture" + (got === 1 ? "" : "s") + " downloaded");
   if (sent) bits.push(sent + " picture" + (sent === 1 ? "" : "s") + " uploaded");
-  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept this computer's)");
+  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept the newer edit)");
   return { ok: true, note: bits.length ? bits.join(", ") : "already up to date", fromRemote, clashes };
 }
 

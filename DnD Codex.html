@@ -2324,7 +2324,7 @@ function srvGhInner() {
     <p class="small">Last sync: <strong>${esc(ago(g.lastSync))}</strong>${g.busy ? " · syncing…" : ""}${g.note && !g.lastError ? ` <span class="muted">(${esc(g.note)})</span>` : ""}</p>
     ${g.lastError ? `<p class="small" style="color:var(--bad)">Last try didn't work: ${esc(g.lastError)}</p>` : ""}
     <div class="row"><button class="btn" data-act="ghsync">Sync now</button>${host ? `<button class="btn ghost small" data-act="ghoff">Turn off</button>` : ""}</div>
-    <p class="muted small">Syncs when the codex starts, a minute after changes (at most every 5 minutes during a game), and when you close it. Edits made elsewhere are combined entry by entry; if the same entry was changed in both places, this computer's version is kept, and a copy of the library from before is saved in backups.</p></div>`;
+    <p class="muted small">Syncs when the codex starts, a minute after changes (at most every 5 minutes during a game), and when you close it. Edits made elsewhere are combined entry by entry; if the same entry was changed in both places, the more recent edit is kept, and a copy of the library from before is saved in backups.</p></div>`;
   return `<div class="gmpin ghsync"><p><strong>Sync with GitHub</strong> <span class="muted small">Off</span></p>
     ${host ? `<p class="muted small">Keep your library and pictures in a <strong>private</strong> GitHub repository, so other computers (and the phone version) can load it without this computer being on.</p>
     <details class="ghhow"><summary>How to make the key</summary><ol class="small">
@@ -2399,7 +2399,12 @@ function ghmMerge(base, local, remote) {
   const out = {}; let fromRemote = 0, clashes = 0;
   for (const k of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
     const b = ghmJ(base[k]), l = ghmJ(local[k]), r = ghmJ(remote[k]); let pick = l;
-    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l; else clashes++;
+    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l;
+    else {
+      // Changed in both places: the more recently edited version wins (by its "updated" time); otherwise this side's.
+      clashes++; const tl = Date.parse((local[k] || {}).updated || ""), tr = Date.parse((remote[k] || {}).updated || "");
+      if (tr > tl) { pick = r; fromRemote++; }
+    }
     if (pick !== undefined) out[k] = pick === l ? local[k] : remote[k];
   }
   return { out, fromRemote, clashes };
@@ -2489,7 +2494,7 @@ async function ghmSyncOnce(why, retry) {
   if (fromRemote) bits.push(fromRemote + " change" + (fromRemote === 1 ? "" : "s") + " from GitHub");
   if (needLib) bits.push("saved to GitHub");
   if (sent) bits.push(sent + " picture" + (sent === 1 ? "" : "s") + " uploaded");
-  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept this device's)");
+  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept the newer edit)");
   return bits.join(", ") || "already up to date";
 }
 async function ghmFirstPull() {
@@ -2516,7 +2521,7 @@ function ghmPanelInner() {
     <p class="small">Last sync: <strong>${esc(GHM.last ? new Date(GHM.last).toLocaleString() : "not yet")}</strong>${GHM.busy ? " · syncing…" : ""}${GHM.note && !GHM.err ? ` <span class="muted">(${esc(GHM.note)})</span>` : ""}</p>
     ${GHM.err ? `<p class="small" style="color:var(--bad)">${esc(GHM.err)}</p>` : ""}${!navigator.onLine ? `<p class="small muted">Offline: changes are saved on this device and sync when you're back online.</p>` : ""}
     <div class="row"><button class="btn" data-act="ghmsync">Sync now</button><button class="btn ghost small" data-act="ghmout">Sign out of this device</button></div>
-    <p class="muted small">Your library is kept on this device, so it works offline. It syncs when you open the codex, a few seconds after changes, and when you switch away. If the same entry was changed here and elsewhere, this device's version is kept.</p></div>`;
+    <p class="muted small">Your library is kept on this device, so it works offline. It syncs when you open the codex, a few seconds after changes, and when you switch away. If the same entry was changed here and elsewhere, the more recent edit is kept.</p></div>`;
 }
 document.addEventListener("click", async ev => {
   if (!GH) return;
