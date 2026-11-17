@@ -1208,6 +1208,7 @@ function viewBackup() {
   return `<section class="narrow">
     <h1>Library file</h1>
     ${SERVER ? `<p class="muted">This codex runs from your <strong>DnDCodex</strong> folder. Everything saves into <code>library.json</code> there, with pictures in its <code>images</code> folder and a dated copy in <code>backups</code> each day.</p>${srvLinksHtml()}${srvPinHtml()}`
+      : GH ? `<p class="muted">This is the web version. Your library is kept on this device (so it works offline) and synced with your private GitHub repository, which your PC also syncs with.</p><div id="ghmbox">${ghmPanelInner()}</div>`
       : LOCAL ? `<p class="muted">This copy saves everything into <code>library.json</code> in your <strong>${esc(LF.dir ? LF.dir.name : "DnDCodex")}</strong> folder as you work, with pictures in its <code>images</code> folder. A copy of the previous version is kept as <code>library.backup.json</code> each time you open it.</p>`
       : `<p class="muted">Everything lives in the codex itself now: entries, tags, books, items and your map. Edits save straight into it and show on every device you open it on. Nothing is read from Google Docs any more.</p>`}
     <p class="muted">For a copy you hold yourself, download a library file whenever you like. It's one JSON file with everything in it, and loading it back restores the codex.</p>

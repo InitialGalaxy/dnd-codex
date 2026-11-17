@@ -3,7 +3,9 @@
 // library.json (same format as an exported library file) and pictures in images/.
 // SERVER: the page is served by server.js from the DnDCodex folder, and every device on the network shares it live.
 const SERVER = !!window.__CODEX_SERVER && !window.__CODEX_DATA;
-const LOCAL = (!!window.__CODEX_LOCAL || SERVER) && !window.__CODEX_DATA;
+// GH: the web version (GitHub Pages). The library lives on this device and syncs with a private GitHub repository.
+const GH = !!window.__CODEX_GH && !SERVER && !window.__CODEX_DATA;
+const LOCAL = (!!window.__CODEX_LOCAL || SERVER || GH) && !window.__CODEX_DATA;
 const LF = { dir: null, store: new Map(), subs: [], saveTimer: null, saving: false, dirty: false, lastError: "" };
 
 function lfSnapDoc(path) {
@@ -72,7 +74,7 @@ async function lfSave() {
   LF.saving = false;
 }
 function lfStatus(text, bad) { const el = document.getElementById("savestate"); if (el) { el.textContent = text; el.classList.toggle("bad", !!bad); } }
-window.addEventListener("beforeunload", ev => { if (LOCAL && (LF.dirty || LF.saving)) { ev.preventDefault(); ev.returnValue = ""; } });
+window.addEventListener("beforeunload", ev => { if (LOCAL && !GH && (LF.dirty || LF.saving)) { ev.preventDefault(); ev.returnValue = ""; } });
 
 // pictures go into images/ beside the page, so they load straight from disk
 const lfAssets = {
@@ -86,7 +88,7 @@ const lfAssets = {
   }
 };
 async function lfReadImage(path) {
-  if (SERVER) return await (await fetch(path)).blob();
+  if (SERVER || GH) return await (await fetch(path)).blob();
   const name = path.replace(/^images\//, "");
   const imgs = await LF.dir.getDirectoryHandle("images");
   return await (await imgs.getFileHandle(name)).getFile();
@@ -114,6 +116,7 @@ async function lfRecall() { try { const db = await lfIdb(); return await new Pro
 function lfSetupScreen(html) { $("#main").innerHTML = `<section class="narrow setup"><h1>DnD Codex</h1>${html}</section>`; }
 async function localBoot() {
   if (SERVER) { srvBoot(); return; }
+  if (GH) { ghmBoot(); return; }
   if (!window.showDirectoryPicker) {
     lfSetupScreen(`<p>This copy of the codex saves into a folder on your computer, which needs <strong>Chrome</strong> or <strong>Microsoft Edge</strong>. Open this file in one of those browsers.</p>`);
     return;
@@ -144,7 +147,7 @@ async function lfUseFolder(handle) {
 }
 function lfStart(data) {
   lfFromFile(data);
-  S.assets = lfAssets; S.downloads = lfDownloads;
+  S.assets = GH ? ghmAssets : lfAssets; S.downloads = lfDownloads;
   connectDb(lfDb);
   lfStatus("Saved");
   render();
@@ -171,6 +174,7 @@ document.addEventListener("change", ev => { if (LOCAL && ev.target.id === "lffir
 // ---------- Server mode: talk to server.js; changes from other devices arrive as they happen ----------
 const SRV = { id: "c" + Math.random().toString(36).slice(2, 10), queue: [], sending: false, es: null, info: null, online: true };
 function lfWrote(path) {
+  if (GH) { ghmChanged(); return; }
   if (!SERVER) { lfChanged(); return; }
   lfNotify();
   SRV.queue = SRV.queue.filter(o => o.path !== path);
@@ -353,5 +357,176 @@ document.addEventListener("click", async ev => {
     if (pin.length < 4) { toast("Use at least 4 characters.", "bad"); return; }
     const r = await fetch("api/playerpw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
     if (r.ok) { window.__CODEX_PLAYER_PW_SET = true; if (SRV.info) { SRV.info.playerPwSet = true; SRV.info.funnel = ""; } toast("Player password saved"); render(); } else toast("Couldn't save the password.", "bad");
+  }
+});
+
+
+// ---------- Web version (GitHub Pages): library kept on this device, synced with a private GitHub repository ----------
+// IndexedDB "dnd-codex-web" holds: cfg {repo, token, branch}, lib (library file), base (library at last sync),
+// pending (pictures not uploaded yet: [name]), lastSync, note. Pictures sit in Cache Storage "codex-images" under
+// images/<name>; the service worker (sw.js) fetches missing ones from the repository with the key.
+const GHM = { cfg: null, timer: null, busy: null, dirty: false, saveT: null, last: "", note: "", err: "" };
+function ghmIdb() { return new Promise((res, rej) => { const r = indexedDB.open("dnd-codex-web", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function ghmGet(k) { const db = await ghmIdb(); return new Promise(res => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => res(q.result === undefined ? null : q.result); q.onerror = () => res(null); }); }
+async function ghmPut(k, v) { const db = await ghmIdb(); return new Promise((res, rej) => { const t = db.transaction("kv", "readwrite"); if (v === null) t.objectStore("kv").delete(k); else t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+const GHM_API = window.__CODEX_GH_API || "https://api.github.com"; // tests point this at a stand-in
+async function ghmReq(method, url, body, token) {
+  const r = await fetch(GHM_API + url, { method, headers: { Authorization: "Bearer " + (token || GHM.cfg.token), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const t = await r.text(); let d = null; try { d = t ? JSON.parse(t) : null; } catch (e) {}
+  if (!r.ok) { const er = new Error((d && d.message) || ("GitHub said " + r.status)); er.status = r.status; throw er; }
+  return d;
+}
+const ghmB64 = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const ghmUnB64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), c => c.charCodeAt(0)));
+const ghmBlobB64 = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); });
+// Library file <-> { "entries/abc": {...} }
+function ghmDocs(file) { const keep = new Map(LF.store); lfFromFile(file || { entries: {} }); const out = Object.fromEntries(LF.store); LF.store = keep; return out; }
+const ghmJ = v => v === undefined ? undefined : JSON.stringify(v);
+function ghmSame(a, b) { const ka = Object.keys(a), kb = Object.keys(b); if (ka.length !== kb.length) return false; for (const k of ka) if (!(k in b) || ghmJ(a[k]) !== ghmJ(b[k])) return false; return true; }
+function ghmMerge(base, local, remote) {
+  const out = {}; let fromRemote = 0, clashes = 0;
+  for (const k of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+    const b = ghmJ(base[k]), l = ghmJ(local[k]), r = ghmJ(remote[k]); let pick = l;
+    if (l === r) pick = l; else if (l === b) { pick = r; fromRemote++; } else if (r === b) pick = l; else clashes++;
+    if (pick !== undefined) out[k] = pick === l ? local[k] : remote[k];
+  }
+  return { out, fromRemote, clashes };
+}
+function ghmStatus() {
+  const off = !navigator.onLine, when = GHM.last ? (m => m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago")(Math.round((Date.now() - Date.parse(GHM.last)) / 60000)) : "not yet";
+  lfStatus(GHM.busy ? "Syncing…" : off ? "Saved on this device (offline)" : GHM.err ? "Saved here · sync didn't work" : GHM.dirty ? "Saved here · syncing soon" : "Synced " + when, !!GHM.err && !off);
+  const box = document.getElementById("ghmbox"); if (box) box.innerHTML = ghmPanelInner();
+}
+async function ghmBoot() {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  GHM.cfg = await ghmGet("cfg"); GHM.last = (await ghmGet("lastSync")) || ""; GHM.note = (await ghmGet("note")) || "";
+  if (!GHM.cfg) { ghmSetup(); return; }
+  const lib = await ghmGet("lib");
+  lfStart(lib || { kind: "lore-codex-backup", entries: {}, tags: {}, books: {} });
+  ghmStatus(); ghmSync("on open");
+  window.addEventListener("online", () => ghmSync("back online"));
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && GHM.dirty) ghmSync("on leave"); });
+  setInterval(() => { if (navigator.onLine && !GHM.busy) ghmSync("check"); }, 5 * 60000);
+}
+function ghmSetup(msg) {
+  lfSetupScreen(`<p class="muted">This is the web version of your codex. It keeps your library on this device and syncs it with your <strong>private</strong> GitHub repository, so it works on the train too.</p>
+    ${msg ? `<p style="color:var(--bad)">${esc(msg)}</p>` : ""}
+    <label class="ghmf"><span>Repository</span><input id="ghmrepo" type="text" value="InitialGalaxy/dnd-codex-library" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="ghmf"><span>Key</span><input id="ghmtoken" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <div class="row"><button class="btn" data-act="ghmgo">Open my codex</button></div>
+    <details class="ghhow"><summary>How to make the key</summary><ol class="small">
+      <li>On github.com open <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</strong>.</li>
+      <li>Repository access: <strong>Only select repositories</strong> → your library repository.</li>
+      <li>Permissions: <strong>Contents → Read and write</strong>. Nothing else.</li>
+      <li>Copy it and paste it above. You can use the same key on your PC.</li></ol></details>
+    <p class="muted small">The key is kept only on this device and only sent to GitHub. Without it this page is an empty codex: nobody can see or change your library.</p>`);
+  const t = document.getElementById("ghmtoken"); if (t) t.addEventListener("keydown", ev => { if (ev.key === "Enter") document.querySelector("[data-act=ghmgo]").click(); });
+}
+async function ghmConnect(repo, token) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return "Write the repository as owner/name.";
+  if (!token) return "Paste the key from GitHub.";
+  let info; try { info = await ghmReq("GET", "/repos/" + repo, null, token); }
+  catch (e) { return e.status === 401 ? "GitHub didn't accept that key. Check it was copied in full." : e.status === 404 ? "Couldn't find that repository with this key: check the name, and that the key was given access to it." : "Couldn't reach GitHub (" + e.message + ")."; }
+  if (!info.private) return "That repository is public, so anyone could read your library. Make it private first.";
+  if (info.permissions && !info.permissions.push) return "That key can't save to the repository. Give it Contents: Read and write.";
+  GHM.cfg = Object.assign({ repo, token, branch: info.default_branch || "main" }, GHM_API !== "https://api.github.com" ? { api: GHM_API } : {}); await ghmPut("cfg", GHM.cfg);
+  return "";
+}
+function ghmChanged() {
+  lfNotify(); GHM.dirty = true; ghmStatus();
+  clearTimeout(GHM.saveT); GHM.saveT = setTimeout(() => ghmPut("lib", lfToFile()).catch(e => lfStatus("Couldn't save on this device: " + e.message, true)), 400);
+  clearTimeout(GHM.timer); GHM.timer = setTimeout(() => ghmSync("after changes"), 8000);
+}
+function ghmSync(why) {
+  if (!GHM.cfg) return Promise.resolve();
+  if (!navigator.onLine) { ghmStatus(); return Promise.resolve(); }
+  if (GHM.busy) { GHM.again = true; return GHM.busy; }
+  GHM.busy = ghmSyncOnce(why).then(note => { GHM.err = ""; GHM.note = note; GHM.last = new Date().toISOString(); ghmPut("lastSync", GHM.last); ghmPut("note", note); return note; },
+    e => { GHM.err = e.status === 401 ? "GitHub no longer accepts the key (it may have expired). Sign out and add a new one." : e.message; GHM.dirty = true; })
+    .then(r => { GHM.busy = null; ghmStatus(); if (GHM.again) { GHM.again = false; ghmSync("again"); } return r; });
+  ghmStatus();
+  return GHM.busy;
+}
+async function ghmSyncOnce(why, retry) {
+  const R = "/repos/" + GHM.cfg.repo, br = GHM.cfg.branch || "main";
+  GHM.dirty = false; clearTimeout(GHM.timer);
+  let head; try { head = await ghmReq("GET", R + "/git/ref/heads/" + br); } catch (e) { if (e.status === 404 || e.status === 409) throw new Error("The repository is empty: add a README to it on GitHub first."); throw e; }
+  const headSha = head.object.sha, commit = await ghmReq("GET", R + "/git/commits/" + headSha);
+  const tree = await ghmReq("GET", R + "/git/trees/" + commit.tree.sha + "?recursive=1");
+  const files = new Map((tree.tree || []).filter(t => t.type === "blob").map(t => [t.path, t.sha]));
+  let remote = {}, hadLib = false;
+  if (files.has("library.json")) { hadLib = true; const b = await ghmReq("GET", R + "/git/blobs/" + files.get("library.json")); remote = ghmDocs(JSON.parse(ghmUnB64(b.content))); }
+  const base = ghmDocs(await ghmGet("base")), local = Object.fromEntries(LF.store);
+  const { out, fromRemote, clashes } = ghmMerge(base, local, remote);
+  if (!ghmSame(out, local)) { LF.store = new Map(Object.entries(out)); lfNotify(); await ghmPut("lib", lfToFile()); }
+  const pending = ((await ghmGet("pending")) || []).filter(n => !files.has("images/" + n));
+  const needLib = !hadLib || !ghmSame(out, remote);
+  let sent = 0;
+  if (needLib || pending.length) {
+    const entries = [], cache = await caches.open("codex-images");
+    if (needLib) { const b = await ghmReq("POST", R + "/git/blobs", { content: ghmB64(JSON.stringify(lfToFile(), null, 1)), encoding: "base64" }); entries.push({ path: "library.json", mode: "100644", type: "blob", sha: b.sha }); }
+    for (const n of pending) { const hit = await cache.match(new URL("images/" + n, location.href).href); if (!hit) continue; const b = await ghmReq("POST", R + "/git/blobs", { content: await ghmBlobB64(await hit.blob()), encoding: "base64" }); entries.push({ path: "images/" + n, mode: "100644", type: "blob", sha: b.sha }); sent++; }
+    const t = await ghmReq("POST", R + "/git/trees", { base_tree: commit.tree.sha, tree: entries });
+    const c = await ghmReq("POST", R + "/git/commits", { message: "Codex sync from the web version (" + why + ")", tree: t.sha, parents: [headSha] });
+    try { await ghmReq("PATCH", R + "/git/refs/heads/" + br, { sha: c.sha, force: false }); }
+    catch (e) { if ((e.status === 422 || e.status === 409) && !retry) return ghmSyncOnce(why, true); throw e; }
+  }
+  await ghmPut("pending", []);
+  await ghmPut("base", lfToFile());
+  const bits = [];
+  if (fromRemote) bits.push(fromRemote + " change" + (fromRemote === 1 ? "" : "s") + " from GitHub");
+  if (needLib) bits.push("saved to GitHub");
+  if (sent) bits.push(sent + " picture" + (sent === 1 ? "" : "s") + " uploaded");
+  if (clashes) bits.push(clashes + " entr" + (clashes === 1 ? "y" : "ies") + " changed in both places (kept this device's)");
+  return bits.join(", ") || "already up to date";
+}
+async function ghmFirstPull() {
+  const R = "/repos/" + GHM.cfg.repo, head = await ghmReq("GET", R + "/git/ref/heads/" + (GHM.cfg.branch || "main"));
+  const commit = await ghmReq("GET", R + "/git/commits/" + head.object.sha), tree = await ghmReq("GET", R + "/git/trees/" + commit.tree.sha + "?recursive=1");
+  const t = (tree.tree || []).find(x => x.path === "library.json"); if (!t) return null;
+  return JSON.parse(ghmUnB64((await ghmReq("GET", R + "/git/blobs/" + t.sha)).content));
+}
+// Pictures added here: kept in the cache straight away (so they show offline) and uploaded on the next sync.
+const ghmAssets = {
+  async upload(file) {
+    const ext = ((file.name || "").match(/\.(png|jpe?g|webp|gif)$/i) || [, (file.type || "image/png").split("/")[1]])[1].toLowerCase().replace("jpeg", "jpg");
+    const name = Date.now().toString(36) + "-" + (slugify((file.name || "image").replace(/\.[^.]+$/, "")) || "image") + "." + ext;
+    const cache = await caches.open("codex-images");
+    await cache.put(new URL("images/" + name, location.href).href, new Response(file, { headers: { "Content-Type": file.type || "image/" + ext } }));
+    const pend = (await ghmGet("pending")) || []; pend.push(name); await ghmPut("pending", pend);
+    GHM.dirty = true; clearTimeout(GHM.timer); GHM.timer = setTimeout(() => ghmSync("new picture"), 8000);
+    return { id: name, url: "images/" + name, sizeBytes: file.size, contentType: file.type };
+  }
+};
+function ghmPanelInner() {
+  if (!GHM.cfg) return "";
+  return `<div class="gmpin ghsync"><p><strong>Sync with GitHub</strong> <span class="muted small">${esc(GHM.cfg.repo)}</span></p>
+    <p class="small">Last sync: <strong>${esc(GHM.last ? new Date(GHM.last).toLocaleString() : "not yet")}</strong>${GHM.busy ? " · syncing…" : ""}${GHM.note && !GHM.err ? ` <span class="muted">(${esc(GHM.note)})</span>` : ""}</p>
+    ${GHM.err ? `<p class="small" style="color:var(--bad)">${esc(GHM.err)}</p>` : ""}${!navigator.onLine ? `<p class="small muted">Offline: changes are saved on this device and sync when you're back online.</p>` : ""}
+    <div class="row"><button class="btn" data-act="ghmsync">Sync now</button><button class="btn ghost small" data-act="ghmout">Sign out of this device</button></div>
+    <p class="muted small">Your library is kept on this device, so it works offline. It syncs when you open the codex, a few seconds after changes, and when you switch away. If the same entry was changed here and elsewhere, this device's version is kept.</p></div>`;
+}
+document.addEventListener("click", async ev => {
+  if (!GH) return;
+  const el = ev.target.closest("[data-act]"); if (!el) return;
+  const a = el.dataset.act;
+  if (a === "ghmgo") {
+    el.disabled = true; el.textContent = "Connecting…";
+    const err = await ghmConnect((document.getElementById("ghmrepo") || {}).value.trim(), (document.getElementById("ghmtoken") || {}).value.trim());
+    if (err) { ghmSetup(err); return; }
+    el.textContent = "Downloading your library…";
+    // A new device takes the library from GitHub before starting, so it doesn't add its own built-in entries on top.
+    if (!(await ghmGet("lib"))) { try { const f = await ghmFirstPull(); if (f) { await ghmPut("lib", f); await ghmPut("base", f); } } catch (e) {} }
+    lfStart((await ghmGet("lib")) || { kind: "lore-codex-backup", entries: {}, tags: {}, books: {} });
+    await ghmSync("first open"); toast(GHM.err ? "GitHub: " + GHM.err : "Connected: " + GHM.note, GHM.err ? "bad" : "");
+    window.addEventListener("online", () => ghmSync("back online"));
+  }
+  else if (a === "ghmsync") { await ghmSync("by hand"); toast(GHM.err ? "GitHub: " + GHM.err : "GitHub: " + GHM.note, GHM.err ? "bad" : ""); }
+  else if (a === "ghmout") {
+    const unsynced = GHM.dirty || ((await ghmGet("pending")) || []).length;
+    if (!(await confirmBox(unsynced ? "Some changes haven't reached GitHub yet and would be lost. Sign out anyway?" : "Remove your library and key from this device? Everything stays safe on GitHub.", "Sign out"))) return;
+    for (const k of ["cfg", "lib", "base", "pending", "lastSync", "note"]) await ghmPut(k, null);
+    try { await caches.delete("codex-images"); } catch (e) {}
+    location.reload();
   }
 });
