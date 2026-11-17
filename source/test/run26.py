@@ -1,0 +1,33 @@
+import json
+from playwright.sync_api import sync_playwright
+exec(open('run16.py').read().split("    pg.goto('http://localhost:8765/index.html#char-csaahan')")[0].replace("with sync_playwright() as p:","p=sync_playwright().start()\nif 1:"))
+d=json.load(open('/home/claude/sheets/draeden.json'))
+d['caster']={'on':True,'kind':'half','ability':'wis','used':0,'high':{}}
+d['spells']=[{'name':'Eldritch Blast','level':0},{'name':'Hunter\'s Mark','level':1},{'name':'Cure Wounds','level':1},{'name':'Scorching Ray','level':2},{'name':'Booming Blade','level':0}]
+pg.goto('http://localhost:8765/index.html#spells'); pg.wait_for_timeout(1500)
+pg.add_style_tag(content='#toasts{display:none!important}')
+pg.evaluate("(async(c)=>{const db=await claude.use('db');await db.doc('characters/cdraeden').set(c)})(%s)"%json.dumps(d)); pg.wait_for_timeout(300)
+pg.screenshot(path='spells.png')
+pg.fill('#spq','fire'); pg.wait_for_timeout(400); pg.check('#spcombat'); pg.wait_for_timeout(200)
+pg.screenshot(path='spells-fire.png')
+pg.goto('http://localhost:8765/index.html#spell-srd-burning-hands'); pg.wait_for_timeout(300); pg.screenshot(path='spell-page.png')
+# new homebrew spell
+pg.goto('http://localhost:8765/index.html#spells'); pg.wait_for_timeout(300)
+pg.click('[data-act=new][data-type=spell]'); pg.wait_for_timeout(400)
+pg.fill('#ed-title','Frost Lance'); pg.select_option('#sp-level','2'); pg.select_option('#sp-school','Evocation'); pg.fill('#sp-range','Self')
+pg.select_option('#sp-attack','save'); pg.select_option('#sp-save','dex'); pg.check('#sp-half'); pg.fill('#sp-dmg','4d8'); pg.fill('#sp-dtype','cold'); pg.select_option('#sp-shape','line'); pg.fill('#sp-size','60')
+pg.locator('fieldset[data-for=spell]').screenshot(path='spell-editor.png')
+pg.click('form[data-form=entry] button[type=submit]'); pg.wait_for_timeout(500)
+pg.screenshot(path='spell-homebrew.png')
+fid=pg.evaluate("[...S.entries].find(([k,v])=>v.title==='Frost Lance')[0]")
+pg.goto('http://localhost:8765/index.html#char-cdraeden'); pg.wait_for_timeout(400)
+pg.click('[data-act=cedit]'); pg.wait_for_timeout(300)
+pg.fill('#spadd','Frost Lance'); pg.click('[data-act=spadd]'); pg.wait_for_timeout(300)
+pg.fill('#spadd','Fireball'); pg.click('[data-act=spadd]'); pg.wait_for_timeout(300)
+k=pg.evaluate("S.chars.get('cdraeden').spells.findIndex(s=>s.name===\"Hunter's Mark\")")
+pg.select_option(f'[data-cf="spells.{k}.combat"]','yes'); pg.wait_for_timeout(300)
+print(pg.evaluate("JSON.stringify(S.chars.get('cdraeden').spells)"))
+pg.click('[data-act=cedit]'); pg.wait_for_timeout(300)
+pg.locator('.ccombat').screenshot(path='combat-spells.png')
+pg.locator('.cspells').screenshot(path='spell-list.png')
+print(errs)

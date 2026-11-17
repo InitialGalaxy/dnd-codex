@@ -1,0 +1,8 @@
+# Your campaign and settings never go in this (public) repository.
+library.json
+library*.json
+images/
+backups/
+codex-config.json
+*.log
+node_modules/

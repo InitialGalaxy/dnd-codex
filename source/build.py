@@ -1,0 +1,10 @@
+import sys
+open('chars_app.js','w').write(open('srd_data.js').read()+'\n'+open('srd_books_data.js').read()+'\n'+open('srd_books.js').read()+'\n'+open('srd.js').read()+'\n'+open('characters.js').read()+'\n'+open('inventory.js').read()+'\n'+open('proficiency.js').read()+'\n'+open('itemres.js').read()+'\n'+open('summons.js').read()+'\n'+open('shapeshift.js').read()+'\n'+open('encounters.js').read()+'\n'+open('spells.js').read()+'\n'+open('levelup.js').read()+'\n'+open('spellbook.js').read()+'\n'+open('aoe.js').read()+'\n'+open('widgets.js').read()+'\n'+open('handout.js').read()+'\n'+open('loot.js').read()+'\n'+open('partset.js').read()+'\n'+open('srd_class_basics.js').read()+'\n'+open('classes.js').read()+'\n'+open('homebrew.js').read()+'\n'+open('phb_subclasses.js').read()+'\n'+open('srd_feats_races.js').read()+'\n'+open('feats.js').read()+'\n'+open('importbar.js').read()+'\n'+open('quickchar.js').read()+'\n'+open('bookedit.js').read()+'\n'+open('bookside.js').read()+'\n'+open('booklib.js').read()+'\n'+open('bookmigrate.js').read()+'\n'+open('sbform.js').read()+'\n'+open('vtt.js').read()+'\n'+open('app.js').read())
+s=open('shell.html').read()
+for k,f in [('/*PARSER*/','mapparser.js'),('/*DOCMD*/','docmd.js'),('/*APP*/','localfs.js'),('/*APP2*/','richtext.js'),('/*APP3*/','chars_app.js')]:
+    c=open(f).read(); assert '</script>' not in c; s=s.replace(k,c+('\n/*APP2*/' if k=='/*APP*/' else '\n/*APP3*/' if k=='/*APP2*/' else ''))
+open('index.html','w').write(s)
+# Local copy: same page plus a flag that switches storage to the folder it sits in.
+loc=s.replace('<title>DnD Codex</title>','<title>DnD Codex</title>\n<script id="codex-local">window.__CODEX_LOCAL = true;</script>')
+open('DnD Codex.html','w').write(loc)
+print(len(s), len(loc))

@@ -1,0 +1,17 @@
+import json
+from playwright.sync_api import sync_playwright
+exec(open('run16.py').read().split("    pg.goto('http://localhost:8765/index.html#char-csaahan')")[0].replace("with sync_playwright() as p:","p=sync_playwright().start()\nif 1:"))
+pg.goto('http://localhost:8765/index.html#char-cvakryn'); pg.wait_for_timeout(1500)
+pg.add_style_tag(content='#toasts{display:none!important}')
+pg.click('[data-act=cedit]'); pg.wait_for_timeout(300)
+print(pg.inner_text('.srdfill'))
+pg.select_option('#fill-subrace','Hill Dwarf'); pg.wait_for_timeout(200)
+pg.locator('.srdfill').screenshot(path='fill.png')
+before=pg.evaluate("S.chars.get('cvakryn').features.map(f=>f.name)")
+pg.click('[data-act=srdfill]'); pg.wait_for_timeout(300)
+after=pg.evaluate("S.chars.get('cvakryn').features.map(f=>[f.name,f.source,f.note,f.desc.length])")
+print(len(before),'->',len(after)); print(after)
+print(pg.inner_text('.srdfill button'))
+pg.click('[data-act=cedit]'); pg.wait_for_timeout(300)
+pg.locator('.cfeat').screenshot(path='fill-view.png')
+print(errs)

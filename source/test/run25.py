@@ -1,0 +1,23 @@
+import json
+from playwright.sync_api import sync_playwright
+exec(open('run16.py').read().split("    pg.goto('http://localhost:8765/index.html#char-csaahan')")[0].replace("with sync_playwright() as p:","p=sync_playwright().start()\nif 1:"))
+pg.goto('http://localhost:8765/index.html#char-csaahan'); pg.wait_for_timeout(1500)
+pg.add_style_tag(content='#toasts{display:none!important}')
+print('before', pg.evaluate("['str','dex'].map(a=>[cScore(S.chars.get('csaahan'),a),cMod(S.chars.get('csaahan'),a)])"))
+pg.select_option('[data-asi="8"][data-part="type"]','two'); pg.wait_for_timeout(200)
+pg.select_option('[data-asi="8"][data-part="a"]','dex'); pg.wait_for_timeout(200)
+pg.select_option('[data-asi="8"][data-part="b"]','str'); pg.wait_for_timeout(200)
+pg.select_option('[data-asi="4"][data-part="type"]','feat'); pg.wait_for_timeout(200)
+pg.fill('[data-asi="4"][data-part="feat"]','Grappler'); pg.press('[data-asi="4"][data-part="feat"]','Tab'); pg.wait_for_timeout(300)
+pg.select_option('[data-lvsub]','Champion'); pg.wait_for_timeout(200)
+c=pg.evaluate("JSON.stringify([S.chars.get('csaahan').asi,S.chars.get('csaahan').subclass,S.chars.get('csaahan').features.filter(f=>f.asi)])"); print(c)
+print('after', pg.evaluate("['str','dex'].map(a=>[cScore(S.chars.get('csaahan'),a),cMod(S.chars.get('csaahan'),a)])"), pg.evaluate("cSave(S.chars.get('csaahan'),'str')"))
+pg.locator('.levelup').screenshot(path='lv.png')
+pg.click('.ctabs [data-v=stats]') if pg.locator('.ctabs').is_visible() else None
+pg.locator('.cabil').screenshot(path='lv-abil.png')
+pg.click('[data-act=cedit]'); pg.wait_for_timeout(300)
+pg.locator('.levelup').screenshot(path='lv-edit.png')
+print(pg.inner_text('.srdfill button'))
+pg.select_option('[data-lvsub]','__other'); pg.wait_for_timeout(300); pg.keyboard.type('Battle Master'); pg.wait_for_timeout(900)
+print(pg.evaluate("S.chars.get('csaahan').subclass"))
+print(errs)
