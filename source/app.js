@@ -700,7 +700,7 @@ function viewHome() {
   const party = chars.length ? `<ul class="hparty">${chars.slice(0, 8).map(([id, c]) => {
     const hp = Number(c.hp && c.hp.cur) || 0, mx = Number(c.hp && c.hp.max) || 0, pct = mx ? Math.max(0, Math.min(100, Math.round(hp / mx * 100))) : 0;
     const ac = typeof cAC === "function" ? cAC(c) : (c.ac || "");
-    return `<li><a href="#char-${esc(id)}"><span class="hpname"><b>${esc(c.name || "Unnamed")}</b><span class="muted small">${esc(typeof charSub === "function" ? charSub(c) : "")}</span></span>
+    return `<li><a href="#char-${esc(id)}">${(c.image || c.token) ? `<img class="hpimg" src="${esc(c.image || c.token)}" alt="">` : `<span class="hpimg hpinit">${esc((c.name || "?")[0])}</span>`}<span class="hpname"><b>${esc(c.name || "Unnamed")}</b><span class="muted small">${esc(typeof charSub === "function" ? charSub(c) : "")}</span></span>
       <span class="hpac" title="Armour Class">${esc(String(ac))}<small>AC</small></span>
       <span class="hphp" title="Hit points"><span class="hpbar"><i class="${pct <= 25 ? "low" : pct <= 50 ? "mid" : ""}" style="width:${pct}%"></i></span><span class="small">${hp}/${mx}</span></span></a></li>`;
   }).join("")}</ul>` : `<p class="muted">${GM ? "No character sheets yet." : "No characters yet."}</p>${GM ? `<a class="btn ghost small" href="#characters">Add a character</a>` : ""}`;
@@ -757,7 +757,7 @@ function viewHome() {
       <aside class="hside">
         ${GM && todo ? card("htodocard", "Needs attention", null, `<ul class="htodo">${todo}</ul>`) : ""}
         ${sp ? card("t-creature hspotcard", "Creature of the day", ["bestiary", "Bestiary"], spotHtml) : ""}
-        ${books.length ? card("", "Books", ["books", "All books"], `<ul class="hbooks">${books.slice(0, 6).map(([id, b]) => `<li><a href="#book-${esc(id)}">${esc(b.title || "Untitled")}</a>${b.status ? `<span class="muted small">${esc(b.status)}</span>` : ""}</li>`).join("")}</ul>`) : ""}
+        ${books.length ? card("hbookscard", "Books", ["books", "All books"], `<div class="hstack">${books.slice(0, 14).map(([id, b], i) => `<a href="#book-${esc(id)}" class="hbook st-${slugify(b.status || "")} hb${i % 5}" title="${esc(b.title || "Untitled")}${b.status ? " (" + esc(b.status) + ")" : ""}"><span>${esc(b.title || "Untitled")}</span></a>`).join("")}</div>${books.length > 14 ? `<p class="muted small">and ${books.length - 14} more</p>` : ""}`) : ""}
         ${S.meta && S.towns.length ? `<a class="hcard hworld" href="#world"><header><h2>${esc(S.meta.name || "World")}</h2><span class="hmore">Map →</span></header><div class="thumb">${worldSvg({ thumb: true })}</div></a>` : ""}
       </aside>
     </div>

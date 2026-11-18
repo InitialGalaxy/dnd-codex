@@ -496,9 +496,25 @@ a.hcard:hover { text-decoration: none; border-color: var(--brass-dim); }
 .hcont.empty { border-style: dashed; background: var(--panel); }
 .hparty, .hrecent, .htodo, .hbooks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
 .hparty li + li, .hrecent li + li, .hbooks li + li { border-top: 1px solid var(--line); }
-.hparty a { display: grid; grid-template-columns: minmax(0, 1fr) auto 150px; gap: 14px; align-items: center; padding: 9px 4px; color: var(--text); border-radius: 8px; }
+.hparty a { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto 150px; gap: 14px; align-items: center; padding: 9px 4px; color: var(--text); border-radius: 8px; }
 .hparty a:hover { text-decoration: none; background: var(--panel-2); }
 .hpname { display: grid; min-width: 0; }
+.hpimg { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--brass-dim); background: var(--panel-2); }
+.hpinit { display: grid; place-items: center; font: 700 1.1rem var(--display); color: var(--brass); }
+/* Books lying in a pile: each one a spine you can click */
+.hstack { display: flex; flex-direction: column-reverse; align-items: center; gap: 3px; padding: 8px 0 0; border-bottom: 4px solid var(--brass-dim); border-radius: 0 0 2px 2px; }
+.hbook { position: relative; display: flex; align-items: center; justify-content: center; height: 30px; width: 88%; padding: 0 22px; border-radius: 3px 5px 5px 3px; color: #1b1408; background: linear-gradient(180deg, var(--brass-dim), var(--brass) 38%, var(--brass-dim)); box-shadow: 0 2px 0 rgba(0,0,0,.35); transition: transform .15s, filter .15s; }
+.hbook::before, .hbook::after { content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px; background: rgba(27,20,8,.35); }
+.hbook::before { left: 10px; } .hbook::after { right: 10px; }
+.hbook span { font: 700 .8rem var(--ui); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbook:hover { text-decoration: none; transform: translateX(6px); filter: brightness(1.12); }
+.hbook.hb1 { width: 80%; height: 26px; transform: translateX(-8px); } .hbook.hb1:hover { transform: translateX(-2px); }
+.hbook.hb2 { width: 94%; height: 34px; transform: translateX(5px); } .hbook.hb2:hover { transform: translateX(11px); }
+.hbook.hb3 { width: 76%; height: 28px; transform: translateX(10px); } .hbook.hb3:hover { transform: translateX(16px); }
+.hbook.hb4 { width: 90%; height: 32px; transform: translateX(-4px); } .hbook.hb4:hover { transform: translateX(2px); }
+.hbook.st-in-progress { background: linear-gradient(180deg, #3f6f93, var(--c-location) 38%, #3f6f93); }
+.hbook.st-planned { background: repeating-linear-gradient(90deg, var(--line) 0 6px, var(--panel-2) 6px 10px); color: var(--muted); }
+.hbook.st-planned::before, .hbook.st-planned::after { background: var(--line); }
 .hpname > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hpac { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px 10px 16px 16px; border: 1px solid var(--line); background: var(--panel-2); font: 700 1rem/1 var(--ui); }
 .hpac small { font: 600 .55rem var(--ui); letter-spacing: .1em; color: var(--muted); margin-top: -8px; }
@@ -535,7 +551,8 @@ a.hcard:hover { text-decoration: none; border-color: var(--brass-dim); }
   .hstat { flex: 0 0 118px; }
   .hcont { padding: 16px 18px; }
   .hcont strong { font-size: 1.45rem; }
-  .hparty a { grid-template-columns: minmax(0, 1fr) auto 92px; gap: 10px; }
+  .hparty a { grid-template-columns: 38px minmax(0, 1fr) auto 84px; gap: 10px; }
+  .hpimg { width: 38px; height: 38px; }
   .hrecent li { grid-template-columns: minmax(0, 1fr) auto; }
   .hrecent li > .small { display: none; }
 }
@@ -10805,7 +10822,7 @@ function viewHome() {
   const party = chars.length ? `<ul class="hparty">${chars.slice(0, 8).map(([id, c]) => {
     const hp = Number(c.hp && c.hp.cur) || 0, mx = Number(c.hp && c.hp.max) || 0, pct = mx ? Math.max(0, Math.min(100, Math.round(hp / mx * 100))) : 0;
     const ac = typeof cAC === "function" ? cAC(c) : (c.ac || "");
-    return `<li><a href="#char-${esc(id)}"><span class="hpname"><b>${esc(c.name || "Unnamed")}</b><span class="muted small">${esc(typeof charSub === "function" ? charSub(c) : "")}</span></span>
+    return `<li><a href="#char-${esc(id)}">${(c.image || c.token) ? `<img class="hpimg" src="${esc(c.image || c.token)}" alt="">` : `<span class="hpimg hpinit">${esc((c.name || "?")[0])}</span>`}<span class="hpname"><b>${esc(c.name || "Unnamed")}</b><span class="muted small">${esc(typeof charSub === "function" ? charSub(c) : "")}</span></span>
       <span class="hpac" title="Armour Class">${esc(String(ac))}<small>AC</small></span>
       <span class="hphp" title="Hit points"><span class="hpbar"><i class="${pct <= 25 ? "low" : pct <= 50 ? "mid" : ""}" style="width:${pct}%"></i></span><span class="small">${hp}/${mx}</span></span></a></li>`;
   }).join("")}</ul>` : `<p class="muted">${GM ? "No character sheets yet." : "No characters yet."}</p>${GM ? `<a class="btn ghost small" href="#characters">Add a character</a>` : ""}`;
@@ -10862,7 +10879,7 @@ function viewHome() {
       <aside class="hside">
         ${GM && todo ? card("htodocard", "Needs attention", null, `<ul class="htodo">${todo}</ul>`) : ""}
         ${sp ? card("t-creature hspotcard", "Creature of the day", ["bestiary", "Bestiary"], spotHtml) : ""}
-        ${books.length ? card("", "Books", ["books", "All books"], `<ul class="hbooks">${books.slice(0, 6).map(([id, b]) => `<li><a href="#book-${esc(id)}">${esc(b.title || "Untitled")}</a>${b.status ? `<span class="muted small">${esc(b.status)}</span>` : ""}</li>`).join("")}</ul>`) : ""}
+        ${books.length ? card("hbookscard", "Books", ["books", "All books"], `<div class="hstack">${books.slice(0, 14).map(([id, b], i) => `<a href="#book-${esc(id)}" class="hbook st-${slugify(b.status || "")} hb${i % 5}" title="${esc(b.title || "Untitled")}${b.status ? " (" + esc(b.status) + ")" : ""}"><span>${esc(b.title || "Untitled")}</span></a>`).join("")}</div>${books.length > 14 ? `<p class="muted small">and ${books.length - 14} more</p>` : ""}`) : ""}
         ${S.meta && S.towns.length ? `<a class="hcard hworld" href="#world"><header><h2>${esc(S.meta.name || "World")}</h2><span class="hmore">Map →</span></header><div class="thumb">${worldSvg({ thumb: true })}</div></a>` : ""}
       </aside>
     </div>
