@@ -310,6 +310,7 @@ function diceify(html) {
 }
 function isExternal(url) { return /^https?:\/\//i.test(url) && !url.startsWith(location.origin); }
 // Two copies of a picture for the torn-page look (see .torn in the styles).
+function tornVar(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return "tv" + (h % 4); }
 function tornHtml(html) { return html.replace(/<img ([^>]*)>/, (m, a) => `<img class="tla" ${a}><img class="tlb" ${a.replace(/alt="[^"]*"/, 'alt=""')} aria-hidden="true">`); }
 function imageHtml(url, alt, entryId) {
   if (!/^(https?:\/\/|\/_blob\/|images\/|blob:|data:image\/)/i.test(url)) return "";
@@ -897,7 +898,7 @@ function beastDetail(id) {
   const sb = e.statblock;
   return `<div class="bdhead"><h2><a href="#entry-${esc(id)}">${esc(e.title)}</a></h2><a class="btn ghost small" href="#entry-${esc(id)}">Open full page →</a></div>
     <div class="tags">${(e.tags || []).map(s => tagChip(s)).join("")}</div>
-    ${e.image ? `<div class="bdimg torn">${tornHtml(imageHtml(e.image, e.title, id))}</div>` : ""}
+    ${e.image ? `<div class="bdimg torn ${tornVar(id)}">${tornHtml(imageHtml(e.image, e.title, id))}</div>` : ""}
     ${sb ? statBlockHtml(sb, e.title, "core") + featuresHtml(sb, id) : `<p class="muted">No stat block yet.</p>`}
     ${ssEntryHtml(id, e)}
     ${lootHtml(e.loot, "Harvest table", creatureSizeNum(e))}
@@ -1022,7 +1023,7 @@ function hideBtn(hidden, act, id) {
 }
 function portraitHtml(id, e) {
   const img = e.image ? (e.type === "creature" ? tornHtml(imageHtml(e.image, e.title, id)) : imageHtml(e.image, e.title, id)) : "";
-  return `<div class="portrait${img ? (e.type === "creature" ? " torn" : "") : " empty"}">${img || `<span>No image yet</span>`}
+  return `<div class="portrait${img ? (e.type === "creature" ? " torn " + tornVar(id) : "") : " empty"}">${img || `<span>No image yet</span>`}
     ${S.assets ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">${e.image ? "Replace image" : "Add image"}</button>` : ""}</div>`;
 }
 function creatureHtml(id, e) {
