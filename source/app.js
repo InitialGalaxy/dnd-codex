@@ -732,10 +732,9 @@ function viewHome() {
     ${sp.body ? `<span class="spotlore">${esc(excerpt(sp.body, 110))}</span>` : ""}</a>` : "";
 
   const stat = (href, n, label, cls, sub) => `<a class="hstat ${cls}" href="#${href}"><b>${fmt(n)}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</a>`;
-  const worldName = S.meta && S.meta.name ? S.meta.name : "";
   return `<div class="home2">
     <div class="hhead">
-      <div class="hhtitle"><h1>${worldName ? esc(worldName) : (READONLY ? "A codex" : "Your codex")} <span>${worldName ? "codex" : "for DnD"}</span></h1>
+      <div class="hhtitle"><h1>DnD <span>Codex</span></h1>
         ${GM ? `<div class="hactions"><button class="btn" data-act="new">+ New entry</button><a class="btn ghost" href="#characters">Characters</a><a class="btn ghost" href="#encounters">Encounters</a></div>` : ""}</div>
       <label class="search big"><span class="sr">Search all lore</span><input id="homeq" type="search" placeholder="Search creatures, items, books and towns" data-input="homeq"></label>
     </div>
