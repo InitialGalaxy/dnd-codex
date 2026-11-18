@@ -526,12 +526,20 @@ function route() {
   return { v: "home" };
 }
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+document.addEventListener("click", ev => { if (ev.target.closest && ev.target.closest(".nmpop button")) { const nm = document.getElementById("navmore"); if (nm) nm.open = false; } });
+document.addEventListener("pointerdown", ev => {
+  const nm = document.getElementById("navmore"); if (nm && nm.open && !nm.contains(ev.target)) nm.open = false;
+  document.querySelectorAll("details.filterpop[open]").forEach(d => { if (!d.contains(ev.target) && !(ev.target.closest && ev.target.closest("#modal"))) d.open = false; });
+});
 
 // ---------- render ----------
 function render() {
   if (LOCAL && !S.db) return;
   const r = route();
-  document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (r.v === "town" && a.dataset.nav === "world") || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (r.v === "town" && a.dataset.nav === "world") || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  { const nm = document.getElementById("navmore"); if (nm) { const on = nm.querySelector("a.on"); nm.classList.toggle("on", !!on); nm.querySelector(".nmlab").textContent = on ? on.textContent.replace(/ rules$/, "") : "More"; nm.open = false; } }
+  { const nav = document.querySelector(".nav"), on = nav && nav.querySelector("a.on"); if (on && nav.scrollWidth > nav.clientWidth) { const l = on.offsetLeft - nav.offsetLeft, r = l + on.offsetWidth; if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth - 28) nav.scrollLeft = Math.max(0, l - 24); } }
+  { const q = document.getElementById("q"); if (q && document.activeElement !== q && !q.value) document.body.classList.remove("showsearch"); }
   document.body.classList.toggle("vttmode", r.v === "vttc");
   document.body.classList.toggle("at-home", r.v === "home");
   beLeave(r);
@@ -743,6 +751,7 @@ function tagPickerHtml(f, scopeType) {
       ${loose.length ? `<div class="tpgroup flat"><div class="tplabel">Other tags</div><div class="tpchips">${loose.map(chip).join("")}</div></div>` : ""}
     </div>
     <p class="muted small tpempty" hidden>No tags match.</p>
+    <div class="tpfoot"><button type="button" class="btn small" data-act="tpdone">Done</button></div>
   </div>`;
 }
 function filterTagPicker(q) {
@@ -835,35 +844,26 @@ function viewLibrary(bestiary) {
   const list = all.filter(([, e]) => entryMatches(e, f, forced)).sort((a, b) => byName(a[1].title, b[1].title));
   const typeCounts = {}; all.forEach(([, e]) => { typeCounts[e.type] = (typeCounts[e.type] || 0) + 1; });
 
-  const typeFilters = bestiary ? "" : `<div class="fgroup"><h3>Type</h3><div class="chips">${TYPES.map(t => `<button class="fchip t-${t.id}${f.types.has(t.id) ? " on" : ""}" data-act="ftype" data-v="${t.id}" aria-pressed="${f.types.has(t.id)}">${t.plural}<span>${typeCounts[t.id] || 0}</span></button>`).join("")}</div></div>`;
-  const tagTree = slugs => slugs.map(s => {
-    const kids = children(s);
-    return `<li><button class="ttag${f.tags.has(s) ? " on" : ""}" data-act="ftag" data-v="${esc(s)}" aria-pressed="${f.tags.has(s)}">${esc(tagName(s))}<span>${tagCount(s)}</span></button>${kids.length ? `<ul>${tagTree(kids)}</ul>` : ""}</li>`;
-  }).join("");
-  const roots = allTagSlugs().filter(s => !tagParent(s) || !allTagSlugs().includes(tagParent(s)));
-  const filters = `
-    ${typeFilters}
-    <div class="fgroup"><h3>Tags</h3>
-      <div class="seg" role="group" aria-label="How tag filters combine"><button class="${f.mode !== "or" ? "on" : ""}" data-act="fmode" data-v="and" aria-pressed="${f.mode !== "or"}">Match all tags</button><button class="${f.mode === "or" ? "on" : ""}" data-act="fmode" data-v="or" aria-pressed="${f.mode === "or"}">Match any tag</button></div>
-      <p class="muted small seghint">${f.mode === "or" ? "Shows entries with at least one of the tags you pick." : "Shows only entries that have every tag you pick."}</p>${roots.length ? `<ul class="tree">${tagTree(roots)}</ul>` : `<p class="muted small">Tags you add to entries appear here.</p>`}</div>
-    ${(f.types.size || f.tags.size || f.q) ? `<button class="btn ghost small" data-act="fclear">Clear filters</button>` : ""}`;
-
+  const typeBar = bestiary ? "" : `<div class="typebar" role="group" aria-label="Filter by type">${TYPES.filter(t => typeCounts[t.id] || f.types.has(t.id)).map(t => `<button type="button" class="tchip t-${t.id}${f.types.has(t.id) ? " on" : ""}" data-act="ftype" data-v="${t.id}" aria-pressed="${f.types.has(t.id)}"><i aria-hidden="true"></i>${t.plural}<span>${typeCounts[t.id] || 0}</span></button>`).join("")}</div>`;
+  const filtering = f.types.size || f.tags.size || f.q;
   const active = [...f.tags].map(s => `<button class="tag on" data-act="ftag" data-v="${esc(s)}" title="Remove filter">${esc(tagName(s))} ✕</button>`).join("");
   const cards = list.length ? list.map(([id, e]) => entryCard(id, e)).join("") :
     (S.entries.size ? `<div class="empty">Nothing matches these filters.</div>` :
       `<div class="empty"><p>Your codex is empty.</p><button class="btn" data-act="new">Write the first entry</button></div>`);
   return `
-  <div class="lib">
-    <aside class="filters"><details open><summary>Filters</summary>${filters}</details></aside>
-    <section>
-      <div class="libhead">
-        <h1>${bestiary ? "Bestiary" : "Library"}</h1>
-        <p class="muted">${list.length} of ${bestiary ? (typeCounts.creature || 0) + " creatures" : all.length + " entries"}${f.tags.size ? (f.mode === "or" ? " with any of" : " with all of") : ""} ${active}</p>
+  <section class="libv">
+    <div class="libhead">
+      <div class="lhrow"><h1>${bestiary ? "Bestiary" : "Library"}</h1><span class="muted lhcount">${list.length} of ${bestiary ? (typeCounts.creature || 0) + " creatures" : all.length + " entries"}</span></div>
+      <div class="btools libtools">
         <label class="search"><span class="sr">Search entries</span><input id="libq" type="search" placeholder="Search titles, text and tags" value="${esc(f.q)}" data-input="libq"></label>
+        <details class="filterpop" id="libtags"${S.libTagsOpen ? " open" : ""}><summary class="btn ghost${f.tags.size ? " has" : ""}"><span aria-hidden="true">🏷</span> Tags${f.tags.size ? ` <b class="cnt">${f.tags.size}</b>` : ""} <span aria-hidden="true" class="caret">▾</span></summary><div class="pop">${allTagSlugs().length ? tagPickerHtml(f, forced) : `<p class="muted small">Tags you add to entries appear here.</p>`}</div></details>
+        ${filtering ? `<button class="btn ghost small" data-act="fclear" title="Clear filters">Clear<span class="fclab"> filters</span></button>` : ""}
       </div>
-      <div class="cards">${cards}</div>
-    </section>
-  </div>`;
+      ${typeBar}
+      ${f.tags.size ? `<p class="activetags"><span class="muted small">${f.mode === "or" ? "Any of" : "All of"}</span> ${active}</p>` : ""}
+    </div>
+    <div class="cards">${cards}</div>
+  </section>`;
 }
 function entryCard(id, e) {
   const t = TYPE[e.type] || TYPE.general;
@@ -2221,6 +2221,8 @@ document.addEventListener("click", async ev => {
   else if (a === "ftagsclear") { S.filter.tags = new Set(); render(); }
   else if (a === "fmode") { S.filter.mode = v === "or" ? "or" : "and"; render(); }
   else if (a === "mergedupes") mergeDuplicates();
+  else if (a === "tpdone") { const d = el.closest("details"); if (d) d.open = false; }
+  else if (a === "topsearch") { const on = document.body.classList.toggle("showsearch"); if (on) { const q = document.getElementById("q"); if (q) q.focus(); } }
   else if (a === "imgup") pickImage(async res => {
     const e = S.entries.get(el.dataset.id); if (!e) return;
     const from = el.dataset.url, to = assetPath(res);
@@ -2340,7 +2342,8 @@ async function restoreFromText() {
 }
 document.addEventListener("toggle", ev => {
   const t = ev.target;
-  if (t.id === "beasttags") { const was = S.beast.tagsOpen; S.beast.tagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
+  if (t.id === "libtags") { const was = S.libTagsOpen; S.libTagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
+  else if (t.id === "beasttags") { const was = S.beast.tagsOpen; S.beast.tagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
   else if (t.classList && t.classList.contains("tpgroup") && !S.beast.tagQ) { if (t.open) S.beast.openGroups.add(t.dataset.root); else S.beast.openGroups.delete(t.dataset.root); }
 }, true);
 document.addEventListener("pointerdown", ev => {

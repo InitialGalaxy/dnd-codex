@@ -248,7 +248,7 @@ function srvStart() {
   S.assets = srvAssets; S.downloads = lfDownloads;
   if (PLAYER) document.body.classList.add("readonly", "player");
   const sv = document.getElementById("savestate");
-  if (sv && !window.__CODEX_HOST && !document.querySelector(".rolebtn")) sv.insertAdjacentHTML("afterend", `<button type="button" class="rolebtn" data-act="srvrole" title="Sign out and choose again">${PLAYER ? "Player" : "GM"} · switch</button>`);
+  if (sv && !window.__CODEX_HOST && !document.querySelector(".rolebtn")) sv.insertAdjacentHTML("afterend", `<button type="button" class="rolebtn" data-act="srvrole" title="Sign out and choose again"><span class="rbfull">${PLAYER ? "Player" : "GM"} · switch</span><span class="rbshort">Switch</span></button>`);
   connectDb(lfDb); srvListen(); lfStatus("Saved"); render();
 }
 async function srvImport(file) {

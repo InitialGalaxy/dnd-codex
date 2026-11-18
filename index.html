@@ -64,14 +64,29 @@ code { background: var(--panel-2); padding: 0 .3em; border-radius: 3px; font-siz
 
 /* header */
 .top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
-.topin { max-width: 1240px; margin: 0 auto; padding: 10px 20px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.topin { max-width: 1240px; margin: 0 auto; padding: 10px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .brand { font-family: var(--display); font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; color: var(--text); white-space: nowrap; }
 .brand b { color: var(--brass); font-weight: 700; }
-.nav { display: flex; gap: 4px; flex-wrap: wrap; }
-.nav a { color: var(--muted); padding: 6px 10px; border-radius: 6px; font-weight: 500; }
-.nav a:hover { color: var(--text); text-decoration: none; background: var(--panel); }
-.nav a.on { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--brass); }
-.topsearch { flex: 1; min-width: 160px; max-width: 320px; margin-left: auto; }
+.brand:hover { text-decoration: none; }
+.navwrap { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.nav a, .navmore > summary { color: var(--muted); padding: 6px 8px; border-radius: 6px; font-weight: 500; white-space: nowrap; transition: color .12s, background .12s; }
+.nav a:hover, .navmore > summary:hover { color: var(--text); text-decoration: none; background: var(--panel); }
+.nav a.on, .navmore.on > summary { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--brass); }
+.navmore { position: relative; }
+.navmore > summary { list-style: none; cursor: pointer; user-select: none; display: inline-flex; gap: 4px; align-items: center; }
+.navmore > summary::-webkit-details-marker { display: none; }
+.navmore[open] > summary { color: var(--text); background: var(--panel); }
+.nmpop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 190px; display: grid; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.5); }
+.nmpop a, .nmpop button { display: block; text-align: left; padding: 8px 12px; border-radius: 6px; color: var(--text); font: 500 .95rem var(--ui); background: none; border: 0; cursor: pointer; }
+.nmpop a:hover, .nmpop button:hover { background: var(--panel-2); text-decoration: none; }
+.nmpop a.on { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--brass); }
+.nmpop .nmexport { border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 4px; padding-top: 10px; }
+.topsearch { flex: 1 1 140px; min-width: 120px; max-width: 280px; margin-left: auto; }
+.topsearch input { padding-top: 7px; padding-bottom: 7px; }
+.topin .searchtog { display: none; }
+.iconbtn { padding: 7px 10px; line-height: 0; }
+.topnew { white-space: nowrap; }
 input[type=search], input[type=text], input[type=password], .enced input[type=number], .enced input:not([type]), .holdsopts input[type=number], .qcform input[type=number], .itresrow input[type=number], .sbhpctl input[type=number], .sbsprow input[type=number], .mrow input[type=number], .vform input[type=number], .usepanel input[type=number], .vllrow input[type=number], .vcondadd input[type=number], .vturns input[type=number], .vhpbox input[type=number], select, textarea {
   width: 100%; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px;
 }
@@ -123,6 +138,39 @@ a.tag:hover { border-color: var(--brass-dim); text-decoration: none; }
 .libhead { display: grid; gap: 6px; margin-bottom: 18px; }
 .libhead p { margin: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .libhead .search { max-width: 460px; }
+/* Library: search + Tags menu + type strip */
+.libv .libhead { gap: 12px; margin-bottom: 18px; }
+.lhrow { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.lhrow h1 { margin: 0; }
+.libtools .search { max-width: 420px; }
+.libtools .filterpop > summary { display: inline-flex; align-items: center; gap: 6px; }
+.libtools .filterpop > summary.has { border-color: var(--brass); color: var(--text); }
+.filterpop > summary .cnt { display: inline-grid; place-items: center; min-width: 1.4em; height: 1.4em; padding: 0 4px; border-radius: 999px; background: var(--brass); color: #1a1408; font: 700 .72rem var(--ui); }
+.filterpop > summary .caret { font-size: .7em; opacity: .7; transition: transform .15s; }
+.filterpop[open] > summary .caret { transform: rotate(180deg); }
+.typebar { display: flex; flex-wrap: wrap; gap: 6px; }
+.tchip { display: inline-flex; align-items: center; gap: 7px; font: 500 .9rem var(--ui); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 10px; cursor: pointer; white-space: nowrap; transition: border-color .12s, background .12s; }
+.tchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--tc); flex: none; }
+.tchip span { color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.tchip:hover { border-color: color-mix(in srgb, var(--tc) 60%, var(--line)); }
+.tchip.on { background: color-mix(in srgb, var(--tc) 22%, var(--panel-2)); border-color: var(--tc); }
+.tchip.on span { color: var(--text); }
+.activetags { margin: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.tpfoot { display: none; justify-content: flex-end; position: sticky; bottom: -12px; margin: 0 -12px -12px; padding: 10px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+@media (max-width: 700px) {
+  .tpfoot { display: flex; }
+  .btools.libtools { flex-wrap: nowrap; gap: 8px; }
+  .btools.libtools .search { flex: 1 1 auto; min-width: 0; }
+  .btools.libtools > .btn.small { flex: none; padding: 6px 10px; }
+  .libtools .fclab { display: none; }
+  .typebar { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 24px), transparent); }
+  .typebar::-webkit-scrollbar { display: none; }
+  .libv .libhead { gap: 10px; margin-bottom: 14px; }
+  .lhrow h1 { font-size: 1.7rem; }
+  .banner.import { padding: 8px 12px; gap: 8px; font-size: .9rem; }
+  .banner.import > div { min-width: 0; flex-basis: 100%; }
+  .banner.import .btn { padding: 5px 12px; font-size: .88rem; }
+}
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 .card { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 14px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; color: var(--text); position: relative; overflow: hidden; }
 .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tc); }
@@ -448,7 +496,7 @@ figure.img.ext small { font-family: var(--ui); font-size: .75rem; opacity: .75; 
 .spine:hover { filter: brightness(1.15); text-decoration: none; }
 .chips2 { display: flex; flex-wrap: wrap; gap: 6px; }
 .cloud { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-body.at-home .topsearch { display: none; }
+body.at-home .topsearch, body.at-home .searchtog { display: none !important; }
 .tile .btn { align-self: flex-start; }
 
 /* stat block editor */
@@ -644,7 +692,20 @@ body.readonly .brand::after { content: "Read-only"; font: 600 .65rem var(--ui); 
 .toast { background: var(--panel-2); border: 1px solid var(--brass-dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
 .toast.bad { border-color: var(--bad); }
 
+@media (max-width: 1200px) {
+  .topin { gap: 8px 10px; padding-top: 8px; padding-bottom: 0; }
+  .brand { margin-right: auto; }
+  .navwrap { order: 4; flex-basis: calc(100% + 40px); margin: 0 -20px; padding: 0 12px 0 20px; border-top: 1px solid var(--line); }
+  .nav { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 6px 0; scroll-snap-type: x proximity; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { scroll-snap-align: start; padding: 6px 9px; }
+  .nav a.on { box-shadow: inset 0 -2px 0 var(--brass); }
+  .navmore { flex: none; }
+  .topsearch { max-width: 360px; }
+}
 @media (max-width: 860px) {
+  .nav { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+  .navmore { margin-left: auto; }
   .lib { grid-template-columns: 1fr; gap: 12px; }
   .filters { position: static; max-height: none; }
   .filters summary { display: block; padding: 8px 0; }
@@ -655,16 +716,18 @@ body.readonly .brand::after { content: "Read-only"; font: 600 .65rem var(--ui); 
   .itempage { padding: 22px 18px; }
   .exports { grid-template-columns: 1fr; }
   .tiles { grid-template-columns: 1fr 1fr; }
-  .nav { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; order: 4; flex-basis: 100%; scrollbar-width: none; }
-  .nav::-webkit-scrollbar { display: none; }
-  .nav a { white-space: nowrap; }
+  .topin .searchtog { display: inline-flex; }
+  .topsearch { display: none; order: 5; max-width: none; flex-basis: 100%; margin: 0; }
+  body.showsearch .topsearch { display: block; }
+  body.showsearch .searchtog { background: var(--panel-2); }
+  .topnew { padding: 6px 12px; }
   .bookview { grid-template-columns: 1fr; gap: 12px; }
   .toc { position: static; max-height: 240px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
   .newtag { grid-template-columns: 1fr; }
-  .topsearch { order: 5; max-width: none; flex-basis: 100%; }
 }
 @media (max-width: 420px) {
   main, .topin { padding-left: 16px; padding-right: 16px; }
+  .navwrap { flex-basis: calc(100% + 32px); margin: 0 -16px; padding: 0 8px 0 16px; }
   .facts { grid-template-columns: 1fr; }
   .prod li { grid-template-columns: 100px 1fr 40px; }
   .abilform { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1530,13 +1593,16 @@ tr.rchrow td { background: rgba(176,28,22,.55) !important; } tr.rchrow td:not(:f
 
 body.player .brand::after { content: "Player"; color: var(--brass); border-color: color-mix(in srgb, var(--brass) 50%, var(--line)); }
 .rolebtn { font: 600 .75rem var(--ui); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; margin-left: 8px; }
+.rolebtn .rbshort { display: none; }
+@media (max-width: 860px) { .rolebtn { margin-left: 0; } .rolebtn .rbfull { display: none; } .rolebtn .rbshort { display: inline; } }
+@media (max-width: 420px) { .rolebtn ~ .savestate, .savestate:has(~ .rolebtn) { display: none !important; } }
 .rolebtn:hover { color: var(--text); border-color: var(--brass); }
 .rolepick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 18px 0; }
 .rolecard { text-align: left; padding: 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; display: flex; flex-direction: column; gap: 8px; }
 .rolecard h2 { margin: 0; font-size: 1.3rem; } .rolecard .btn { align-self: flex-start; }
 .rolecard input { width: 100%; }
 .gmpin { margin: 14px 0; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
-body.choosing .nav, body.choosing .topsearch, body.choosing .brand::after { display: none !important; }
+body.choosing .navwrap, body.choosing .topsearch, body.choosing .searchtog, body.choosing .brand::after { display: none !important; }
 
 .qcmodes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 14px; }
 .qcmode { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
@@ -1818,6 +1884,7 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 <body>
 <header class="top"><div class="topin">
   <a class="brand" href="#home"><b>DnD</b> Codex</a>
+  <div class="navwrap">
   <nav class="nav" aria-label="Sections">
     <a href="#home" data-nav="home">Home</a>
     <a href="#library" data-nav="library">Library</a>
@@ -1826,17 +1893,23 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
     <a href="#encounters" data-nav="encounters">Encounters</a>
     <a href="#vtt" data-nav="vtt">Tabletop</a>
     <a href="#items" data-nav="items">Items</a>
-    <a href="#srd" data-nav="srd">SRD</a>
     <a href="#spells" data-nav="spells">Spells</a>
-    <a href="#books" data-nav="books">Books</a>
     <a href="#world" data-nav="world">World</a>
-    <a href="#tags" data-nav="tags">Tags</a>
-    <a href="#backup" data-nav="backup">Library file</a>
   </nav>
+  <details class="navmore" id="navmore"><summary><span class="nmlab">More</span> <span aria-hidden="true">▾</span></summary>
+    <div class="nmpop" role="menu">
+      <a href="#srd" data-nav="srd" role="menuitem">SRD rules</a>
+      <a href="#books" data-nav="books" role="menuitem">Books</a>
+      <a href="#tags" data-nav="tags" role="menuitem">Tags</a>
+      <a href="#backup" data-nav="backup" role="menuitem">Library file</a>
+      <button type="button" class="nmexport" data-act="export" role="menuitem">Export…</button>
+    </div>
+  </details>
+  </div>
   <label class="topsearch"><span class="sr">Search all lore</span><input id="q" type="search" placeholder="Search all lore"></label>
   <span id="savestate" class="savestate" aria-live="polite"></span>
-  <button class="btn ghost" data-act="export">Export</button>
-  <button class="btn" data-act="new">+ New entry</button>
+  <button class="btn ghost iconbtn searchtog" data-act="topsearch" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <button class="btn topnew" data-act="new" title="New entry">+ New</button>
 </div></header>
 <main id="main"></main>
 <div id="modal" hidden></div>
@@ -2260,7 +2333,7 @@ function srvStart() {
   S.assets = srvAssets; S.downloads = lfDownloads;
   if (PLAYER) document.body.classList.add("readonly", "player");
   const sv = document.getElementById("savestate");
-  if (sv && !window.__CODEX_HOST && !document.querySelector(".rolebtn")) sv.insertAdjacentHTML("afterend", `<button type="button" class="rolebtn" data-act="srvrole" title="Sign out and choose again">${PLAYER ? "Player" : "GM"} · switch</button>`);
+  if (sv && !window.__CODEX_HOST && !document.querySelector(".rolebtn")) sv.insertAdjacentHTML("afterend", `<button type="button" class="rolebtn" data-act="srvrole" title="Sign out and choose again"><span class="rbfull">${PLAYER ? "Player" : "GM"} · switch</span><span class="rbshort">Switch</span></button>`);
   connectDb(lfDb); srvListen(); lfStatus("Saved"); render();
 }
 async function srvImport(file) {
@@ -10481,12 +10554,20 @@ function route() {
   return { v: "home" };
 }
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+document.addEventListener("click", ev => { if (ev.target.closest && ev.target.closest(".nmpop button")) { const nm = document.getElementById("navmore"); if (nm) nm.open = false; } });
+document.addEventListener("pointerdown", ev => {
+  const nm = document.getElementById("navmore"); if (nm && nm.open && !nm.contains(ev.target)) nm.open = false;
+  document.querySelectorAll("details.filterpop[open]").forEach(d => { if (!d.contains(ev.target) && !(ev.target.closest && ev.target.closest("#modal"))) d.open = false; });
+});
 
 // ---------- render ----------
 function render() {
   if (LOCAL && !S.db) return;
   const r = route();
-  document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (r.v === "town" && a.dataset.nav === "world") || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (r.v === "town" && a.dataset.nav === "world") || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  { const nm = document.getElementById("navmore"); if (nm) { const on = nm.querySelector("a.on"); nm.classList.toggle("on", !!on); nm.querySelector(".nmlab").textContent = on ? on.textContent.replace(/ rules$/, "") : "More"; nm.open = false; } }
+  { const nav = document.querySelector(".nav"), on = nav && nav.querySelector("a.on"); if (on && nav.scrollWidth > nav.clientWidth) { const l = on.offsetLeft - nav.offsetLeft, r = l + on.offsetWidth; if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth - 28) nav.scrollLeft = Math.max(0, l - 24); } }
+  { const q = document.getElementById("q"); if (q && document.activeElement !== q && !q.value) document.body.classList.remove("showsearch"); }
   document.body.classList.toggle("vttmode", r.v === "vttc");
   document.body.classList.toggle("at-home", r.v === "home");
   beLeave(r);
@@ -10698,6 +10779,7 @@ function tagPickerHtml(f, scopeType) {
       ${loose.length ? `<div class="tpgroup flat"><div class="tplabel">Other tags</div><div class="tpchips">${loose.map(chip).join("")}</div></div>` : ""}
     </div>
     <p class="muted small tpempty" hidden>No tags match.</p>
+    <div class="tpfoot"><button type="button" class="btn small" data-act="tpdone">Done</button></div>
   </div>`;
 }
 function filterTagPicker(q) {
@@ -10790,35 +10872,26 @@ function viewLibrary(bestiary) {
   const list = all.filter(([, e]) => entryMatches(e, f, forced)).sort((a, b) => byName(a[1].title, b[1].title));
   const typeCounts = {}; all.forEach(([, e]) => { typeCounts[e.type] = (typeCounts[e.type] || 0) + 1; });
 
-  const typeFilters = bestiary ? "" : `<div class="fgroup"><h3>Type</h3><div class="chips">${TYPES.map(t => `<button class="fchip t-${t.id}${f.types.has(t.id) ? " on" : ""}" data-act="ftype" data-v="${t.id}" aria-pressed="${f.types.has(t.id)}">${t.plural}<span>${typeCounts[t.id] || 0}</span></button>`).join("")}</div></div>`;
-  const tagTree = slugs => slugs.map(s => {
-    const kids = children(s);
-    return `<li><button class="ttag${f.tags.has(s) ? " on" : ""}" data-act="ftag" data-v="${esc(s)}" aria-pressed="${f.tags.has(s)}">${esc(tagName(s))}<span>${tagCount(s)}</span></button>${kids.length ? `<ul>${tagTree(kids)}</ul>` : ""}</li>`;
-  }).join("");
-  const roots = allTagSlugs().filter(s => !tagParent(s) || !allTagSlugs().includes(tagParent(s)));
-  const filters = `
-    ${typeFilters}
-    <div class="fgroup"><h3>Tags</h3>
-      <div class="seg" role="group" aria-label="How tag filters combine"><button class="${f.mode !== "or" ? "on" : ""}" data-act="fmode" data-v="and" aria-pressed="${f.mode !== "or"}">Match all tags</button><button class="${f.mode === "or" ? "on" : ""}" data-act="fmode" data-v="or" aria-pressed="${f.mode === "or"}">Match any tag</button></div>
-      <p class="muted small seghint">${f.mode === "or" ? "Shows entries with at least one of the tags you pick." : "Shows only entries that have every tag you pick."}</p>${roots.length ? `<ul class="tree">${tagTree(roots)}</ul>` : `<p class="muted small">Tags you add to entries appear here.</p>`}</div>
-    ${(f.types.size || f.tags.size || f.q) ? `<button class="btn ghost small" data-act="fclear">Clear filters</button>` : ""}`;
-
+  const typeBar = bestiary ? "" : `<div class="typebar" role="group" aria-label="Filter by type">${TYPES.filter(t => typeCounts[t.id] || f.types.has(t.id)).map(t => `<button type="button" class="tchip t-${t.id}${f.types.has(t.id) ? " on" : ""}" data-act="ftype" data-v="${t.id}" aria-pressed="${f.types.has(t.id)}"><i aria-hidden="true"></i>${t.plural}<span>${typeCounts[t.id] || 0}</span></button>`).join("")}</div>`;
+  const filtering = f.types.size || f.tags.size || f.q;
   const active = [...f.tags].map(s => `<button class="tag on" data-act="ftag" data-v="${esc(s)}" title="Remove filter">${esc(tagName(s))} ✕</button>`).join("");
   const cards = list.length ? list.map(([id, e]) => entryCard(id, e)).join("") :
     (S.entries.size ? `<div class="empty">Nothing matches these filters.</div>` :
       `<div class="empty"><p>Your codex is empty.</p><button class="btn" data-act="new">Write the first entry</button></div>`);
   return `
-  <div class="lib">
-    <aside class="filters"><details open><summary>Filters</summary>${filters}</details></aside>
-    <section>
-      <div class="libhead">
-        <h1>${bestiary ? "Bestiary" : "Library"}</h1>
-        <p class="muted">${list.length} of ${bestiary ? (typeCounts.creature || 0) + " creatures" : all.length + " entries"}${f.tags.size ? (f.mode === "or" ? " with any of" : " with all of") : ""} ${active}</p>
+  <section class="libv">
+    <div class="libhead">
+      <div class="lhrow"><h1>${bestiary ? "Bestiary" : "Library"}</h1><span class="muted lhcount">${list.length} of ${bestiary ? (typeCounts.creature || 0) + " creatures" : all.length + " entries"}</span></div>
+      <div class="btools libtools">
         <label class="search"><span class="sr">Search entries</span><input id="libq" type="search" placeholder="Search titles, text and tags" value="${esc(f.q)}" data-input="libq"></label>
+        <details class="filterpop" id="libtags"${S.libTagsOpen ? " open" : ""}><summary class="btn ghost${f.tags.size ? " has" : ""}"><span aria-hidden="true">🏷</span> Tags${f.tags.size ? ` <b class="cnt">${f.tags.size}</b>` : ""} <span aria-hidden="true" class="caret">▾</span></summary><div class="pop">${allTagSlugs().length ? tagPickerHtml(f, forced) : `<p class="muted small">Tags you add to entries appear here.</p>`}</div></details>
+        ${filtering ? `<button class="btn ghost small" data-act="fclear" title="Clear filters">Clear<span class="fclab"> filters</span></button>` : ""}
       </div>
-      <div class="cards">${cards}</div>
-    </section>
-  </div>`;
+      ${typeBar}
+      ${f.tags.size ? `<p class="activetags"><span class="muted small">${f.mode === "or" ? "Any of" : "All of"}</span> ${active}</p>` : ""}
+    </div>
+    <div class="cards">${cards}</div>
+  </section>`;
 }
 function entryCard(id, e) {
   const t = TYPE[e.type] || TYPE.general;
@@ -12176,6 +12249,8 @@ document.addEventListener("click", async ev => {
   else if (a === "ftagsclear") { S.filter.tags = new Set(); render(); }
   else if (a === "fmode") { S.filter.mode = v === "or" ? "or" : "and"; render(); }
   else if (a === "mergedupes") mergeDuplicates();
+  else if (a === "tpdone") { const d = el.closest("details"); if (d) d.open = false; }
+  else if (a === "topsearch") { const on = document.body.classList.toggle("showsearch"); if (on) { const q = document.getElementById("q"); if (q) q.focus(); } }
   else if (a === "imgup") pickImage(async res => {
     const e = S.entries.get(el.dataset.id); if (!e) return;
     const from = el.dataset.url, to = assetPath(res);
@@ -12295,7 +12370,8 @@ async function restoreFromText() {
 }
 document.addEventListener("toggle", ev => {
   const t = ev.target;
-  if (t.id === "beasttags") { const was = S.beast.tagsOpen; S.beast.tagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
+  if (t.id === "libtags") { const was = S.libTagsOpen; S.libTagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
+  else if (t.id === "beasttags") { const was = S.beast.tagsOpen; S.beast.tagsOpen = t.open; if (t.open && !was) { const q = t.querySelector("#tagq"); if (q && matchMedia("(min-width: 700px)").matches) q.focus(); } }
   else if (t.classList && t.classList.contains("tpgroup") && !S.beast.tagQ) { if (t.open) S.beast.openGroups.add(t.dataset.root); else S.beast.openGroups.delete(t.dataset.root); }
 }, true);
 document.addEventListener("pointerdown", ev => {
