@@ -27,6 +27,7 @@ function charChange(id, mutate, rerender) {
   const c = JSON.parse(JSON.stringify(cur));
   mutate(c); c.updated = new Date().toISOString();
   const moved = typeof invNormalize === "function" ? invNormalize(c) : 0;
+  if (typeof invUnstack === "function") invUnstack(c);
   if (moved) setTimeout(() => toast(`${moved} item${moved === 1 ? "" : "s"} from a storage item went back to the pack.`));
   S.chars.set(id, c);
   if (rerender !== false) render();

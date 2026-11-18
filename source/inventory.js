@@ -48,14 +48,39 @@ function invResolve(ref, name) {
 function srdBundle(x) { const m = String(x.item.extra || "").match(/bundle of (\d+)/); return m ? Number(m[1]) : 1; }
 function invKind(e) { return itemKind(e); }
 const INV_ICON = { weapon: "⚔", armour: "🛡", item: "◆" };
+// Weapons, armour, shields and consumables each take their own slot so they can be equipped, used or handed
+// to a summon one at a time. Ammunition, coins-like gear, materials and other odds and ends still stack.
+function invStackable(ref, name) {
+  const r = invResolve(ref, name), e = r.e || {}, it = e.item || {};
+  if (/ammunition|\barrows?\b|\bbolts?\b|sling bullets?|blowgun needles?/i.test((it.category || "") + " " + r.name)) return true;
+  if (invKind(e) !== "item") return false;
+  return !isConsumable(e);
+}
+// A free pack slot, adding a row when the pack is full.
+function invFreeOrGrow(x) {
+  let g = invFreeGrid(x); if (g != null) return g;
+  const v = invOf(x); x.inv = Object.assign({}, v, { rows: v.rows + 1 }); return invFreeGrid(x);
+}
 function invPlace(c, slot, ref, qty) {
-  const inv = invOf(c), slots = Object.assign({}, inv.slots), r = invResolve(ref);
+  const inv = invOf(c), slots = Object.assign({}, inv.slots), r = invResolve(ref), stack = invStackable(ref);
   const cur = slots[slot];
-  if (cur && cur.ref === ref) cur.qty = (Number(cur.qty) || 1) + qty;
-  else if (!cur) slots[slot] = { ref, qty, name: r.name };
+  if (cur && cur.ref === ref && stack) cur.qty = (Number(cur.qty) || 1) + qty;
+  else if (!cur) slots[slot] = { ref, qty: stack ? qty : 1, name: r.name };
   else return false;
   c.inv = { cols: inv.cols, rows: inv.rows, slots };
+  if (!stack) for (let i = 1; i < qty; i++) { const g = invFreeOrGrow(c); c.inv.slots[g] = { ref, qty: 1, name: r.name }; }
   return true;
+}
+// Break up stacks of things that no longer stack (from before this rule, or added some other way).
+function invUnstack(x) {
+  if (!x || !x.inv || !x.inv.slots) return 0;
+  let n = 0;
+  for (const k of Object.keys(x.inv.slots)) {
+    const s = x.inv.slots[k], q = Number(s.qty) || 1; if (q <= 1 || invStackable(s.ref, s.name)) continue;
+    s.qty = 1; n++;
+    for (let i = 1; i < q; i++) { const g = invFreeOrGrow(x); x.inv.slots[g] = { ref: s.ref, qty: 1, name: s.name }; }
+  }
+  return n;
 }
 // Equipped slots: "ar" holds body armour, "w0".."w5" hold anything in hand or worn (weapons, shields, rings…).
 const EQ_KEYS = ["w0", "w1", "w2", "w3", "w4", "w5"];
@@ -96,7 +121,7 @@ function invNormalize(x) {
   for (const k of Object.keys(x.inv.slots)) {
     if (!/^[wp]\d+$/.test(k) || ok.has(k)) continue;
     const s = x.inv.slots[k]; delete x.inv.slots[k];
-    const inv = invOf(x), same = Object.keys(inv.slots).find(g => isGridKey(g) && inv.slots[g].ref === s.ref);
+    const inv = invOf(x), same = invStackable(s.ref, s.name) && Object.keys(inv.slots).find(g => isGridKey(g) && inv.slots[g].ref === s.ref);
     let g = same || invFreeGrid(x);
     if (g == null) { x.inv.rows = invOf(x).rows + 1; g = invFreeGrid(x); }
     if (same) x.inv.slots[same].qty = (Number(x.inv.slots[same].qty) || 1) + (Number(s.qty) || 1); else x.inv.slots[g] = s;
@@ -123,7 +148,7 @@ function slotRefusal(key, c) {
 function invAutoSlot(c, ref) {
   const inv = invOf(c), e = invResolve(ref).e;
   const EQK = eqKeysOf(c), POK = potKeysOf(c);
-  for (const k of ["ar", ...EQK, ...POK]) { const s = inv.slots[k]; if (s && s.ref === ref) return k; }
+  if (invStackable(ref)) for (const k of ["ar", ...EQK, ...POK]) { const s = inv.slots[k]; if (s && s.ref === ref) return k; }
   if (isConsumable(e) && invKind(e) === "item") { const k = POK.find(k => !inv.slots[k] && slotAccepts(k, ref, c)); if (k) return k; }
   if (isBodyArmour(e) && !inv.slots.ar) return "ar";
   if (invKind(e) === "weapon" || (invKind(e) === "armour" && !isBodyArmour(e))) { const k = EQK.find(k => !inv.slots[k] && slotAccepts(k, ref, c)); if (k) return k; }
@@ -133,7 +158,7 @@ function invFreeGrid(c) { const inv = invOf(c), n = inv.cols * inv.rows; for (le
 function invFirstFree(c, ref) {
   const inv = invOf(c), n = inv.cols * inv.rows;
   // Stack onto an existing pile of the same thing first (arrows, rations, torches…).
-  for (let k = 0; k < n; k++) { const s = inv.slots[k]; if (s && s.ref === ref) return k; }
+  if (invStackable(ref)) for (let k = 0; k < n; k++) { const s = inv.slots[k]; if (s && s.ref === ref) return k; }
   for (let k = 0; k < n; k++) if (!inv.slots[k]) return k;
   return -1;
 }
@@ -176,7 +201,9 @@ function invGridHtml(c, id) {
     const r = invResolve(sel.ref, sel.name);
     detail = `<div class="invdetail">
       <div class="invdhead"><strong>${esc(r.name)}</strong>
-        ${P ? `<div class="qty"><button class="iconbtn" data-act="invqty" data-v="-1" aria-label="One fewer">−</button><span>${Number(sel.qty) || 1}</span><button class="iconbtn" data-act="invqty" data-v="1" aria-label="One more">+</button></div>
+        ${P ? (invStackable(sel.ref, sel.name) ? `<div class="qty"><button class="iconbtn" data-act="invqty" data-v="-1" aria-label="One fewer">−</button><span>${Number(sel.qty) || 1}</span><button class="iconbtn" data-act="invqty" data-v="1" aria-label="One more">+</button></div>
+        ${(Number(sel.qty) || 1) > 1 ? `<button class="btn ghost small" data-act="invtake1" title="Move one into its own slot">Take one</button><button class="btn ghost small" data-act="invsplit" title="Move some into their own slot">Split…</button>` : ""}`
+          : `<button class="btn ghost small" data-act="invdup" title="Put another one in a free slot">+ Another</button>`) + `
         <button class="btn ghost small" data-act="invrm">Remove</button>` : ""}
         ${r.id ? `<a class="btn ghost small" href="#entry-${esc(r.id)}">Open in codex</a>` : ""}
         <button class="iconbtn" data-act="invclose" aria-label="Close">✕</button></div>
@@ -284,6 +311,24 @@ async function invAction(a, el) {
     charChange(id, x => { const v = invOf(x); const s = v.slots[k]; if (!s) return; s.qty = Math.max(1, (Number(s.qty) || 1) + d); x.inv = v; });
     return true;
   }
+  if (a === "invtake1" || a === "invsplit") {
+    const k = INV.sel, s = invOf(c).slots[k], have = s ? Number(s.qty) || 1 : 0; if (have < 2) return true;
+    let n = 1;
+    if (a === "invsplit") {
+      const ans = typeof vAsk === "function" ? await vAsk("Split the stack", `How many to move out of ${have}?`, String(Math.floor(have / 2)), "Split") : prompt(`How many to move out of ${have}?`, String(Math.floor(have / 2)));
+      if (ans == null || ans === "") return true;
+      n = Math.floor(Number(ans)); if (!(n >= 1 && n < have)) { toast(`Pick a number from 1 to ${have - 1}.`, "bad"); return true; }
+    }
+    let to = null;
+    charChange(id, x => { const v = invOf(x), t = v.slots[k]; if (!t || (Number(t.qty) || 1) <= n) return; x.inv = v;
+      const g = invFreeOrGrow(x); t.qty = (Number(t.qty) || 1) - n; x.inv.slots[g] = { ref: t.ref, qty: n, name: t.name }; to = g; }, false);
+    if (to != null) INV.sel = to; render(); return true;
+  }
+  if (a === "invdup") {
+    const k = INV.sel, s = invOf(c).slots[k]; if (!s) return true;
+    charChange(id, x => { const g = invFreeOrGrow(x); x.inv.slots[g] = { ref: s.ref, qty: 1, name: s.name }; });
+    return true;
+  }
   if (a === "invrm") { const k = INV.sel; INV.sel = null; charChange(id, x => { const v = invOf(x); delete v.slots[k]; x.inv = v; }); return true; }
   if (a === "invrows") {
     const d = Number(el.dataset.v), inv = invOf(c), rows = inv.rows + d;
@@ -298,7 +343,7 @@ function invMove(x, from, to) {
   const v = invOf(x), a = v.slots[from], b = v.slots[to];
   if (!a || from === to) return;
   if (!slotAccepts(to, a.ref, x) || (b && b.ref !== a.ref && !slotAccepts(from, b.ref, x))) return;
-  if (b && b.ref === a.ref) { b.qty = (Number(b.qty) || 1) + (Number(a.qty) || 1); delete v.slots[from]; }
+  if (b && b.ref === a.ref && invStackable(a.ref, a.name)) { b.qty = (Number(b.qty) || 1) + (Number(a.qty) || 1); delete v.slots[from]; }
   else { v.slots[to] = a; if (b) v.slots[from] = b; else delete v.slots[from]; }
   x.inv = v;
 }

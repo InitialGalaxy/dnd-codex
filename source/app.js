@@ -2204,7 +2204,7 @@ document.addEventListener("click", async ev => {
   if (READONLY && ["new", "edit", "del", "edittag", "deltag", "newbook", "editbook", "delbook", "newtown", "portrait", "imgup", "edupload", "mergedupes", "export", "exportro", "dllibrary", "copybackup", "restore", "togglehide", "togglebookhide", "togglecharhide"].includes(a)) return;
   if (/^vtt/.test(a)) { await vttAction(a, el, ev); return; }
   if (/^srd(group|open|copy)$/.test(a)) { if (READONLY && a === "srdcopy") return; await srdAction(a, el); return; }
-  if (/^(inv(kind|pick|add|new|slot|close|qty|rm|rows)|paygo|payundo)$/.test(a)) { if (READONLY && !PLAYER) return; await invAction(a, el); return; }
+  if (/^(inv(kind|pick|add|new|slot|close|qty|rm|rows|take1|split|dup)|paygo|payundo)$/.test(a)) { if (READONLY && !PLAYER) return; await invAction(a, el); return; }
   if (/^(enc(new|dup|del|add|party|next|prev|end|roll|to)|cb(pick|rm|hp|cond))$/.test(a)) { encAction(a, el); return; }
   if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
   if (a === "sbf") { SBS[el.dataset.k] = el.dataset.v; render(); return; }
