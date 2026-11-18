@@ -1774,6 +1774,13 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vzoom .iconbtn { color: #fff; }
 .vhint { position: absolute; left: 12px; bottom: 12px; font: .8rem var(--ui); color: #fff; background: rgba(0,0,0,.6); padding: 3px 8px; border-radius: 6px; pointer-events: none; }
 .vhint:empty { display: none; }
+.vfloors { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: stretch; gap: 4px; padding: 5px; border-radius: 12px; background: rgba(10, 8, 6, .82); border: 1px solid rgba(232, 194, 122, .35); box-shadow: 0 8px 28px rgba(0,0,0,.5); max-width: calc(100% - 24px); overflow-x: auto; }
+.vfloors[hidden] { display: none; }
+.vflab { align-self: center; padding: 0 8px 0 6px; font: 700 .7rem var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--brass); }
+.vfloors button { display: grid; gap: 1px; justify-items: start; padding: 7px 14px; border-radius: 8px; border: 1px solid transparent; background: rgba(255,255,255,.06); color: #f3ead8; font: 600 .95rem var(--ui); cursor: pointer; white-space: nowrap; }
+.vfloors button small { font: .74rem var(--ui); color: #c9bda4; }
+.vfloors button:hover { background: rgba(255,255,255,.12); }
+.vfloors button.on { background: var(--brass); color: #1b1408; } .vfloors button.on small { color: #3b2d12; }
 .vside { border-left: 1px solid var(--line); background: var(--panel); padding: 12px 14px; overflow: auto; }
 .vside h2 { font-size: 1.05rem; margin: 0 0 8px; } .vform { display: grid; gap: 8px; } .vform label { display: grid; gap: 3px; } .vform label > span { font: 600 .78rem var(--ui); color: var(--muted); }
 .vform input[type=number] { width: 100%; } .vtips { padding-left: 18px; display: grid; gap: 4px; }
@@ -1927,6 +1934,24 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vformctl { margin-bottom: 8px; }
 
 .vlvls { display: flex; flex-wrap: wrap; gap: 4px; } .vlvls .vbtn { min-width: 30px; text-align: center; }
+.lvlhid { display: none !important; }
+.vlvall { width: 100%; text-align: left; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font: 600 .82rem var(--ui); cursor: pointer; }
+.vlvall.on { color: #1b1408; background: var(--brass); border-color: var(--brass); }
+.vlvrows { display: grid; gap: 3px; }
+.vlvrow { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); overflow: hidden; }
+.vlvrow.on { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
+.vlvrow.off { opacity: .45; }
+.vlvtick { display: grid; place-items: center; height: 100%; cursor: pointer; border-right: 1px solid var(--line); }
+.vlvtick input { margin: 0; width: 14px; height: 14px; accent-color: var(--brass); cursor: pointer; }
+.vlvname { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 5px 4px 5px 5px; background: none; border: 0; color: var(--text); font: 500 .82rem var(--ui); text-align: left; cursor: pointer; }
+.vlvname b { flex: none; display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 5px; background: var(--panel-2); font-size: .75rem; }
+.vlvrow.on .vlvname b { background: var(--brass); color: #1b1408; }
+.vlvname span { min-width: 0; line-height: 1.15; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vlvrow:not(.on) .vlvren { display: none; }
+.vlvname:hover { background: var(--panel-2); }
+.vlvren { background: none; border: 0; color: var(--muted); padding: 5px 5px 5px 2px; cursor: pointer; font-size: .8rem; }
+.vlvren:hover { color: var(--brass); }
+.vlvadd { width: 100%; }
 .vbtn.small { font-size: .78rem; padding: 3px 6px; }
 .vobj.above, .vtok.above { opacity: .3; } .vobj.vroofoff { visibility: hidden; }
 .vwalls line.otherlvl { stroke-dasharray: 6 6; opacity: .3; }

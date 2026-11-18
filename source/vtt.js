@@ -41,7 +41,7 @@ function viewVtt() {
   return `<section class="page"><div class="phead"><h1>Tabletop</h1>${vCanEdit() ? `<button class="btn" data-act="vttnewcamp">+ New campaign</button>` : ""}</div>
     <p class="muted">${vCanEdit() ? "Each campaign holds its maps (pages). Open one to build boards, place tokens from the bestiary and draw walls for line of sight." : "Pick your campaign to join the table. You'll see the page the GM has sent the players to."}</p>
     ${camps.length ? `<div class="vcamps">${camps.map(([id, c]) => { const pages = vPages(id); return `<article class="vcamp"><a href="#vtt-${esc(id)}"><h2>${esc(c.name || "Campaign")}</h2>
-      <p class="muted small">${pages.length} page${pages.length === 1 ? "" : "s"}${c.playerPage && S.vttPages.get(c.playerPage) ? ` · players on <strong>${esc(S.vttPages.get(c.playerPage).name)}</strong>` : ""}</p></a>
+      <p class="muted small">${pages.length} page${pages.length === 1 ? "" : "s"}${c.playerPage && S.vttPages && S.vttPages.get(c.playerPage) ? ` · players on <strong>${esc(S.vttPages.get(c.playerPage).name)}</strong>` : ""}</p></a>
       ${vCanEdit() ? `<div class="vcampacts"><button class="btn ghost small" data-act="vttrencamp" data-id="${esc(id)}">Rename</button><button class="btn ghost small danger" data-act="vttdelcamp" data-id="${esc(id)}">Delete</button></div>` : ""}</article>`; }).join("")}</div>`
       : `<div class="empty">${vCanEdit() ? "No campaigns yet. Make one to start building maps." : "The GM hasn't set up a campaign yet."}</div>`}</section>`;
 }
@@ -114,7 +114,7 @@ function viewVttCamp(camp) {
         <canvas class="vfxp" id="vfxp" aria-hidden="true"></canvas>
         <div class="vturns" id="vturns"></div>
         <div class="vquests" id="vquests"></div>
-        <div class="vhint" id="vhint"></div></div>
+        <div class="vhint" id="vhint"></div><div class="vfloors" id="vfloors" role="group" aria-label="Which floor to show"></div></div>
       <aside class="vside" id="vside"></aside></div>`
       : `<div class="empty">${gm ? "This campaign has no pages yet." : "The GM hasn't opened a page for the players yet."}</div>`}
   </section>`;
@@ -155,7 +155,9 @@ function vDraw() {
   stage.style.width = W + "px"; stage.style.height = H + "px";
   vApplyView();
   const objs = (p.objs || []);
-  const lvlCls = l => gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : "";
+  if (VTT.lvlShowPid !== cur.id) { VTT.lvlShowPid = cur.id; VTT.lvlShow = null; }
+  { const sig = cur.id + "|" + vMaxLevel(p) + "|" + JSON.stringify(p.levelNames || {}); if (VTT.lvlSig !== sig || !document.querySelector("#vtools .vlvgroup")) { VTT.lvlSig = sig; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); } }
+  const lvlCls = l => vLvlHid(l) ? " lvlhid" : gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : "";
   const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}" src="${esc(o.img)}" alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
   const tok = ([id, t]) => { const src = vTokSrc(t), s = (t.size || 1) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
     return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${t.lvl}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t) : ""}
@@ -165,7 +167,7 @@ function vDraw() {
   const wallSel = VTT.sel && VTT.sel.kind === "wall" ? VTT.sel.i : -1;
   const areaSel = VTT.sel && VTT.sel.kind === "area" ? VTT.sel.id : "";
   const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${(p.areas || []).map(a => vAreaSvg(p, a, a.id === areaSel)).join("")}
-    ${(p.walls || []).map((w, i) => `<line x1="${w[0] * VCELL}" y1="${w[1] * VCELL}" x2="${w[2] * VCELL}" y2="${w[3] * VCELL}" class="${i === wallSel ? "sel" : ""}${(w[4] || 0) !== VTT.lvl ? " otherlvl" : ""}${w[5] ? " " + w[5].k + (w[5].open ? " open" : "") + (w[5].secret ? " secret" : "") : ""}"/>`).join("")}
+    ${(p.walls || []).map((w, i) => `<line x1="${w[0] * VCELL}" y1="${w[1] * VCELL}" x2="${w[2] * VCELL}" y2="${w[3] * VCELL}" class="${i === wallSel ? "sel" : ""}${(w[4] || 0) !== VTT.lvl ? " otherlvl" : ""}${vLvlHid(w[4]) ? " lvlhid" : ""}${w[5] ? " " + w[5].k + (w[5].open ? " open" : "") + (w[5].secret ? " secret" : "") : ""}"/>`).join("")}
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
   const visToks = toks.filter(([, t]) => t.layer !== "gm" || gm).sort((a, b) => (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
@@ -233,12 +235,27 @@ function vFogLoad(pid, p) {
   else for (let i = 0; i < n; i++) VTT.fogBits[i] |= stored[i];
   return { gw, gh };
 }
+// Players' tokens can be on different floors of one building. On a shared screen, the players pick
+// which floor to look at (VTT.pfloor); "All" keeps everyone's view together.
+function vViewers(p, toks) {
+  const base = toks.filter(([, t]) => t.owner && t.layer !== "gm"), fl = t => Math.max(0, Number(t.lvl) || 0);
+  const floors = [...new Set(base.map(([, t]) => fl(t)))].sort((a, b) => a - b);
+  const bar = document.getElementById("vfloors");
+  if (bar) {
+    const show = floors.length > 1 && (!vCanEdit() || VTT.preview);
+    if (VTT.pfloor != null && !floors.includes(VTT.pfloor)) VTT.pfloor = null;
+    const html = show ? `<span class="vflab">Floor</span><button class="${VTT.pfloor == null ? "on" : ""}" data-act="vttpfloor" data-v="" aria-pressed="${VTT.pfloor == null}">All</button>${floors.slice().reverse().map(n => { const who = base.filter(([, t]) => fl(t) === n).map(([, t]) => t.name || "?"); return `<button class="${VTT.pfloor === n ? "on" : ""}" data-act="vttpfloor" data-v="${n}" aria-pressed="${VTT.pfloor === n}" title="${esc(who.join(", "))}"><b>${esc(n ? (((p.levelNames || {})[n]) || "Level " + n) : "Ground")}</b><small>${esc(who.length > 2 ? who.slice(0, 2).join(", ") + " +" + (who.length - 2) : who.join(", "))}</small></button>`; }).join("")}` : "";
+    if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
+    bar.hidden = !show;
+  }
+  return VTT.pfloor == null ? base : base.filter(([, t]) => fl(t) === VTT.pfloor);
+}
 function vFog(pid, p, toks) {
   const cv = document.getElementById("vfog"); if (!cv) return;
   const gm = vCanEdit(), dark = vDarkOn(p), on = (p.light || dark) && (!gm || VTT.preview);
   document.querySelectorAll(".vstage .gmonly").forEach(el => el.classList.toggle("vhide", gm && VTT.preview));
-  if (!on) { cv.style.display = "none"; document.querySelectorAll(".vtok.vhide:not(.gmonly),.vdoor.vhide").forEach(el => el.classList.remove("vhide")); if (!gm || VTT.preview) vRoofs(p, toks.filter(([, t]) => t.owner && t.layer !== "gm")); return; }
-  const viewers = toks.filter(([, t]) => t.owner && t.layer !== "gm");
+  if (!on) { cv.style.display = "none"; document.querySelectorAll(".vtok.vhide:not(.gmonly),.vdoor.vhide").forEach(el => el.classList.remove("vhide")); const vv = vViewers(p, toks); if (!gm || VTT.preview) vRoofs(p, vv); return; }
+  const viewers = vViewers(p, toks);
   // Each viewer is blocked only by the walls on its own height: standing level plus flight band.
   // Without dynamic lighting, walls don't block sight and only darkness limits it.
   const rect = [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]];
@@ -337,7 +354,7 @@ function vWire(view) {
   const ptrs = new Map(); let drag = null, pinch = null;
   view.addEventListener("wheel", ev => { ev.preventDefault(); const r = view.getBoundingClientRect(); vZoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
   view.addEventListener("pointerdown", ev => {
-    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests")) return;
+    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors")) return;
     const dm = ev.target.closest("button.vdoor"); if (dm) { ev.preventDefault(); ev.stopPropagation(); vDoorClick(dm.dataset.door); return; }
     const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
     view.focus({ preventScroll: true });
@@ -379,17 +396,17 @@ function vWire(view) {
       if (o) { VTT.sel = { kind: "obj", id: o.id }; drag = { kind: "obj", o, el: objEl, ox: x - o.x, oy: y - o.y, moved: false }; view.setPointerCapture(ev.pointerId); vRefresh(); drag.el = document.querySelector(`.vobj[data-oid="${CSS.escape(o.id)}"]`); return; }
     }
     if (gm && VTT.layer === "lights") {
-      const lt = [...(cur.p.lights || [])].reverse().find(l => Math.hypot(l.x - x, l.y - y) < 0.45);
+      const lt = [...(cur.p.lights || [])].reverse().find(l => !vLvlHid(l.level) && Math.hypot(l.x - x, l.y - y) < 0.45);
       if (lt) { VTT.sel = { kind: "light", id: lt.id }; drag = { kind: "light", l: lt, ox: x - lt.x, oy: y - lt.y, moved: false }; view.setPointerCapture(ev.pointerId); vRefresh(); return; }
       if (VTT.sel) { VTT.sel = null; vRefresh(); }
       pan(); drag.place = [ev.altKey ? x : Math.round(x * 2) / 2, ev.altKey ? y : Math.round(y * 2) / 2]; return;
     }
     if (gm && VTT.layer === "walls") {
-      const i = (cur.p.walls || []).findIndex(w => vSegDist(x, y, w) < 0.2 / Math.max(0.5, VTT.zoom));
+      const i = (cur.p.walls || []).findIndex(w => !vLvlHid(w[4]) && vSegDist(x, y, w) < 0.2 / Math.max(0.5, VTT.zoom));
       if (i >= 0) { VTT.sel = { kind: "wall", i }; vRefresh(); return; }
-      const lk = [...(cur.p.links || [])].reverse().find(l => (l.level == null || true) && x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h);
+      const lk = [...(cur.p.links || [])].reverse().find(l => !(l.levels || [0]).every(vLvlHid) && x >= l.x && x <= l.x + l.w && y >= l.y && y <= l.y + l.h);
       if (lk) { VTT.sel = { kind: "link", id: lk.id }; vRefresh(); return; }
-      const ar = [...(cur.p.areas || [])].reverse().find(a => vInArea(a, x, y));
+      const ar = [...(cur.p.areas || [])].reverse().find(a => !vLvlHid(a.level) && vInArea(a, x, y));
       if (ar) { VTT.sel = { kind: "area", id: ar.id }; vRefresh(); return; }
     }
     if (gm && ev.shiftKey && (VTT.layer === "token" || VTT.layer === "gm")) { drag = { kind: "box", sx: x, sy: y, ex: x, ey: y }; view.setPointerCapture(ev.pointerId); return; }
@@ -437,7 +454,7 @@ function vWire(view) {
     if (d.kind === "rot") { if (d.a != null) vObjSet(d.o.id, { rot: d.a }); return; }
     if (d.kind === "wend") { vMeasDraw(); if (d.np) vWallMoveEnd(d.pt, d.np, d.lvl); return; }
     if (d.kind === "erase") return;
-    if (d.kind === "box") { vMeasDraw(); const x1 = Math.min(d.sx, d.ex), x2 = Math.max(d.sx, d.ex), y1 = Math.min(d.sy, d.ey), y2 = Math.max(d.sy, d.ey), cur = vPageNow(); VTT.multi.clear(); if (cur) vTokens(cur.id).forEach(([id, t]) => { const s = (t.size || 1) / 2, cx = t.x + s, cy = t.y + s; if (t.layer === (VTT.layer === "gm" ? "gm" : "token") && cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) VTT.multi.add(id); }); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size === 1) VTT.multi.clear(); vRefresh(); return; }
+    if (d.kind === "box") { vMeasDraw(); const x1 = Math.min(d.sx, d.ex), x2 = Math.max(d.sx, d.ex), y1 = Math.min(d.sy, d.ey), y2 = Math.max(d.sy, d.ey), cur = vPageNow(); VTT.multi.clear(); if (cur) vTokens(cur.id).forEach(([id, t]) => { const s = (t.size || 1) / 2, cx = t.x + s, cy = t.y + s; if (t.layer === (VTT.layer === "gm" ? "gm" : "token") && !vLvlHid(t.lvl) && cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) VTT.multi.add(id); }); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size === 1) VTT.multi.clear(); vRefresh(); return; }
     if (d.kind === "group") { document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging")); if (!d.moved) return; const snap = ev.altKey === vNoSnap(), dx = snap ? Math.round(d.dx) : d.dx, dy = snap ? Math.round(d.dy) : d.dy, cur = vPageNow(); d.g.forEach(([id, q]) => { const s = q.size || 1, nx = Math.max(0, Math.min((cur ? cur.p.w : 999) - s, q.x + dx)), ny = Math.max(0, Math.min((cur ? cur.p.h : 999) - s, q.y + dy)); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vPatch("vtttokens/" + id, { x: nx, y: ny }); }); vDraw(); return; }
     if (d.kind === "pan" && d.place) { vLightPlace(d.place[0], d.place[1]); return; }
     if (d.kind === "light") { if (d.moved) vLightSet(d.l.id, { x: d.nx, y: d.ny }); return; }
@@ -621,6 +638,7 @@ function vSettings() {
 
 // ----- Actions -----
 async function vttAction(a, el, ev) {
+  if (a === "vttpfloor") { VTT.pfloor = el.dataset.v === "" ? null : Number(el.dataset.v); vDraw(); return; }
   if (/^vtt(newcamp|rencamp|delcamp)$/.test(a)) return vttCampAction(a, el);
   const root = document.querySelector(".vtt"), camp = root && root.dataset.camp;
   if (a === "vttzoom") { const v = Number(el.dataset.v), view = document.getElementById("vview"), r = view.getBoundingClientRect(); if (!v) vFit(); else vZoomAt(v > 0 ? 1.25 : 0.8, r.width / 2, r.height / 2); return; }
@@ -659,9 +677,15 @@ async function vttAction(a, el, ev) {
   if (/^vttcl/.test(a) || a === "vttcondlib") return vCondLibAction(a, el);
   if (/^vttll/.test(a) || a === "vttlightlib") return vLightLibAction(a, el);
   if (/^vtt(maps|fold|newfolder|renfolder|delfolder|newmap|newmapimg|renpage|openmap|sendto)$/.test(a)) return vMapsAction(a, el);
-  if (a === "vttlvl") { VTT.lvl = Number(el.dataset.v) || 0; VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
+  if (a === "vttlvlall") { VTT.lvlShow = null; VTT.sel = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
+  if (a === "vttlvlshow") { const n = Number(el.dataset.v) || 0;
+    if (!VTT.lvlShow) { VTT.lvlShow = new Set([n]); VTT.lvl = n; }
+    else if (VTT.lvlShow.has(n)) { VTT.lvlShow.delete(n); if (!VTT.lvlShow.size) VTT.lvlShow = null; else if (VTT.lvl === n) VTT.lvl = Math.max(...VTT.lvlShow); }
+    else { VTT.lvlShow.add(n); VTT.lvl = n; }
+    VTT.sel = null; VTT.multi.clear(); VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
+  if (a === "vttlvl") { VTT.lvl = Number(el.dataset.v) || 0; if (VTT.lvlShow) VTT.lvlShow.add(VTT.lvl); VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
   if (a === "vttaddlvl") { const cur = vPageNow(); if (!cur) return; const n = vMaxLevel(cur.p) + 1, name = await vAsk("New level", "Name (optional)", n === 1 ? "Rooftops / upper floor" : "Level " + n, "Add level"); if (name === "") return; const names = Object.assign({}, cur.p.levelNames || {}); names[n] = name; VTT.lvl = n; await vPatch("vttpages/" + cur.id, { maxLevel: n, levelNames: names }); return; }
-  if (a === "vttrenlvl") { const cur = vPageNow(); if (!cur || !VTT.lvl) return; const name = await vAsk("Rename level", "Name", vLevelName(cur.p, VTT.lvl), "Save"); if (!name) return; const names = Object.assign({}, cur.p.levelNames || {}); names[VTT.lvl] = name; vPatch("vttpages/" + cur.id, { levelNames: names }); return; }
+  if (a === "vttrenlvl") { const cur = vPageNow(); if (el.dataset.v) VTT.lvl = Number(el.dataset.v) || 0; if (!cur || !VTT.lvl) return; const name = await vAsk("Rename level", "Name", vLevelName(cur.p, VTT.lvl), "Save"); if (!name) return; const names = Object.assign({}, cur.p.levelNames || {}); names[VTT.lvl] = name; vPatch("vttpages/" + cur.id, { levelNames: names }); return; }
   if (a === "vttopts") { if (VTT.sel && VTT.sel.kind === "tok") vTokOptions(VTT.sel.id); return; }
   if (a === "vttsize") { const box = el.closest(".vform"); if (box) { vPatch("vtttokens/" + box.dataset.tok, { size: Number(el.dataset.v) }); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", b === el); b.setAttribute("aria-pressed", b === el); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = ""; } return; }
   if (a === "vttdeltok") { closeModal(); VTT.sel = { kind: "tok", id: el.dataset.id }; vDeleteSel(); return; }
@@ -954,10 +978,19 @@ const vHeight = t => Math.max(0, Number(t.lvl) || 0) + Math.max(0, Number(t.fly)
 function vMaxLevel(p) { let m = Number(p && p.maxLevel) || 0; (p && p.walls || []).forEach(w => { m = Math.max(m, w[4] || 0); }); (p && p.areas || []).forEach(a => { m = Math.max(m, a.level || 0); }); (p && p.objs || []).forEach(o => { m = Math.max(m, o.level || 0); }); return m; }
 const vLevelList = p => Array.from({ length: vMaxLevel(p) + 1 }, (_, i) => i);
 function vLevelName(p, n) { n = Number(n) || 0; if (!n) return "Ground"; const nm = ((p && p.levelNames) || {})[n]; return nm ? `Level ${n} · ${nm}` : `Level ${n}`; }
+// GM level filter: VTT.lvlShow is null (show every level) or a Set of the levels to show and edit.
+function vLvlHid(l) { return !!(VTT.lvlShow && vCanEdit() && !VTT.preview && !VTT.lvlShow.has(Number(l) || 0)); }
 function vLevelToolsHtml() {
-  const cur = vPageNow(), p = cur ? cur.p : {};
-  return `<div class="vgroup"><span class="vlab">Level</span><div class="vlvls">${vLevelList(p).map(n => `<button class="vbtn${VTT.lvl === n ? " on" : ""}" data-act="vttlvl" data-v="${n}" title="${esc(vLevelName(p, n))}: new walls, areas and pictures go here" aria-pressed="${VTT.lvl === n}">${n ? n : "G"}</button>`).join("")}<button class="vbtn" data-act="vttaddlvl" title="Add a level above">+</button></div>
-    ${VTT.lvl ? `<button class="vbtn small" data-act="vttrenlvl" title="Rename this level">✎ ${esc((p.levelNames || {})[VTT.lvl] || "Name it")}</button>` : ""}</div>`;
+  const cur = vPageNow(), p = cur ? cur.p : {}, all = !VTT.lvlShow;
+  const rows = vLevelList(p).reverse().map(n => { const shown = all || VTT.lvlShow.has(n), nm = n ? ((p.levelNames || {})[n] || "") : "";
+    return `<div class="vlvrow${VTT.lvl === n ? " on" : ""}${shown ? "" : " off"}">
+      <label class="vlvtick" title="${all ? "Show only this level" : shown ? "Hide this level" : "Show this level too"}"><input type="checkbox" data-act="vttlvlshow" data-v="${n}"${!all && shown ? " checked" : ""}></label>
+      <button class="vlvname" data-act="vttlvl" data-v="${n}" aria-pressed="${VTT.lvl === n}" title="Edit ${esc(vLevelName(p, n))}: new walls, squares, pictures and lights go here"><b>${n ? n : "G"}</b><span>${n ? esc(nm || "Level " + n) : "Ground"}</span></button>
+      ${n ? `<button class="vlvren" data-act="vttrenlvl" data-v="${n}" title="Rename this level">✎</button>` : ""}</div>`; }).join("");
+  return `<div class="vgroup vlvgroup"><span class="vlab">Levels</span>
+    <button class="vlvall${all ? " on" : ""}" data-act="vttlvlall" aria-pressed="${all}">${all ? "✓ " : ""}Show all</button>
+    <div class="vlvrows">${rows}</div>
+    <button class="vbtn small vlvadd" data-act="vttaddlvl" title="Add a level above">+ Add level</button></div>`;
 }
 function vTokLevel(delta) {
   const id = VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id, t = id && S.vttTokens.get(id), cur = vPageNow(); if (!t || !cur) return;
@@ -1242,7 +1275,7 @@ function vLiveSnap() {
   const cancel = () => { clearTimeout(timer); timer = 0; };
   document.addEventListener("pointerdown", ev => {
     cancel();
-    const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns")) return;
+    const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
     if (["wall", "area", "measure", "ping", "travel", "scale", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
@@ -1394,7 +1427,7 @@ function vLightsPaint(pid, p, toks) {
 function vLightMarks(p) {
   const C = VCELL, sel = VTT.sel && VTT.sel.kind === "light" ? VTT.sel.id : "";
   return `<svg class="vlmarks" width="${p.w * C}" height="${p.h * C}" aria-hidden="true">${(p.lights || []).map(l => { const b = (+l.bright || 0) / 5 * C, d = ((+l.bright || 0) + (+l.dim || 0)) / 5 * C;
-    return `<g class="${l.id === sel ? "sel" : ""}${(l.level || 0) !== VTT.lvl ? " otherlvl" : ""}" style="--lc:${esc(l.color || "#ffd9a0")}"><circle class="dimr" cx="${l.x * C}" cy="${l.y * C}" r="${d}"/>${b ? `<circle class="brr" cx="${l.x * C}" cy="${l.y * C}" r="${b}"/>` : ""}<circle class="lc" cx="${l.x * C}" cy="${l.y * C}" r="14"/><text x="${l.x * C}" y="${l.y * C + 6}">💡</text></g>`; }).join("")}</svg>`;
+    return `<g class="${l.id === sel ? "sel" : ""}${(l.level || 0) !== VTT.lvl ? " otherlvl" : ""}${vLvlHid(l.level) ? " lvlhid" : ""}" style="--lc:${esc(l.color || "#ffd9a0")}"><circle class="dimr" cx="${l.x * C}" cy="${l.y * C}" r="${d}"/>${b ? `<circle class="brr" cx="${l.x * C}" cy="${l.y * C}" r="${b}"/>` : ""}<circle class="lc" cx="${l.x * C}" cy="${l.y * C}" r="14"/><text x="${l.x * C}" y="${l.y * C + 6}">💡</text></g>`; }).join("")}</svg>`;
 }
 function vLightToolsHtml() {
   const lib = vLights();
@@ -1496,7 +1529,7 @@ const vWallPassable = w => !!(w[5] && (w[5].k === "window" || (w[5].k === "door"
 function vDoorMarks(p, gm) {
   const C = VCELL;
   return `<div class="vdoors">${(p.walls || []).map((w, i) => { const m = w[5]; if (!m || (m.secret && !gm)) return "";
-    const x = (w[0] + w[2]) / 2, y = (w[1] + w[3]) / 2, lvl = w[4] || 0, other = gm && lvl !== VTT.lvl;
+    const x = (w[0] + w[2]) / 2, y = (w[1] + w[3]) / 2, lvl = w[4] || 0, other = gm && lvl !== VTT.lvl; if (gm && vLvlHid(lvl)) return "";
     const label = m.k === "window" ? "Window · climb through" : m.locked && !gm ? "Locked" : m.open ? "Close door" : "Open door";
     const icon = m.k === "window" ? "🪟" : m.locked ? "🔒" : m.open ? "🚪" : "🚪";
     if (m.k === "window") return `<div class="vdoor window${other ? " otherlvl" : ""}" data-x="${x}" data-y="${y}" style="left:${x * C}px;top:${y * C}px" title="Window: you can see through it, and climb through"><span class="vdi">🪟</span><span class="vdl">Window · climb through</span></div>`;
@@ -1562,7 +1595,7 @@ function vAreaPaint(d) {
   vPatch("vttpages/" + cur.id, fields);
 }
 function vAreaSvg(p, a, sel) {
-  const C = VCELL, cls = `varea${sel ? " sel" : ""}${a.level === VTT.lvl ? " cur" : ""}`;
+  const C = VCELL, cls = `varea${sel ? " sel" : ""}${a.level === VTT.lvl ? " cur" : ""}${vLvlHid(a.level) ? " lvlhid" : ""}`;
   if (!Array.isArray(a.cells)) return a.pts ? `<g class="${cls}"><polygon points="${a.pts.map(q => q[0] * C + "," + q[1] * C).join(" ")}"/><text x="${a.pts[0][0] * C + 6}" y="${a.pts[0][1] * C + 18}">${esc(vLevelName(p, a.level))}</text></g>` : "";
   if (!a.cells.length) return "";
   const has = new Set(a.cells.map(c => c[0] + "," + c[1])), on = (x, y) => has.has(x + "," + y);
@@ -1593,7 +1626,7 @@ function vLinkAdd(d) {
 function vLinksHtml(p, gm) {
   if (!gm || !(p.links || []).length) return "";
   const C = VCELL, sel = VTT.sel && VTT.sel.kind === "link" ? VTT.sel.id : "";
-  return `<svg class="vlinks${VTT.layer === "walls" ? " active" : ""}" width="${p.w * C}" height="${p.h * C}" aria-hidden="true">${(p.links || []).map(l => `<g class="${l.id === sel ? "sel" : ""}"><rect x="${l.x * C}" y="${l.y * C}" width="${l.w * C}" height="${l.h * C}"/><text x="${l.x * C + 6}" y="${l.y * C + 20}">${l.kind === "lift" ? "🛗 Lift" : "🪜 Stairs"} · ${(l.levels || []).map(n => n ? n : "G").join(" ↔ ")}</text></g>`).join("")}</svg>`;
+  return `<svg class="vlinks${VTT.layer === "walls" ? " active" : ""}" width="${p.w * C}" height="${p.h * C}" aria-hidden="true">${(p.links || []).map(l => `<g class="${l.id === sel ? "sel" : ""}${(l.levels || [0]).every(vLvlHid) ? " lvlhid" : ""}"><rect x="${l.x * C}" y="${l.y * C}" width="${l.w * C}" height="${l.h * C}"/><text x="${l.x * C + 6}" y="${l.y * C + 20}">${l.kind === "lift" ? "🛗 Lift" : "🪜 Stairs"} · ${(l.levels || []).map(n => n ? n : "G").join(" ↔ ")}</text></g>`).join("")}</svg>`;
 }
 function vLinkSideHtml(p, l) {
   const lv = vLevelList(p).concat([vMaxLevel(p) + 1]);
