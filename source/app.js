@@ -458,7 +458,7 @@ function connectDb(db) {
     S[key] = new Map(snap.docs.filter(d => d.exists).map(d => [d.id, d.data()]));
     if (after) after(); else { const v = route().v; if (v === "vtt" || v === "vttc") render(); }
   }, () => {});
-  vttSub("vttcamps", "vttCamps"); vttSub("vttpages", "vttPages"); vttSub("vtttokens", "vttTokens");
+  vttSub("vttcamps", "vttCamps", () => { const v = route().v; if (v === "vtt" || v === "vttc" || v === "home") render(); }); vttSub("vttpages", "vttPages"); vttSub("vtttokens", "vttTokens");
   vttSub("vttfog", "vttFog", () => { if (route().v === "vttc") vDraw(); });
   vttSub("vttdraw", "vttDraw", () => { if (route().v === "vttc" && typeof vDrawingsRefresh === "function") vDrawingsRefresh(); });
   if (window.__CODEX_SERVER) vttSub("vttlive", "vttLive", () => { if (route().v === "vttc" && typeof vLiveSnap === "function") vLiveSnap(); });
@@ -541,6 +541,7 @@ function render() {
   { const nav = document.querySelector(".nav"), on = nav && nav.querySelector("a.on"); if (on && nav.scrollWidth > nav.clientWidth) { const l = on.offsetLeft - nav.offsetLeft, r = l + on.offsetWidth; if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth - 28) nav.scrollLeft = Math.max(0, l - 24); } }
   { const q = document.getElementById("q"); if (q && document.activeElement !== q && !q.value) document.body.classList.remove("showsearch"); }
   document.body.classList.toggle("vttmode", r.v === "vttc");
+  if (r.v === "vttc" && r.id) { try { localStorage.setItem("codexLastCamp", r.id); } catch (e) {} }
   document.body.classList.toggle("at-home", r.v === "home");
   beLeave(r);
   // The book editor stays put while snapshots arrive; only its embedded previews refresh.
@@ -652,49 +653,113 @@ function dayPick(list) {
   const d = new Date(), seed = d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate();
   return list[(seed * 2654435761 >>> 0) % list.length];
 }
+function homeAgo(t) {
+  const ms = Date.now() - Date.parse(t || ""); if (!(ms >= 0)) return "";
+  const m = Math.round(ms / 60000);
+  return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : m < 2880 ? "yesterday" : m < 10080 ? Math.round(m / 1440) + " days ago" : new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+function homeLastCamp() {
+  const camps = S.vttCamps || new Map(); if (!camps.size) return null;
+  let id = ""; try { id = localStorage.getItem("codexLastCamp") || ""; } catch (e) {}
+  if (!camps.has(id)) id = [...camps.entries()].sort((a, b) => String(b[1].updated || b[1].created || "").localeCompare(String(a[1].updated || a[1].created || "")))[0][0];
+  return id;
+}
 function viewHome() {
   if (!S.loaded.entries && !S.offline) return loadingOr(false);
+  const GM = !READONLY && !(typeof PLAYER !== "undefined" && PLAYER);
   const all = [...S.entries.entries()];
   const count = t => all.filter(([, e]) => e.type === t).length;
-  const creatures = all.filter(([, e]) => e.type === "creature");
-  const withSb = creatures.filter(([, e]) => e.statblock);
+  const creatures = all.filter(([, e]) => e.type === "creature"), withSb = creatures.filter(([, e]) => e.statblock);
   const items = all.filter(([, e]) => e.type === "item");
-  const rarRank = r => ["divine", "unique", "artifact", "legendary", "very rare", "rare", "uncommon", "common", ""].indexOf((r || "").toLowerCase());
-  const topItems = items.slice().sort((a, b) => rarRank((a[1].item || {}).rarity) - rarRank((b[1].item || {}).rarity) || byName(a[1].title, b[1].title)).slice(0, 4);
-  const books = [...S.books.entries()].sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-  const spot = dayPick(withSb.length ? withSb : creatures);
-  const recent = all.slice().sort((a, b) => String(b[1].updated || "").localeCompare(String(a[1].updated || ""))).slice(0, 5);
-  const tagsTop = allTagSlugs().map(s => [s, tagCount(s)]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  const lore = TYPES.filter(t => !["creature", "item"].includes(t.id)).map(t => [t, count(t.id)]).filter(([, n]) => n);
-  const tile = (go, cls, title, sub, body) => `<section class="tile ${cls}" data-go="${go}" tabindex="0" role="link" aria-label="${esc(title)}">
-      <header><h2>${title}</h2><span class="tsub">${sub}</span></header>${body}<span class="topen" aria-hidden="true">Open →</span></section>`;
-  const sp = spot ? spot[1] : null, sb = sp && sp.statblock;
-  return `<div class="home">
-    <div class="hero">
-      <h1>${READONLY ? "A codex" : "Your codex"} <span>for DnD</span></h1>
+  const books = [...S.books.entries()].filter(([, b]) => GM || !b.hidden).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  const chars = [...S.chars.entries()].sort((a, b) => byName(a[1].name, b[1].name));
+  const loreN = all.length - creatures.length - items.length;
+  const card = (cls, title, link, body, extra = "") => `<section class="hcard ${cls}"><header><h2>${title}</h2>${link ? `<a class="hmore" href="#${link[0]}">${link[1]} →</a>` : ""}</header>${body}${extra}</section>`;
+
+  // 1. Pick up where you left off: the tabletop campaign you last had open.
+  const campId = homeLastCamp(), camp = campId ? S.vttCamps.get(campId) : null;
+  let cont;
+  if (camp) {
+    const pages = S.vttPages || new Map();
+    const pid = camp.playerPage && pages.has(camp.playerPage) ? camp.playerPage : ([...pages.entries()].filter(([, p]) => p.camp === campId).sort((a, b) => (a[1].order || 0) - (b[1].order || 0))[0] || [""])[0];
+    const pg = pid ? pages.get(pid) : null;
+    const I = camp.init || {}, list = Array.isArray(I.list) ? I.list.filter(x => GM || !x.gm) : [], cur = list.find(x => x.id === I.cur);
+    const toks = pid && S.vttTokens ? [...S.vttTokens.values()].filter(t => t.page === pid && t.layer !== "gm").length : 0;
+    const quests = (Array.isArray(camp.quests) ? camp.quests : []).filter(q => (q.status || "active") === "active" && (GM || (!q.hidden && camp.questShow)));
+    cont = `<a class="hcont" href="#vtt-${esc(campId)}">
+      <span class="eyebrow">${GM ? "Continue your session" : "Your table"}</span>
+      <strong>${esc(camp.name || "Campaign")}</strong>
+      <span class="hcmeta">${pg ? `<span>🗺 ${esc(pg.name || "Map")}</span>` : ""}${toks ? `<span>${toks} token${toks === 1 ? "" : "s"}</span>` : ""}${quests.length ? `<span>${quests.length} active quest${quests.length === 1 ? "" : "s"}</span>` : ""}</span>
+      ${I.round && cur ? `<span class="hcfight">⚔ In combat · round ${Number(I.round)} · ${esc(cur.name || "someone")}'s turn</span>` : ""}
+      <span class="btn">Open tabletop →</span></a>`;
+  } else {
+    cont = `<a class="hcont empty" href="#vtt"><span class="eyebrow">Tabletop</span><strong>${GM ? "Set up your first campaign" : "No table yet"}</strong><span class="hcmeta"><span>${GM ? "Maps, tokens, fog and lighting for your sessions." : "Your GM hasn't opened a table yet."}</span></span>${GM ? `<span class="btn">Go to Tabletop →</span>` : ""}</a>`;
+  }
+
+  // 2. The party at a glance.
+  const party = chars.length ? `<ul class="hparty">${chars.slice(0, 8).map(([id, c]) => {
+    const hp = Number(c.hp && c.hp.cur) || 0, mx = Number(c.hp && c.hp.max) || 0, pct = mx ? Math.max(0, Math.min(100, Math.round(hp / mx * 100))) : 0;
+    const ac = typeof cAC === "function" ? cAC(c) : (c.ac || "");
+    return `<li><a href="#char-${esc(id)}"><span class="hpname"><b>${esc(c.name || "Unnamed")}</b><span class="muted small">${esc(typeof charSub === "function" ? charSub(c) : "")}</span></span>
+      <span class="hpac" title="Armour Class">${esc(String(ac))}<small>AC</small></span>
+      <span class="hphp" title="Hit points"><span class="hpbar"><i class="${pct <= 25 ? "low" : pct <= 50 ? "mid" : ""}" style="width:${pct}%"></i></span><span class="small">${hp}/${mx}</span></span></a></li>`;
+  }).join("")}</ul>` : `<p class="muted">${GM ? "No character sheets yet." : "No characters yet."}</p>${GM ? `<a class="btn ghost small" href="#characters">Add a character</a>` : ""}`;
+
+  // 3. Recently changed across entries, books and characters.
+  const recent = [
+    ...all.map(([id, e]) => ({ t: e.updated, href: "#entry-" + id, name: e.title || "Untitled", kind: (TYPE[e.type] || TYPE.general).label, cls: "t-" + ((TYPE[e.type] || TYPE.general).id) })),
+    ...books.map(([id, b]) => ({ t: b.updated, href: "#book-" + id, name: b.title || "Untitled book", kind: "Book", cls: "t-history" })),
+    ...chars.map(([id, c]) => ({ t: c.updated, href: "#char-" + id, name: c.name || "Character", kind: "Character", cls: "t-faction" }))
+  ].filter(x => x.t).sort((a, b) => String(b.t).localeCompare(String(a.t))).slice(0, 7);
+  const recentHtml = recent.length ? `<ul class="hrecent">${recent.map(x => `<li><a href="${esc(x.href)}">${esc(x.name)}</a><span class="pill ${x.cls}">${esc(x.kind)}</span><span class="muted small">${esc(homeAgo(x.t))}</span></li>`).join("")}</ul>` : `<p class="muted">Nothing edited yet.</p>`;
+
+  // 4. Things the GM might want to tidy up.
+  const stubs = all.filter(([, e]) => !String(e.body || "").trim() && !e.statblock && !(e.item && (e.item.lore || e.item.meta)) && !e.features);
+  const noSb = creatures.filter(([, e]) => !e.statblock);
+  const dups = typeof dupGroups === "function" ? dupGroups().length : 0, hid = hiddenCount();
+  const todo = [
+    stubs.length ? `<li><span class="hnum">${stubs.length}</span><span>entr${stubs.length === 1 ? "y" : "ies"} not written yet <span class="hlinks">${stubs.slice(0, 3).map(([id, e]) => `<a href="#entry-${esc(id)}">${esc(e.title)}</a>`).join("")}</span></span></li>` : "",
+    noSb.length ? `<li><span class="hnum">${noSb.length}</span><span>creature${noSb.length === 1 ? "" : "s"} without a stat block <span class="hlinks"><a href="#bestiary" data-act="homenosb">Show them</a></span></span></li>` : "",
+    dups ? `<li><span class="hnum">${dups}</span><span>title${dups === 1 ? "" : "s"} used twice <span class="hlinks"><button type="button" class="linkbtn" data-act="mergedupes">Merge</button></span></span></li>` : "",
+    hid ? `<li><span class="hnum quiet">${hid}</span><span>hidden from players</span></li>` : ""
+  ].join("");
+
+  // 5. Creature of the day, kept small.
+  const spot = dayPick(withSb.length ? withSb : creatures), sp = spot ? spot[1] : null, sb = sp && sp.statblock;
+  const spotHtml = sp ? `<a class="hspot" href="#entry-${esc(spot[0])}"><strong>${esc(sp.title)}</strong>
+    <span class="muted small">${esc((sb && sb.subtitle) || (sp.tags || []).map(tagName).join(", "))}</span>
+    ${sb ? `<span class="spotstats">${sb.ac ? `<span><b>AC</b> ${esc(String(sb.ac).split(" ")[0])}</span>` : ""}${sb.hp ? `<span><b>HP</b> ${esc(String(sb.hp).split(" ")[0])}</span>` : ""}${sb.cr ? `<span><b>CR</b> ${esc(String(sb.cr).split(" ")[0])}</span>` : ""}</span>` : ""}
+    ${sp.body ? `<span class="spotlore">${esc(excerpt(sp.body, 110))}</span>` : ""}</a>` : "";
+
+  const stat = (href, n, label, cls, sub) => `<a class="hstat ${cls}" href="#${href}"><b>${fmt(n)}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</a>`;
+  const worldName = S.meta && S.meta.name ? S.meta.name : "";
+  return `<div class="home2">
+    <div class="hhead">
+      <div class="hhtitle"><h1>${worldName ? esc(worldName) : (READONLY ? "A codex" : "Your codex")} <span>${worldName ? "codex" : "for DnD"}</span></h1>
+        ${GM ? `<div class="hactions"><button class="btn" data-act="new">+ New entry</button><a class="btn ghost" href="#characters">Characters</a><a class="btn ghost" href="#encounters">Encounters</a></div>` : ""}</div>
       <label class="search big"><span class="sr">Search all lore</span><input id="homeq" type="search" placeholder="Search creatures, items, books and towns" data-input="homeq"></label>
     </div>
-    <div class="tiles">
-      ${tile("bestiary", "t-creature wide", "Bestiary", `${creatures.length} creatures · ${withSb.length} stat blocks`,
-        sp ? `<a class="spot" href="#entry-${esc(spot[0])}"><span class="eyebrow">Creature of the day</span><strong>${esc(sp.title)}</strong>
-          <span class="muted">${esc((sb && sb.subtitle) || (sp.tags || []).map(tagName).join(", "))}</span>
-          ${sb ? `<span class="spotstats">${sb.ac ? `<span><b>AC</b> ${esc(String(sb.ac).split(" ")[0])}</span>` : ""}${sb.hp ? `<span><b>HP</b> ${esc(String(sb.hp).split(" ")[0])}</span>` : ""}${sb.cr ? `<span><b>CR</b> ${esc(String(sb.cr).split(" ")[0])}</span>` : ""}</span>` : ""}
-          ${sp.body ? `<span class="spotlore">${esc(excerpt(sp.body, 140))}</span>` : ""}</a>` : `<p class="muted">No creatures yet.</p>`)}
-      ${tile("items", "t-item", "Items", `${items.filter(([, e]) => isMagical(e)).length} magical · ${items.filter(([, e]) => !isMagical(e)).length} mundane`,
-        `<ul class="mini">${topItems.map(([id, e]) => `<li><a href="#entry-${esc(id)}" class="${e.item && e.item.rarity ? "r-" + slugify(e.item.rarity) : ""}">${esc(e.title)}</a>${e.item && e.item.holder ? `<span class="muted">${esc(e.item.holder)}</span>` : ""}</li>`).join("") || `<li class="muted">None yet</li>`}</ul>`)}
-      ${tile("characters", "t-faction", "Characters", `${S.chars.size} character${S.chars.size === 1 ? "" : "s"}`,
-        S.chars.size ? `<ul class="mini">${[...S.chars.entries()].sort((a, b) => byName(a[1].name, b[1].name)).slice(0, 6).map(([id, c]) => `<li><a href="#char-${esc(id)}">${esc(c.name)}</a><span class="muted">HP ${Number(c.hp && c.hp.cur) || 0}/${Number(c.hp && c.hp.max) || 0}</span></li>`).join("")}</ul>` : `<p class="muted">Add your party's sheets.</p>`)}
-      ${tile("world", "t-location wide", S.meta ? esc(S.meta.name) : "World", S.meta ? `${fmt(S.towns.length)} settlements · ${S.meta.states.filter(x => x.i).length} realms` : "No map yet",
-        S.meta && S.towns.length ? `<div class="thumb">${worldSvg({ thumb: true })}</div>` : `<p class="muted">Import your Azgaar map in the World tab.</p>`)}
-      ${tile("books", "t-history", "Books", `${books.length} supplements`,
-        `<div class="spines">${books.slice(0, 14).map(([id, b]) => `<a href="#book-${esc(id)}" class="spine st-${slugify(b.status || "")}" title="${esc(b.title)} (${esc(b.status || "")})"><span>${esc(b.title)}</span></a>`).join("")}</div>`)}
-      ${tile("library", "t-biology", "Library", `${all.length} entries`,
-        `<div class="chips2">${lore.map(([t, n]) => `<span class="pill t-${t.id}">${t.plural} ${n}</span>`).join("")}</div>
-         ${recent.length ? `<h3 class="tmini">Recently changed</h3><ul class="mini">${recent.map(([id, e]) => `<li><a href="#entry-${esc(id)}">${esc(e.title)}</a><span class="muted">${(TYPE[e.type] || TYPE.general).label}</span></li>`).join("")}</ul>` : ""}`)}
-      ${tile("tags", "", "Tags", `${allTagSlugs().length} tags`,
-        `<div class="cloud">${tagsTop.map(([s2, n]) => `<a href="#tag-${esc(s2)}" class="tag" style="font-size:${(0.78 + Math.min(n, 30) / 60).toFixed(2)}rem">${esc(tagName(s2))}</a>`).join("")}</div>`)}
-      ${READONLY ? "" : tile("backup", "", "Library file", LOCAL ? "Saved in your folder" : "Backups and moving computers",
-        `<p class="muted small">${hiddenCount() ? `${hiddenCount()} hidden from players. ` : ""}Export a read-only page for friends, or a library file for another computer.</p><button class="btn ghost small" data-act="export">Export…</button>`)}
+    <nav class="hstats" aria-label="What's in your codex">
+      ${stat("bestiary", creatures.length, "Creatures", "t-creature", withSb.length + " stat blocks")}
+      ${stat("items", items.length, "Items", "t-item", items.filter(([, e]) => isMagical(e)).length + " magical")}
+      ${stat("library", loreN, "Lore entries", "t-biology", "")}
+      ${stat("spells", count("spell"), "Spells", "t-magic", "")}
+      ${stat("books", books.length, "Books", "t-history", "")}
+      ${stat("characters", chars.length, "Characters", "t-faction", "")}
+      ${S.meta ? stat("world", S.towns.length, "Settlements", "t-location", S.meta.states.filter(x => x.i).length + " realms") : ""}
+    </nav>
+    <div class="hgrid">
+      <div class="hmain">
+        ${cont}
+        ${card("hpartycard", "Party", ["characters", "All characters"], party)}
+        ${card("", "Recently changed", ["library", "Library"], recentHtml)}
+      </div>
+      <aside class="hside">
+        ${GM && todo ? card("htodocard", "Needs attention", null, `<ul class="htodo">${todo}</ul>`) : ""}
+        ${sp ? card("t-creature hspotcard", "Creature of the day", ["bestiary", "Bestiary"], spotHtml) : ""}
+        ${books.length ? card("", "Books", ["books", "All books"], `<ul class="hbooks">${books.slice(0, 6).map(([id, b]) => `<li><a href="#book-${esc(id)}">${esc(b.title || "Untitled")}</a>${b.status ? `<span class="muted small">${esc(b.status)}</span>` : ""}</li>`).join("")}</ul>`) : ""}
+        ${S.meta && S.towns.length ? `<a class="hcard hworld" href="#world"><header><h2>${esc(S.meta.name || "World")}</h2><span class="hmore">Map →</span></header><div class="thumb">${worldSvg({ thumb: true })}</div></a>` : ""}
+      </aside>
     </div>
   </div>`;
 }
@@ -2221,6 +2286,7 @@ document.addEventListener("click", async ev => {
   else if (a === "ftagsclear") { S.filter.tags = new Set(); render(); }
   else if (a === "fmode") { S.filter.mode = v === "or" ? "or" : "and"; render(); }
   else if (a === "mergedupes") mergeDuplicates();
+  else if (a === "homenosb") { ev.preventDefault(); S.filter = { types: new Set(), tags: new Set(), q: "", mode: S.filter.mode }; S.beast.sbOnly = 2; location.hash = "bestiary"; }
   else if (a === "tpdone") { const d = el.closest("details"); if (d) d.open = false; }
   else if (a === "topsearch") { const on = document.body.classList.toggle("showsearch"); if (on) { const q = document.getElementById("q"); if (q) q.focus(); } }
   else if (a === "imgup") pickImage(async res => {
