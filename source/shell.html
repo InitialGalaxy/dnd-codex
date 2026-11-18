@@ -1734,7 +1734,7 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vlayer { pointer-events: none; } .vlayer > * { pointer-events: auto; }
 .vstage[data-layer="map"] .vgm > *, .vstage[data-layer="map"] .vtokl > *, .vstage[data-layer="walls"] .vlayer > * { pointer-events: none; }
 .vstage[data-layer="token"] .vmap > *, .vstage[data-layer="gm"] .vmap > * { pointer-events: none; }
-.vroofl > .vobj { pointer-events: none; } .vstage[data-layer="map"] .vroofl > .vobj[data-layer="map"], .vstage[data-layer="gm"] .vroofl > .vobj[data-layer="gm"], .vstage[data-layer="token"] .vroofl > .vobj[data-layer="token"] { pointer-events: auto; }
+.vroofl > .vrlv { position: absolute; inset: 0; pointer-events: none; } .vroofl .vobj { pointer-events: none; } .vstage[data-layer="map"] .vroofl .vobj[data-layer="map"], .vstage[data-layer="gm"] .vroofl .vobj[data-layer="gm"], .vstage[data-layer="token"] .vroofl .vobj[data-layer="token"] { pointer-events: auto; }
 .vstage[data-layer="map"] .vhigh > *, .vstage[data-layer="walls"] .vhigh > *, .vstage[data-layer="gm"] .vhigh > * { pointer-events: none; }
 .vobj.sel { outline: 2px dashed var(--brass); outline-offset: 2px; }
 .vobj.gmonly { opacity: .55; outline: 1px dashed #b080ff; }

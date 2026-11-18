@@ -1735,7 +1735,7 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vlayer { pointer-events: none; } .vlayer > * { pointer-events: auto; }
 .vstage[data-layer="map"] .vgm > *, .vstage[data-layer="map"] .vtokl > *, .vstage[data-layer="walls"] .vlayer > * { pointer-events: none; }
 .vstage[data-layer="token"] .vmap > *, .vstage[data-layer="gm"] .vmap > * { pointer-events: none; }
-.vroofl > .vobj { pointer-events: none; } .vstage[data-layer="map"] .vroofl > .vobj[data-layer="map"], .vstage[data-layer="gm"] .vroofl > .vobj[data-layer="gm"], .vstage[data-layer="token"] .vroofl > .vobj[data-layer="token"] { pointer-events: auto; }
+.vroofl > .vrlv { position: absolute; inset: 0; pointer-events: none; } .vroofl .vobj { pointer-events: none; } .vstage[data-layer="map"] .vroofl .vobj[data-layer="map"], .vstage[data-layer="gm"] .vroofl .vobj[data-layer="gm"], .vstage[data-layer="token"] .vroofl .vobj[data-layer="token"] { pointer-events: auto; }
 .vstage[data-layer="map"] .vhigh > *, .vstage[data-layer="walls"] .vhigh > *, .vstage[data-layer="gm"] .vhigh > * { pointer-events: none; }
 .vobj.sel { outline: 2px dashed var(--brass); outline-offset: 2px; }
 .vobj.gmonly { opacity: .55; outline: 1px dashed #b080ff; }
@@ -8368,7 +8368,7 @@ function vDraw() {
     <div class="vlayer vgm">${gm ? objs.filter(o => o.layer === "gm" && !o.level).map(img).join("") + visToks.filter(([, t]) => t.layer === "gm").map(tok).join("") : ""}</div>
     <div class="vlayer vtokl">${objs.filter(o => o.layer === "token" && !o.level).map(img).join("")}${visToks.filter(([, t]) => t.layer !== "gm" && !vHeight(t)).map(tok).join("")}</div>
     <canvas class="vfog" id="vfog" aria-hidden="true"></canvas>
-    <div class="vlayer vroofl">${objs.filter(o => o.level && (gm || o.layer !== "gm")).map(img).join("")}</div>
+    <div class="vlayer vroofl">${(() => { const up = objs.filter(o => o.level && (gm || o.layer !== "gm")), lv = [...new Set(up.map(o => o.level))].sort((a, b) => a - b); return lv.map(L => `<div class="vrlv" data-lvl="${L}">${up.filter(o => o.level === L).map(img).join("")}</div>`).join(""); })()}</div>
     <div class="vlayer vhigh">${visToks.filter(([, t]) => t.layer !== "gm" && vHeight(t)).map(tok).join("")}</div>${vFxStageHtml(p)}<svg class="vdrawl" id="vdrawl" width="${W}" height="${H}" aria-hidden="true">${vDrawingsSvg(cur.id)}</svg>${walls}${gm && !VTT.preview && VTT.layer === "lights" ? vLightMarks(p) : ""}${vLinksHtml(p, gm && !VTT.preview)}${vDoorMarks(p, gm && !VTT.preview)}${vGoHtml(p, toks)}<svg class="vmeas" id="vmeas" width="${W}" height="${H}" aria-hidden="true"></svg><div class="vpings" id="vpings"></div>
     ${gm && VTT.sel && VTT.sel.kind === "obj" ? (o => o ? (o.rot ? "" : `<div class="vhandle" data-handle="obj" style="left:${(o.x + o.w) * VCELL - 9}px;top:${(o.y + o.h) * VCELL - 9}px" title="Drag to resize (Shift: free)"></div>`) + `<div class="vrothandle" data-handle="rot" style="left:${(o.x + o.w / 2) * VCELL - 11}px;top:${o.y * VCELL - 40}px;transform-origin:11px ${o.h * VCELL / 2 + 40}px;transform:rotate(${Number(o.rot) || 0}deg)" title="Drag to rotate (Shift: free; otherwise 15° steps)">⟳</div>` : "")(objs.find(o => o.id === VTT.sel.id)) : ""}
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
@@ -9158,15 +9158,34 @@ function vTokLevel(delta) {
   const lvl = Math.max(0, Math.min(vMaxLevel(cur.p), (Number(t.lvl) || 0) + delta));
   S.vttTokens.set(id, Object.assign({}, t, { lvl })); vPatch("vtttokens/" + id, { lvl }); vRefresh();
 }
-// Hide a level's pictures from players whose tokens stand (or fly) under one of that level's areas.
+// Players standing (or flying) under a level's raised squares see through that level's pictures:
+// the pictures are cut away over the connected patch of squares they're under, so they see the room below.
+function vRoofHoles(p, viewers, L) {
+  let d = "";
+  const seen = new Set();
+  (p.areas || []).filter(a => a.level === L).forEach(a => {
+    const under = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = (t.size || 1) / 2; return [t.x + s, t.y + s]; }).filter(([x, y]) => vInArea(a, x, y));
+    if (!under.length) return;
+    if (!Array.isArray(a.cells)) { d += "M" + a.pts.map(q => q[0] * VCELL + " " + q[1] * VCELL).join("L") + "Z"; return; }
+    const has = new Set(a.cells.map(c => c[0] + "," + c[1]));
+    under.forEach(([x, y]) => {
+      const start = Math.floor(x) + "," + Math.floor(y); if (seen.has(start)) return;
+      const todo = [start]; seen.add(start);
+      while (todo.length) {
+        const k = todo.pop(), [cx, cy] = k.split(",").map(Number);
+        d += `M${cx * VCELL} ${cy * VCELL}h${VCELL}v${VCELL}h${-VCELL}z`;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const n = (cx + dx) + "," + (cy + dy); if (has.has(n) && !seen.has(n)) { seen.add(n); todo.push(n); } }
+      }
+    });
+  });
+  return d;
+}
 function vRoofs(p, viewers) {
-  const areas = p.areas || [];
-  document.querySelectorAll(".vobj").forEach(el => {
-    const L = Number(el.dataset.level) || 0; if (!L) return;
-    const o = (p.objs || []).find(x => x.id === el.dataset.oid); if (!o) return;
-    const under = viewers.some(([, t]) => { if (vHeight(t) >= L) return false; const cx = t.x + (t.size || 1) / 2, cy = t.y + (t.size || 1) / 2;
-      return areas.some(a => a.level === L && vInArea(a, cx, cy) && cx >= o.x && cx <= o.x + o.w && cy >= o.y && cy <= o.y + o.h); });
-    el.classList.toggle("vroofoff", under);
+  const W = p.w * VCELL, H = p.h * VCELL;
+  document.querySelectorAll(".vroofl .vobj.vroofoff").forEach(el => el.classList.remove("vroofoff"));
+  document.querySelectorAll(".vrlv").forEach(el => {
+    const holes = vRoofHoles(p, viewers, Number(el.dataset.lvl) || 0);
+    el.style.clipPath = holes ? `path(evenodd, "M0 0H${W}V${H}H0Z${holes}")` : "";
   });
 }
 
