@@ -10425,7 +10425,7 @@ const S = {
   books: new Map(), chars: new Map(), encs: new Map(), imports: null, seed: null, importing: false,
   world: { q: "", state: "", prov: "", culture: "", good: "", group: "", sort: "pop", dir: -1, limit: 120, showMarkers: true },
   items: { holder: "", rarity: "", kind: "", magic: "", q: "" },
-  beast: { sel: null, sort: "name", sbOnly: 0, mat: 0, book: "", tagsOpen: false, openGroups: new Set(), tagQ: "" },
+  beast: { sel: null, sort: "name", sbOnly: 0, mat: 0, lore: 0, book: "", tagsOpen: false, openGroups: new Set(), tagQ: "" },
   landImg: null, landKey: null
 };
 
@@ -11150,7 +11150,7 @@ function viewBestiary() {
   const bookOpts = books.map(bk => Object.assign(bk, { n: bookCount(bk) })).filter(bk => bk.n).sort((a, b) => byName(a.title, b.title));
   if (B.book && B.book !== "__none" && !bookOpts.some(bk => bk.bid === B.book)) B.book = "";
   const bookOk = (id, e) => !B.book || (B.book === "__none" ? !books.some(bk => inBook(id, e, bk)) : inBook(id, e, books.find(bk => bk.bid === B.book)));
-  let list = allC.filter(([id, e]) => entryMatches(e, f, "creature") && tri(B.sbOnly, !!e.statblock) && tri(B.mat, hasMat(e)) && bookOk(id, e));
+  let list = allC.filter(([id, e]) => entryMatches(e, f, "creature") && tri(B.sbOnly, !!e.statblock) && tri(B.mat, hasMat(e)) && tri(B.lore, !!String(e.body || "").trim()) && bookOk(id, e));
   const sorters = {
     name: (a, b) => byName(a[1].title, b[1].title),
     cr: (a, b) => crNum((b[1].statblock || {}).cr) - crNum((a[1].statblock || {}).cr) || byName(a[1].title, b[1].title),
@@ -11175,9 +11175,9 @@ function viewBestiary() {
         <label class="bsort"><span class="sr">Sort by</span><select id="bsort" data-input="bsort"><option value="name"${B.sort === "name" ? " selected" : ""}>Sort: A to Z</option><option value="cr"${B.sort === "cr" ? " selected" : ""}>Sort: Challenge, highest first</option><option value="hp"${B.sort === "hp" ? " selected" : ""}>Sort: Hit points, highest first</option></select></label>
         <details class="filterpop" id="beasttags"${B.tagsOpen ? " open" : ""}><summary class="btn ghost">Tags${f.tags.size ? ` (${f.tags.size})` : ""}</summary><div class="pop">${tagPickerHtml(f, "creature")}</div></details>
         ${bookOpts.length ? `<label class="bbook"><span class="sr">Book</span><select data-input="bbook"><option value="">All books</option>${bookOpts.map(bk => `<option value="${esc(bk.bid)}"${B.book === bk.bid ? " selected" : ""}>${esc(bk.title)} (${bk.n})</option>`).join("")}<option value="__none"${B.book === "__none" ? " selected" : ""}>Not in any book</option></select></label>` : ""}
-        ${triBtn("bsbonly", B.sbOnly, "stat blocks")}${triBtn("bmat", B.mat, "materials")}
+        ${triBtn("bsbonly", B.sbOnly, "stat blocks")}${triBtn("bmat", B.mat, "materials")}${triBtn("blore", B.lore, "lore")}
       </div>
-      <p class="muted">${list.length} of ${allC.length} creatures ${active}${(f.tags.size || f.q || B.sbOnly || B.mat || B.book) ? ` <button class="btn ghost small" data-act="fclear">Clear</button>` : ""}</p>
+      <p class="muted">${list.length} of ${allC.length} creatures ${active}${(f.tags.size || f.q || B.sbOnly || B.mat || B.lore || B.book) ? ` <button class="btn ghost small" data-act="fclear">Clear</button>` : ""}</p>
     </div>
     ${list.length ? `<div class="bview">
       <div class="blist" role="list">${rows}</div>
@@ -12638,8 +12638,8 @@ document.addEventListener("click", async ev => {
   else if (a === "rmdraft") { draftTags.splice(Number(el.dataset.k), 1); drawDraftTags(); }
   else if (a === "ftype") { const f = S.filter.types; f.has(v) ? f.delete(v) : f.add(v); render(); }
   else if (a === "ftag") { const f = S.filter.tags; f.has(v) ? f.delete(v) : f.add(v); render(); }
-  else if (a === "fclear") { S.filter = { types: new Set(), tags: new Set(), q: "", mode: S.filter.mode }; S.beast.sbOnly = 0; S.beast.mat = 0; S.beast.book = ""; render(); }
-  else if (a === "tri") { const k = el.dataset.v === "bmat" ? "mat" : "sbOnly"; S.beast[k] = ((Number(S.beast[k]) || 0) + 1) % 3; render(); const b = document.querySelector(`[data-act="tri"][data-v="${el.dataset.v}"]`); if (b) b.focus(); }
+  else if (a === "fclear") { S.filter = { types: new Set(), tags: new Set(), q: "", mode: S.filter.mode }; S.beast.sbOnly = 0; S.beast.mat = 0; S.beast.lore = 0; S.beast.book = ""; render(); }
+  else if (a === "tri") { const k = el.dataset.v === "bmat" ? "mat" : el.dataset.v === "blore" ? "lore" : "sbOnly"; S.beast[k] = ((Number(S.beast[k]) || 0) + 1) % 3; render(); const b = document.querySelector(`[data-act="tri"][data-v="${el.dataset.v}"]`); if (b) b.focus(); }
   else if (a === "filtertag") { S.filter.tags = new Set([v]); S.filter.types = new Set(); location.hash = "library"; }
   else if (a === "edittag") openTagEditor(v);
   else if (a === "worldstate") { ev.preventDefault(); S.world.state = String(S.world.state) === String(v) ? "" : String(v); S.world.prov = ""; S.world.limit = 120; if (route().v !== "world") location.hash = "world"; else render(); }
