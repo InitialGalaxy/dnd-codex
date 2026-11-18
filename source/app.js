@@ -309,6 +309,8 @@ function diceify(html) {
   }).join("");
 }
 function isExternal(url) { return /^https?:\/\//i.test(url) && !url.startsWith(location.origin); }
+// Two copies of a picture for the torn-page look (see .torn in the styles).
+function tornHtml(html) { return html.replace(/<img ([^>]*)>/, (m, a) => `<img class="tla" ${a}><img class="tlb" ${a.replace(/alt="[^"]*"/, 'alt=""')} aria-hidden="true">`); }
 function imageHtml(url, alt, entryId) {
   if (!/^(https?:\/\/|\/_blob\/|images\/|blob:|data:image\/)/i.test(url)) return "";
   if (!isExternal(url) || READONLY || LOCAL) return `<figure class="img"><img src="${esc(url)}" alt="${esc(alt)}" loading="lazy"></figure>`;
@@ -895,7 +897,7 @@ function beastDetail(id) {
   const sb = e.statblock;
   return `<div class="bdhead"><h2><a href="#entry-${esc(id)}">${esc(e.title)}</a></h2><a class="btn ghost small" href="#entry-${esc(id)}">Open full page →</a></div>
     <div class="tags">${(e.tags || []).map(s => tagChip(s)).join("")}</div>
-    ${e.image ? `<div class="bdimg torn">${imageHtml(e.image, e.title, id)}</div>` : ""}
+    ${e.image ? `<div class="bdimg torn">${tornHtml(imageHtml(e.image, e.title, id))}</div>` : ""}
     ${sb ? statBlockHtml(sb, e.title, "core") + featuresHtml(sb, id) : `<p class="muted">No stat block yet.</p>`}
     ${ssEntryHtml(id, e)}
     ${lootHtml(e.loot, "Harvest table", creatureSizeNum(e))}
@@ -1019,7 +1021,7 @@ function hideBtn(hidden, act, id) {
   return `<button class="btn ghost hidebtn${hidden ? " on" : ""}" data-act="${act}" data-id="${esc(id)}" aria-pressed="${hidden}" title="${hidden ? "Players won't see this in the read-only page you share" : "Players will see this in the read-only page you share"}">${hidden ? "🔒 Hidden from players" : "👁 Visible to players"}</button>`;
 }
 function portraitHtml(id, e) {
-  const img = e.image ? imageHtml(e.image, e.title, id) : "";
+  const img = e.image ? (e.type === "creature" ? tornHtml(imageHtml(e.image, e.title, id)) : imageHtml(e.image, e.title, id)) : "";
   return `<div class="portrait${img ? (e.type === "creature" ? " torn" : "") : " empty"}">${img || `<span>No image yet</span>`}
     ${S.assets ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">${e.image ? "Replace image" : "Add image"}</button>` : ""}</div>`;
 }
