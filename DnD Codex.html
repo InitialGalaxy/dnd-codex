@@ -1895,6 +1895,13 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vhpbox { display: flex; gap: 6px; align-items: center; margin: 4px 0 12px; }
 .vshead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; } .vshead h2 { margin: 0; } .vshead p { margin: 2px 0 0; }
 .vsbars { display: grid; gap: 7px; margin: 10px 0 6px; }
+.vsbl .vsbctl { display: inline-flex; gap: 3px; margin-left: 8px; } .vsbl .vsbctl .iconbtn { padding: 0 7px; line-height: 1.4; } .vsbl .vsbctl .btn { padding: 1px 8px; font-size: .74rem; }
+.vsbl strong { margin-left: auto; }
+.vsbar.broken .vsbl span { color: #e39a32; font-weight: 600; }
+.vopth { margin: 14px 0 6px; font-size: .95rem; } .vopth small { font-weight: 400; font-size: .78rem; }
+.vcbars { display: grid; gap: 6px; margin-bottom: 6px; }
+.vcbrow { display: grid; grid-template-columns: minmax(0, 1fr) 64px auto 64px 38px auto; gap: 6px; align-items: center; }
+.vcbrow input[type=number] { width: 100% !important; } .vcbrow input[type=color] { width: 38px; height: 32px; padding: 2px; border-radius: 6px; }
 .vsbl { display: flex; justify-content: space-between; align-items: baseline; font: .8rem var(--ui); color: var(--muted); } .vsbl strong { color: var(--text); font-size: .95rem; } .vsbl small { color: var(--muted); font-weight: 400; }
 .vsbt { position: relative; height: 10px; border-radius: 99px; background: var(--panel-2); overflow: hidden; } .vsbt i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; } .vsbt b { position: absolute; inset: 0 0 0 auto; background: rgba(90,170,255,.85); }
 .vschips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; } .vschips span { font: .82rem var(--ui); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; } .vschips b { color: var(--muted); font-weight: 600; margin-right: 5px; }
@@ -8950,6 +8957,12 @@ async function vttAction(a, el, ev) {
   if (a === "vttlvl") { VTT.lvl = Number(el.dataset.v) || 0; if (VTT.lvlShow) VTT.lvlShow.add(VTT.lvl); VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
   if (a === "vttaddlvl") { const cur = vPageNow(); if (!cur) return; const n = vMaxLevel(cur.p) + 1, name = await vAsk("New level", "Name (optional)", n === 1 ? "Rooftops / upper floor" : "Level " + n, "Add level"); if (name === "") return; const names = Object.assign({}, cur.p.levelNames || {}); names[n] = name; VTT.lvl = n; await vPatch("vttpages/" + cur.id, { maxLevel: n, levelNames: names }); return; }
   if (a === "vttrenlvl") { const cur = vPageNow(); if (el.dataset.v) VTT.lvl = Number(el.dataset.v) || 0; if (!cur || !VTT.lvl) return; const name = await vAsk("Rename level", "Name", vLevelName(cur.p, VTT.lvl), "Save"); if (!name) return; const names = Object.assign({}, cur.p.levelNames || {}); names[VTT.lvl] = name; vPatch("vttpages/" + cur.id, { levelNames: names }); return; }
+  if (a === "vttcbar") { const t = S.vttTokens.get(el.dataset.id); if (!t) return; vPatch("vtttokens/" + el.dataset.id, { cbars: (t.cbars || []).map(b => b.id === el.dataset.b ? Object.assign({}, b, { cur: Math.max(0, Math.min(Number(b.max) || 0, (Number(b.cur) || 0) + Number(el.dataset.v))) }) : b) }); return; }
+  if (a === "vttexfill") { const t = S.vttTokens.get(el.dataset.id), ex = vExOf(t); if (!ex) return; const max = ex.cur ? ex.max : ex.max + ex.rise; vPatch("vtttokens/" + el.dataset.id, { ex: max, exMax: max, exRise: ex.rise }); return; }
+  if (a === "vttcbaradd" || a === "vttcbarrm") { const id = el.dataset.id, t = S.vttTokens.get(id); if (!t) return;
+    const list = (t.cbars || []).slice();
+    if (a === "vttcbaradd") list.push({ id: vid("b"), name: "", cur: 10, max: 10, color: ["#6f8cff", "#b46ee0", "#4cc3c9", "#e05a8a"][list.length % 4] }); else list.splice(list.findIndex(b => b.id === el.dataset.b), 1);
+    S.vttTokens.set(id, Object.assign({}, t, { cbars: list })); vPatch("vtttokens/" + id, { cbars: list }); vTokOptions(id); return; }
   if (a === "vttopts") { if (VTT.sel && VTT.sel.kind === "tok") vTokOptions(VTT.sel.id); return; }
   if (a === "vttsize") { const box = el.closest(".vform"); if (box) { vPatch("vtttokens/" + box.dataset.tok, { size: Number(el.dataset.v) }); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", b === el); b.setAttribute("aria-pressed", b === el); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = ""; } return; }
   if (a === "vttdeltok") { closeModal(); VTT.sel = { kind: "tok", id: el.dataset.id }; vDeleteSel(); return; }
@@ -8968,9 +8981,13 @@ async function vttAction(a, el, ev) {
 }
 // Fields in the side panel.
 document.addEventListener("change", ev => {
+  const cb = ev.target.closest && ev.target.closest(".vform .vcbrow [data-cb]");
+  if (cb && vCanEdit()) { const form = cb.closest(".vform"), row = cb.closest(".vcbrow"), id = form.dataset.tok, t = S.vttTokens.get(id); if (!t) return;
+    const k = cb.dataset.cb, v = k === "cur" || k === "max" ? Math.max(0, Number(cb.value) || 0) : cb.value;
+    vPatch("vtttokens/" + id, { cbars: (t.cbars || []).map(b => b.id === row.dataset.b ? Object.assign({}, b, { [k]: v }) : b) }); return; }
   const f = ev.target.closest && ev.target.closest(".vform [data-vf]"); if (!f || !vCanEdit()) return;
   const form = f.closest(".vform"), k = f.dataset.vf;
-  if (form.dataset.tok) { let v = ["size", "hp", "hpMax", "temp", "dv"].includes(k) ? (f.value === "" ? null : Number(f.value)) : f.value; if (k === "size") { if (!(v > 0)) return; v = Math.max(0.5, Math.min(40, Math.round(v * 2) / 2)); form.querySelectorAll("[data-act=vttsize]").forEach(b => b.classList.toggle("on", Number(b.dataset.v) === v)); } vPatch("vtttokens/" + form.dataset.tok, { [k]: v }); }
+  if (form.dataset.tok) { let v = ["size", "hp", "hpMax", "temp", "dv", "ex", "exMax", "exRise"].includes(k) ? (f.value === "" ? null : Number(f.value)) : f.value; if (k === "size") { if (!(v > 0)) return; v = Math.max(0.5, Math.min(40, Math.round(v * 2) / 2)); form.querySelectorAll("[data-act=vttsize]").forEach(b => b.classList.toggle("on", Number(b.dataset.v) === v)); } vPatch("vtttokens/" + form.dataset.tok, { [k]: v }); }
   else if (form.dataset.obj) { const v = k === "w" || k === "h" ? Math.max(0.25, Number(f.value) || 1) : k === "level" ? Number(f.value) || 0 : f.value; if (k === "layer") VTT.layer = v; vObjSet(form.dataset.obj, { [k]: v }); const tl = document.getElementById("vtools"); if (tl && k === "layer") tl.innerHTML = vToolsHtml(); }
 });
 
@@ -9031,6 +9048,20 @@ function vMeasDraw() {
 
 // ----- Bars over tokens -----
 // A character's slider resources (spell points, slider-style resources, slider lines on equipped items) sit above its HP.
+// ----- Monster extras: the Exhaust Meter (soaks damage before HP) and the GM's own bars -----
+// Exhaust comes from the stat block ("26 (→ +13)", or worked out for Large and bigger): 26 to start, and
+// each refill after it breaks adds 13. On the token: ex (left), exMax, exRise; exMax 0 turns it off.
+function vExParse(str) { const m = String(str || "").match(/(\d+)/), r = String(str || "").match(/\+\s*(\d+)/); return m ? { max: Number(m[1]), rise: r ? Number(r[1]) : 0 } : null; }
+function vExOf(t) {
+  if (!t || (t.ref || "").startsWith("c:") || (t.ref || "").startsWith("s:")) return null;
+  let max = t.exMax, rise = t.exRise;
+  if (max == null) { const e = (t.ref || "").startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null, sb = e && e.statblock;
+    const p = sb ? vExParse(sb.exhaust || (typeof sbAutoExhaust === "function" ? sbAutoExhaust(sb) : "")) : null; if (!p) return null; max = p.max; if (rise == null) rise = p.rise; }
+  max = Number(max) || 0; if (!max) return null;
+  const cur = t.ex != null && t.ex !== "" ? Math.max(0, Math.min(max, Number(t.ex) || 0)) : max;
+  return { cur, max, rise: Number(rise) || 0 };
+}
+const vCBars = t => Array.isArray(t && t.cbars) ? t.cbars.filter(b => b && Number(b.max) > 0) : [];
 function vBars(t) {
   const out = [];
   if (t.ref && t.ref.startsWith("c:")) {
@@ -9041,7 +9072,11 @@ function vBars(t) {
     const hp = c.hp || {}; if (Number(hp.max)) out.push({ cur: Number(hp.cur) || 0, max: Number(hp.max), temp: Number(hp.temp) || 0, hp: true, label: "HP" });
   } else if (t.ref && t.ref.startsWith("s:")) {
     const sm = vSummonOf(t.ref); if (sm && smNowMax(sm)) out.push({ cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0, hp: true, label: "HP" });
-  } else if (Number(t.hpMax)) out.push({ cur: Number(t.hp != null ? t.hp : t.hpMax) || 0, max: Number(t.hpMax), temp: Number(t.temp) || 0, hp: true, label: "HP" });
+  } else {
+    vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
+    const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
+    if (Number(t.hpMax)) out.push({ cur: Number(t.hp != null ? t.hp : t.hpMax) || 0, max: Number(t.hpMax), temp: Number(t.temp) || 0, hp: true, label: "HP" });
+  }
   return out;
 }
 const vBarsPublic = t => t.bars ? t.bars === "all" : !!t.owner;
@@ -9067,7 +9102,17 @@ function vDamage(el) {
     box.querySelector(".vhpn").value = ""; return;
   }
   if (t.ref && t.ref.startsWith("c:")) { charChange(t.ref.slice(2), x => { x.hp = Object.assign({ cur: 0, max: 0, temp: 0 }, x.hp); const [c2, t2] = apply(Number(x.hp.cur) || 0, Number(x.hp.max) || 0, Number(x.hp.temp) || 0); x.hp.cur = c2; x.hp.temp = t2; }); }
-  else { const [c2, t2] = apply(Number(t.hp != null ? t.hp : t.hpMax) || 0, Number(t.hpMax) || 0, Number(t.temp) || 0); vPatch("vtttokens/" + id, { hp: c2, temp: t2 }); }
+  else {
+    const ex = vExOf(t);
+    if (heal || !ex || !ex.cur) { const [c2, t2] = apply(Number(t.hp != null ? t.hp : t.hpMax) || 0, Number(t.hpMax) || 0, Number(t.temp) || 0); vPatch("vtttokens/" + id, { hp: c2, temp: t2 }); }
+    else {
+      let d = n, temp = Number(t.temp) || 0; const tt = Math.min(temp, d); temp -= tt; d -= tt;
+      const ed = Math.min(ex.cur, d), exLeft = ex.cur - ed; d -= ed;
+      const hp = Math.max(0, (Number(t.hp != null ? t.hp : t.hpMax) || 0) - d);
+      vPatch("vtttokens/" + id, Object.assign({ temp, ex: exLeft, hp }, t.exMax == null ? { exMax: ex.max, exRise: ex.rise } : {}));
+      if (!exLeft) toast(`${t.name || "It"}'s Exhaust Meter is broken${d ? ` (${d} went on to its HP)` : ""}.`);
+    }
+  }
   box.querySelector(".vhpn").value = "";
 }
 document.addEventListener("change", ev => { if (ev.target.matches && ev.target.matches(".vbeamw")) { VTT.mbeam = Number(ev.target.value) || 5; if (VTT.meas && VTT.meas.shape === "beam") { VTT.meas.bw = VTT.mbeam; vLiveMeas(true); } vMeasDraw(); } });
@@ -9080,10 +9125,12 @@ function vTokSideHtml(id, t) {
   const e = t.ref && t.ref.startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null;
   const bars = vBars(t), canHp = gm || (mine && (isChar || (t.ref || "").startsWith("s:")));
   const barHtml = bars.length ? `<div class="vsbars">${bars.map(b => { const pct = Math.max(0, Math.min(100, (b.cur / b.max) * 100)), hpc = pct > 50 ? "#4caf62" : pct > 25 ? "#d9a52b" : "#d0453a";
-    return `<div class="vsbar"><div class="vsbl"><span>${esc(b.label)}</span><strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong></div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
+    const ctl = gm && b.cbar ? `<span class="vsbctl"><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="-1" aria-label="One less">−</button><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="1" aria-label="One more">+</button></span>`
+      : gm && b.ex ? `<span class="vsbctl"><button class="btn ghost small" data-act="vttexfill" data-id="${esc(id)}" title="${b.cur ? "Fill the meter back up" : "It broke: refill it" + (vExOf(t).rise ? `, ${vExOf(t).rise} bigger` : "")}">${b.cur ? "Refill" : `Refill${vExOf(t).rise ? " +" + vExOf(t).rise : ""}`}</button></span>` : "";
+    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}</span><strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>${ctl}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
   const sm = t.ref && t.ref.startsWith("s:") ? vSummonOf(t.ref) : null;
   const canFly = gm || mine, fly = Math.max(0, Number(t.fly) || 0);
-  const dmg = canHp && (isChar || sm || t.hpMax) ? `<div class="vhpbox" data-tok="${esc(id)}"><input class="vhpn" type="number" min="0" placeholder="0" aria-label="Amount"><button class="btn small danger" data-act="vttdmg" data-v="dmg">Damage</button><button class="btn small" data-act="vttdmg" data-v="heal">Heal</button></div>` : "";
+  const dmg = canHp && (isChar || sm || t.hpMax || vExOf(t)) ? `<div class="vhpbox" data-tok="${esc(id)}"><input class="vhpn" type="number" min="0" placeholder="0" aria-label="Amount"><button class="btn small danger" data-act="vttdmg" data-v="dmg">Damage</button><button class="btn small" data-act="vttdmg" data-v="heal">Heal</button></div>` : "";
   const pg = (vPageNow() || {}).p || {}, lv = Math.max(0, Number(t.lvl) || 0);
   const lvlRow = vMaxLevel(pg) > 0 || lv ? `<div class="vflyrow"><span>Standing on</span>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="-1" aria-label="Down a level"${lv ? "" : " disabled"}>−</button>` : ""}<strong class="vlvlname">${esc(vLevelName(pg, lv))}</strong>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="1" aria-label="Up a level"${lv < vMaxLevel(pg) ? "" : " disabled"}>+</button>` : ""}</div>` : "";
   const flyRow = canFly || fly ? `<div class="vflyrow"><span>Flight band</span>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="-1" aria-label="Fly lower"${fly ? "" : " disabled"}>−</button>` : ""}<strong>${fly || "Ground"}</strong>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="1" aria-label="Fly higher">+</button>` : ""}</div>` : "";
@@ -9131,6 +9178,11 @@ function vTokOptions(id) {
     <label><span>Darkvision (ft) <small class="muted">blank: from the sheet or stat block${(d => d ? ` (${d} ft)` : "")(vDarkvisionAuto(t))}</small></span><input type="number" min="0" step="5" data-vf="dv" value="${t.dv != null ? t.dv : ""}" placeholder="auto"></label>
     <label><span>Bars shown to</span><select data-vf="bars"><option value="all"${vBarsPublic(t) ? " selected" : ""}>Everyone</option><option value="gm"${!vBarsPublic(t) ? " selected" : ""}>GM only</option></select></label>
     ${isChar || (t.ref || "").startsWith("s:") ? `<p class="muted small">HP and the bars come from the ${isChar ? "character sheet" : "summon on its character's sheet"}.</p>` : `<div class="frow tight"><label><span>HP</span><input type="number" data-vf="hp" value="${t.hp != null ? t.hp : (t.hpMax || "")}"></label><label><span>Max HP</span><input type="number" data-vf="hpMax" value="${t.hpMax || ""}"></label><label><span>Temp HP</span><input type="number" data-vf="temp" value="${t.temp || ""}"></label></div>`}
+    ${isChar || (t.ref || "").startsWith("s:") ? "" : (() => { const ex = vExOf(t) || { cur: "", max: "", rise: "" }; return `<h3 class="vopth">Exhaust Meter <small class="muted">soaks damage before HP${t.exMax == null && vExOf(t) ? " · from the stat block" : ""}</small></h3>
+      <div class="frow tight"><label><span>Left</span><input type="number" min="0" data-vf="ex" value="${ex.cur}"></label><label><span>Meter</span><input type="number" min="0" data-vf="exMax" value="${ex.max}" placeholder="none"></label><label><span>Grows by</span><input type="number" min="0" data-vf="exRise" value="${ex.rise}"></label></div>
+      <h3 class="vopth">Custom bars <small class="muted">rage, stagger, a ward, anything you track</small></h3>
+      <div class="vcbars">${(t.cbars || []).map(b => `<div class="vcbrow" data-b="${esc(b.id)}"><input type="text" data-cb="name" value="${esc(b.name || "")}" placeholder="Name" aria-label="Bar name"><input type="number" min="0" data-cb="cur" value="${Number(b.cur) || 0}" aria-label="Current"><span>/</span><input type="number" min="1" data-cb="max" value="${Number(b.max) || 0}" aria-label="Maximum"><input type="color" data-cb="color" value="${esc(b.color || "#6f8cff")}" aria-label="Colour"><button type="button" class="iconbtn" data-act="vttcbarrm" data-id="${esc(id)}" data-b="${esc(b.id)}" aria-label="Remove bar">✕</button></div>`).join("")}</div>
+      <button type="button" class="btn ghost small" data-act="vttcbaradd" data-id="${esc(id)}">+ Add a bar</button>`; })()}
     <div class="acts"><button class="btn" type="button" data-act="closemodal">Done</button><button class="btn ghost danger" type="button" data-act="vttdeltok" data-id="${esc(id)}">Delete token</button></div></div>`);
 }
 
