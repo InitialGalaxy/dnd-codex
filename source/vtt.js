@@ -254,7 +254,7 @@ function vFog(pid, p, toks) {
   const cv = document.getElementById("vfog"); if (!cv) return;
   const gm = vCanEdit(), dark = vDarkOn(p), on = (p.light || dark) && (!gm || VTT.preview);
   document.querySelectorAll(".vstage .gmonly").forEach(el => el.classList.toggle("vhide", gm && VTT.preview));
-  if (!on) { cv.style.display = "none"; document.querySelectorAll(".vtok.vhide:not(.gmonly),.vdoor.vhide").forEach(el => el.classList.remove("vhide")); const vv = vViewers(p, toks); if (!gm || VTT.preview) vRoofs(p, vv); return; }
+  if (!on) { cv.style.display = "none"; document.querySelectorAll(".vtok.vhide:not(.gmonly),.vdoor.vhide").forEach(el => el.classList.remove("vhide")); const vv = vViewers(p, toks); if (!gm || VTT.preview) { vRoofs(p, vv); vFloorHide(vv); } else document.querySelectorAll(".vtok.vflooroff").forEach(el => el.classList.remove("vflooroff")); return; }
   const viewers = vViewers(p, toks);
   // Each viewer is blocked only by the walls on its own height: standing level plus flight band.
   // Without dynamic lighting, walls don't block sight and only darkness limits it.
@@ -307,6 +307,13 @@ function vFog(pid, p, toks) {
     const seen = !!t.owner || vw.some(v => vInPoly(cx, cy, v.poly) && (!dark || glows || lit(cx, cy) || Math.hypot(cx - v.x, cy - v.y) <= v.s + 0.5 + v.dv + (t.size || 1) / 2));
     el.classList.toggle("vhide", !seen);
   });
+  vFloorHide(viewers);
+}
+// Players only see tokens on a floor one of their tokens is on (or the floor they've picked).
+function vFloorHide(viewers) {
+  const floors = new Set(viewers.map(([, t]) => Math.max(0, Number(t.lvl) || 0)));
+  document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (!t || t.layer === "gm") return;
+    el.classList.toggle("vflooroff", floors.size > 0 && !floors.has(Math.max(0, Number(t.lvl) || 0))); });
 }
 function vFogSaveSoon(pid, p) {
   clearTimeout(VTT.fogTimer);
@@ -650,6 +657,7 @@ async function vttAction(a, el, ev) {
   if (a === "vttmbcast") { VTT.mbcast = el.checked; try { localStorage.setItem("vttBcast", el.checked ? "1" : "0"); } catch (e) {} vLiveMeas(true); return; }
   if (a === "vttmyname") { const n = await vAsk("Your name", "Shown with your pings and measurements", vLiveName(), "Save"); if (!n) return; try { localStorage.setItem("vttName", n); } catch (e) {} vMeasToolsRefresh(); return; }
   if (a === "vttdmg") { vDamage(el); return; }
+  if (a === "vttdmgmode") { VTT.dmgMode = el.dataset.v; vRefresh(); return; }
   if (a === "vttfly") { vFly(Number(el.dataset.v)); return; }
   if (a === "vttlvlup") { vTokLevel(Number(el.dataset.v)); return; }
   if (a === "vttsummon" || a === "vttunsummon") { const ref = el.dataset.ref, cid = ref.split(":")[1]; if (!vCanEdit() && !(PLAYER && S.chars.has(cid))) return; if (a === "vttsummon") vSummonPlace(ref, el.dataset.near); else vSummonRemove(ref); return; }
@@ -683,7 +691,7 @@ async function vttAction(a, el, ev) {
     else if (VTT.lvlShow.has(n)) { VTT.lvlShow.delete(n); if (!VTT.lvlShow.size) VTT.lvlShow = null; else if (VTT.lvl === n) VTT.lvl = Math.max(...VTT.lvlShow); }
     else { VTT.lvlShow.add(n); VTT.lvl = n; }
     VTT.sel = null; VTT.multi.clear(); VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
-  if (a === "vttlvl") { VTT.lvl = Number(el.dataset.v) || 0; if (VTT.lvlShow) VTT.lvlShow.add(VTT.lvl); VTT.draft = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
+  if (a === "vttlvl") { const n = Number(el.dataset.v) || 0; VTT.lvlShow = VTT.lvlShow && VTT.lvlShow.size === 1 && VTT.lvlShow.has(n) ? null : new Set([n]); VTT.lvl = n; VTT.sel = null; VTT.multi.clear(); VTT.draft = null; const tl0 = document.getElementById("vtools"); if (tl0) tl0.innerHTML = vToolsHtml(); const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vRefresh(); return; }
   if (a === "vttaddlvl") { const cur = vPageNow(); if (!cur) return; const n = vMaxLevel(cur.p) + 1, name = await vAsk("New level", "Name (optional)", n === 1 ? "Rooftops / upper floor" : "Level " + n, "Add level"); if (name === "") return; const names = Object.assign({}, cur.p.levelNames || {}); names[n] = name; VTT.lvl = n; await vPatch("vttpages/" + cur.id, { maxLevel: n, levelNames: names }); return; }
   if (a === "vttrenlvl") { const cur = vPageNow(); if (el.dataset.v) VTT.lvl = Number(el.dataset.v) || 0; if (!cur || !VTT.lvl) return; const name = await vAsk("Rename level", "Name", vLevelName(cur.p, VTT.lvl), "Save"); if (!name) return; const names = Object.assign({}, cur.p.levelNames || {}); names[VTT.lvl] = name; vPatch("vttpages/" + cur.id, { levelNames: names }); return; }
   if (a === "vttcbar") { const t = S.vttTokens.get(el.dataset.id); if (!t) return; vPatch("vtttokens/" + el.dataset.id, { cbars: (t.cbars || []).map(b => b.id === el.dataset.b ? Object.assign({}, b, { cur: Math.max(0, Math.min(Number(b.max) || 0, (Number(b.cur) || 0) + Number(el.dataset.v))) }) : b) }); return; }
@@ -832,8 +840,9 @@ function vDamage(el) {
   }
   if (t.ref && t.ref.startsWith("c:")) { charChange(t.ref.slice(2), x => { x.hp = Object.assign({ cur: 0, max: 0, temp: 0 }, x.hp); const [c2, t2] = apply(Number(x.hp.cur) || 0, Number(x.hp.max) || 0, Number(x.hp.temp) || 0); x.hp.cur = c2; x.hp.temp = t2; }); }
   else {
-    const ex = vExOf(t);
-    if (heal || !ex || !ex.cur) { const [c2, t2] = apply(Number(t.hp != null ? t.hp : t.hpMax) || 0, Number(t.hpMax) || 0, Number(t.temp) || 0); vPatch("vtttokens/" + id, { hp: c2, temp: t2 }); }
+    const ex = vExOf(t), mode = VTT.dmgMode || "bps";
+    if (!heal && ex && mode === "ex") { const left = Math.max(0, ex.cur - n); vPatch("vtttokens/" + id, Object.assign({ ex: left }, t.exMax == null ? { exMax: ex.max, exRise: ex.rise } : {})); if (!left && ex.cur) toast(`${t.name || "It"}'s Exhaust Meter is broken.`); box.querySelector(".vhpn").value = ""; return; }
+    if (heal || !ex || !ex.cur || mode === "hp") { const [c2, t2] = apply(Number(t.hp != null ? t.hp : t.hpMax) || 0, Number(t.hpMax) || 0, Number(t.temp) || 0); vPatch("vtttokens/" + id, { hp: c2, temp: t2 }); }
     else {
       let d = n, temp = Number(t.temp) || 0; const tt = Math.min(temp, d); temp -= tt; d -= tt;
       const ed = Math.min(ex.cur, d), exLeft = ex.cur - ed; d -= ed;
@@ -859,7 +868,9 @@ function vTokSideHtml(id, t) {
     return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}</span><strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>${ctl}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
   const sm = t.ref && t.ref.startsWith("s:") ? vSummonOf(t.ref) : null;
   const canFly = gm || mine, fly = Math.max(0, Number(t.fly) || 0);
-  const dmg = canHp && (isChar || sm || t.hpMax || vExOf(t)) ? `<div class="vhpbox" data-tok="${esc(id)}"><input class="vhpn" type="number" min="0" placeholder="0" aria-label="Amount"><button class="btn small danger" data-act="vttdmg" data-v="dmg">Damage</button><button class="btn small" data-act="vttdmg" data-v="heal">Heal</button></div>` : "";
+  const dmgMode = VTT.dmgMode || "bps", exT = !isChar && !sm && vExOf(t);
+  const dmgType = gm && exT ? `<div class="vdmgtype" role="group" aria-label="What the damage hits">${[["bps", "Bludgeoning, piercing, slashing", "B / P / S", "Exhaust first, the rest to HP"], ["ex", "Exhaust only", "Exhaust", "Only the Exhaust Meter"], ["hp", "Other damage types", "HP only", "Skips the Exhaust Meter"]].map(([v, aria, lab, tip]) => `<button type="button" class="${dmgMode === v ? "on" : ""}" data-act="vttdmgmode" data-v="${v}" aria-pressed="${dmgMode === v}" aria-label="${aria}" title="${tip}">${lab}</button>`).join("")}</div>` : "";
+  const dmg = canHp && (isChar || sm || t.hpMax || vExOf(t)) ? dmgType + `<div class="vhpbox" data-tok="${esc(id)}"><input class="vhpn" type="number" min="0" placeholder="0" aria-label="Amount"><button class="btn small danger" data-act="vttdmg" data-v="dmg">Damage</button><button class="btn small" data-act="vttdmg" data-v="heal">Heal</button></div>` : "";
   const pg = (vPageNow() || {}).p || {}, lv = Math.max(0, Number(t.lvl) || 0);
   const lvlRow = vMaxLevel(pg) > 0 || lv ? `<div class="vflyrow"><span>Standing on</span>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="-1" aria-label="Down a level"${lv ? "" : " disabled"}>−</button>` : ""}<strong class="vlvlname">${esc(vLevelName(pg, lv))}</strong>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="1" aria-label="Up a level"${lv < vMaxLevel(pg) ? "" : " disabled"}>+</button>` : ""}</div>` : "";
   const flyRow = canFly || fly ? `<div class="vflyrow"><span>Flight band</span>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="-1" aria-label="Fly lower"${fly ? "" : " disabled"}>−</button>` : ""}<strong>${fly || "Ground"}</strong>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="1" aria-label="Fly higher">+</button>` : ""}</div>` : "";

@@ -1894,6 +1894,11 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vhpbox { display: flex; gap: 6px; align-items: center; margin: 4px 0 12px; }
 .vshead { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; } .vshead h2 { margin: 0; } .vshead p { margin: 2px 0 0; }
 .vsbars { display: grid; gap: 7px; margin: 10px 0 6px; }
+.vtok.vflooroff { display: none !important; }
+.vdmgtype { display: flex; gap: 0; margin: 8px 0 6px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.vdmgtype button { flex: 1; padding: 6px 4px; background: var(--panel); border: 0; border-right: 1px solid var(--line); color: var(--muted); font: 600 .78rem var(--ui); cursor: pointer; }
+.vdmgtype button:last-child { border-right: 0; }
+.vdmgtype button.on { background: #e39a32; color: #1b1408; }
 .vsbl .vsbctl { display: inline-flex; gap: 3px; margin-left: 8px; } .vsbl .vsbctl .iconbtn { padding: 0 7px; line-height: 1.4; } .vsbl .vsbctl .btn { padding: 1px 8px; font-size: .74rem; }
 .vsbl strong { margin-left: auto; }
 .vsbar.broken .vsbl span { color: #e39a32; font-weight: 600; }
