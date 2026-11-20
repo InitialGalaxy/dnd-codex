@@ -1959,7 +1959,12 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vlvname b { flex: none; display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 5px; background: var(--panel-2); font-size: .75rem; }
 .vlvrow.on .vlvname b { background: var(--brass); color: #1b1408; }
 .vlvname span { min-width: 0; line-height: 1.15; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vlvrow:not(.on) .vlvren { display: none; }
+.vlvrow:not(.on) .vlvtools { display: none; }
+.vlvtools { display: flex; align-items: center; }
+.vlvarrows { display: flex; flex-direction: column; }
+.vlvmv { background: none; border: 0; color: var(--muted); padding: 1px 3px; cursor: pointer; font-size: .55rem; line-height: 1; }
+.vlvmv:hover { color: var(--brass); }
+.vlvadds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .vlvname:hover { background: var(--panel-2); }
 .vlvren { background: none; border: 0; color: var(--muted); padding: 5px 5px 5px 2px; cursor: pointer; font-size: .8rem; }
 .vlvren:hover { color: var(--brass); }
