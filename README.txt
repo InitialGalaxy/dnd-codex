@@ -8,6 +8,13 @@ Start it
   The first time, Windows may ask whether Node.js can use the network.
   Tick "Private networks" and click Allow, or your phone won't be able to connect.
 
+Pin it to your taskbar
+  Double-click "Make taskbar shortcut" once. It puts a DnD Codex shortcut on your desktop and in the
+  Start menu. Right-click the desktop one, choose Show more options, then Pin to taskbar.
+  The shortcut starts the codex with no black window and opens it in its own window. It stops by
+  itself a couple of minutes after every codex window (yours and the players') has been closed.
+  If something goes wrong, codex.log in this folder says why.
+
 Open it on your phone (or any device on the same Wi-Fi)
   The black window, and the Library file page in the codex, show a link like
   http://192.168.1.20:3210/  - type it into your phone's browser.

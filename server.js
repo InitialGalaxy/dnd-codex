@@ -556,11 +556,23 @@ server.listen(PORT, "0.0.0.0", () => {
   if (!process.env.NO_BROWSER) exec((process.platform === "win32" ? 'start "" ' : process.platform === "darwin" ? "open " : "xdg-open ") + "http://localhost:" + PORT + "/", () => {});
   publicServer.listen(PUBLIC_PORT, "127.0.0.1", () => { startFunnel(); });
   if (ghConf()) ghSync("on start").then(r => console.log(r.ok ? "  GitHub: " + r.note : "  GitHub sync didn't work: " + r.error));
+  // The taskbar launcher reads this to find the server (the port can move up if 3210 is busy).
+  try { fs.writeFileSync(path.join(DIR, "codex-port.txt"), String(PORT)); } catch (e) {}
 });
+// Started from the taskbar launcher (no console window): stop by ourselves once every codex window,
+// ours and the players', has been closed for a couple of minutes.
+if (process.env.CODEX_AUTOSTOP) {
+  let idleSince = Date.now();
+  setInterval(() => {
+    if (clients.size) { idleSince = Date.now(); return; }
+    if (Date.now() - idleSince > 2.5 * 60 * 1000) { console.log("  Every window is closed, so the codex is stopping."); shutdown(); }
+  }, 20 * 1000).unref();
+}
 function shutdown() {
   clearTimeout(saveTimer); try { save(); } catch (e) {} stopFunnel();
+  try { fs.unlinkSync(path.join(DIR, "codex-port.txt")); } catch (e) {}
   // Give GitHub a few seconds to take the last changes (Windows allows about five when the window is closed).
-  if (ghConf() && ghDirty) { const done = () => process.exit(0); ghSync("on close").then(done, done); setTimeout(done, 4000); return; }
+  if (ghConf() && ghDirty) { const done = () => process.exit(0); ghSync("on close").then(done, done); setTimeout(done, process.env.CODEX_AUTOSTOP ? 30000 : 4000); return; }
   process.exit(0);
 }
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown); process.on("SIGHUP", shutdown); process.on("SIGBREAK", shutdown);

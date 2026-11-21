@@ -7,3 +7,4 @@ codex-config.json
 *.log
 node_modules/
 github-base.json
+codex-port.txt
