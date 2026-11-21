@@ -703,6 +703,10 @@ async function vttAction(a, el, ev) {
   if (a === "vttlvlmove") { const cur = vPageNow(); if (!cur) return; const n = Number(el.dataset.v) || 0, m = n + Number(el.dataset.d);
     if (m < vMinLevel(cur.p) || m > vMaxLevel(cur.p)) return; vLevelSwap(cur, n, m); VTT.lvl = m; if (VTT.lvlShow) VTT.lvlShow = new Set([m]); return; }
   if (a === "vttrenlvl") { const cur = vPageNow(); if (el.dataset.v) VTT.lvl = Number(el.dataset.v) || 0; if (!cur || !VTT.lvl) return; const name = await vAsk("Rename level", "Name", vLevelName(cur.p, VTT.lvl), "Save"); if (!name) return; const names = Object.assign({}, cur.p.levelNames || {}); names[VTT.lvl] = name; vPatch("vttpages/" + cur.id, { levelNames: names }); return; }
+  if (a === "vttbarvis") { const id = el.dataset.id, t = S.vttTokens.get(id); if (!t) return;
+    const vis = Object.assign({}, t.barVis || {}), v = el.dataset.v;
+    if (el.dataset.k === "*") vBars(t).forEach(b => { vis[vBarKey(b)] = v; }); else vis[el.dataset.k] = v;
+    S.vttTokens.set(id, Object.assign({}, t, { barVis: vis })); vPatch("vtttokens/" + id, { barVis: vis }); vTokOptions(id); return; }
   if (a === "vttcbar") { const t = S.vttTokens.get(el.dataset.id); if (!t) return; vPatch("vtttokens/" + el.dataset.id, { cbars: (t.cbars || []).map(b => b.id === el.dataset.b ? Object.assign({}, b, { cur: Math.max(0, Math.min(Number(b.max) || 0, (Number(b.cur) || 0) + Number(el.dataset.v))) }) : b) }); return; }
   if (a === "vttcbaradd" || a === "vttcbarrm") { const id = el.dataset.id, t = S.vttTokens.get(id); if (!t) return;
     const list = (t.cbars || []).slice();
@@ -856,11 +860,20 @@ function vBars(t) {
   return out;
 }
 const vBarsPublic = t => t.bars ? t.bars === "all" : !!t.owner;
+// What players see of each bar: "hide", "bar" (the bar but not the numbers) or "full". Set per bar in
+// Options (t.barVis, keyed hp / ex / c:<bar id>); bars without a setting follow "Bars shown to".
+const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : "c:" + b.cbar;
+function vBarVis(t, b) { const v = t && t.barVis && t.barVis[vBarKey(b)]; return v === "hide" || v === "bar" || v === "full" ? v : vBarsPublic(t) ? "full" : "hide"; }
+// The bars this viewer gets, each with how much of it they see. The GM, and players on their own tokens, see everything.
+function vBarsFor(t) {
+  const all = vBars(t), mine = !vCanEdit() && PLAYER && !!t.owner && t.layer !== "gm";
+  if (vCanEdit() || mine) return all.map(b => Object.assign({}, b, { vis: "full", pvis: vCanEdit() ? vBarVis(t, b) : "full" }));
+  return all.map(b => Object.assign({}, b, { vis: vBarVis(t, b) })).filter(b => b.vis !== "hide");
+}
 function vBarsHtml(t) {
-  if (!vCanEdit() && !vBarsPublic(t)) return "";
-  const bars = vBars(t); if (!bars.length) return "";
-  return `<div class="vbars${vCanEdit() && !vBarsPublic(t) ? " gmbars" : ""}">${bars.map(b => { const pct = Math.max(0, Math.min(100, (b.cur / b.max) * 100)), hpc = pct > 50 ? "#4caf62" : pct > 25 ? "#d9a52b" : "#d0453a";
-    return `<div class="vbar" title="${esc(b.label)} ${b.cur}/${b.max}${b.temp ? " +" + b.temp + " temp" : ""}"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}<span>${b.cur}/${b.max}</span></div>`; }).join("")}</div>`;
+  const bars = vBarsFor(t); if (!bars.length) return "";
+  return `<div class="vbars">${bars.map(b => { const pct = Math.max(0, Math.min(100, (b.cur / b.max) * 100)), hpc = pct > 50 ? "#4caf62" : pct > 25 ? "#d9a52b" : "#d0453a", num = b.vis === "full";
+    return `<div class="vbar${b.pvis === "hide" ? " gmonly" : b.pvis === "bar" ? " gmnum" : ""}" title="${esc(b.label)}${num ? ` ${b.cur}/${b.max}${b.temp ? " +" + b.temp + " temp" : ""}` : ""}${b.pvis === "hide" ? " · players can't see this" : b.pvis === "bar" ? " · players see the bar, not the numbers" : ""}"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}${num ? `<span>${b.cur}/${b.max}</span>` : ""}</div>`; }).join("")}</div>`;
 }
 function vDamageSummon(cid, sid, n, heal, box, extra) {
     charChange(cid, x => { x.summons = smList(x).map(sm => { if (sm.id !== sid) return sm; sm = Object.assign({}, sm, extra || {}); if (!n) return sm; let temp = Number(sm.temp) || 0; const shifted = !!smView(sm)._form;
@@ -912,11 +925,11 @@ function vTokSideHtml(id, t) {
   if (!gm && !mine) return "";
   const isChar = t.ref && t.ref.startsWith("c:"), c = isChar ? S.chars.get(t.ref.slice(2)) : null;
   const e = t.ref && t.ref.startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null;
-  const bars = vBars(t), canHp = gm || (mine && (isChar || (t.ref || "").startsWith("s:")));
+  const bars = vBarsFor(t), canHp = gm || (mine && (isChar || (t.ref || "").startsWith("s:")));
   const barHtml = bars.length ? `<div class="vsbars">${bars.map(b => { const pct = Math.max(0, Math.min(100, (b.cur / b.max) * 100)), hpc = pct > 50 ? "#4caf62" : pct > 25 ? "#d9a52b" : "#d0453a";
     const ctl = gm && b.cbar ? `<span class="vsbctl"><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="-1" aria-label="One less">−</button><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="1" aria-label="One more">+</button></span>`
       : canHp && b.ex ? `<span class="vsbctl"><button class="btn ghost small" data-act="vttexfill" data-id="${esc(id)}" title="${b.cur ? "Fill the meter back up" : "It broke: refill it" + (vExOf(t).rise ? `, ${vExOf(t).rise} bigger` : "")}">${b.cur ? "Refill" : `Refill${vExOf(t).rise ? " +" + vExOf(t).rise : ""}`}</button></span>` : "";
-    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}</span><strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>${ctl}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
+    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}${gm && b.pvis === "hide" ? ` <small class="vbvn" title="Players can't see this bar">🙈</small>` : gm && b.pvis === "bar" ? ` <small class="vbvn" title="Players see the bar but not the numbers">◐</small>` : ""}</span>${b.vis === "full" ? `<strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>` : `<strong class="muted">${b.cur <= 0 ? "Down" : (b.cur / b.max) > .5 ? "Healthy" : (b.cur / b.max) > .25 ? "Hurt" : "Badly hurt"}</strong>`}${ctl}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
   const sm = t.ref && t.ref.startsWith("s:") ? vSummonOf(t.ref) : null;
   const canFly = gm || mine, fly = Math.max(0, Number(t.fly) || 0);
   const dmgMode = VTT.dmgMode || "bps", exT = !isChar && vExOf(t);
@@ -967,7 +980,13 @@ function vTokOptions(id) {
     <label><span>Layer</span><select data-vf="layer"><option value="token"${t.layer !== "gm" ? " selected" : ""}>Tokens (players see it)</option><option value="gm"${t.layer === "gm" ? " selected" : ""}>GM only</option></select></label>
     <label><span>Controlled by <small class="muted">its player can move it and sees through its eyes</small></span><select data-vf="owner"><option value="">Nobody (GM only)</option>${chars.map(([cid, c]) => `<option value="${esc(cid)}"${t.owner === cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
     <label><span>Darkvision (ft) <small class="muted">blank: from the sheet or stat block${(d => d ? ` (${d} ft)` : "")(vDarkvisionAuto(t))}</small></span><input type="number" min="0" step="5" data-vf="dv" value="${t.dv != null ? t.dv : ""}" placeholder="auto"></label>
-    <label><span>Bars shown to</span><select data-vf="bars"><option value="all"${vBarsPublic(t) ? " selected" : ""}>Everyone</option><option value="gm"${!vBarsPublic(t) ? " selected" : ""}>GM only</option></select></label>
+    ${(() => { const bl = vBars(t); if (!bl.length) return `<label><span>Bars shown to</span><select data-vf="bars"><option value="all"${vBarsPublic(t) ? " selected" : ""}>Everyone</option><option value="gm"${!vBarsPublic(t) ? " selected" : ""}>GM only</option></select></label>`;
+      const seg = (k, v) => `<div class="seg vbvseg">${[["hide", "Hidden"], ["bar", "Bar only"], ["full", "Bar + numbers"]].map(([x, l]) => `<button type="button" class="${v === x ? "on" : ""}" data-act="vttbarvis" data-id="${esc(id)}" data-k="${esc(k)}" data-v="${x}">${l}</button>`).join("")}</div>`;
+      const vals = bl.map(b => vBarVis(t, b)), same = vals.every(v => v === vals[0]);
+      return `<div class="vbvis"><span class="flabel">What players see</span>
+        ${bl.length > 1 ? `<div class="vbvrow"><span>All bars</span>${seg("*", same ? vals[0] : "")}</div>` : ""}
+        ${bl.map((b, i) => `<div class="vbvrow"><span><i style="background:${b.hp ? "#4caf62" : b.color}"></i>${esc(b.label)}</span>${seg(vBarKey(b), vals[i])}</div>`).join("")}
+        ${t.owner ? `<p class="muted small">The player who controls this token always sees all of its bars.</p>` : ""}</div>`; })()}
     ${isChar || (t.ref || "").startsWith("s:") ? `<p class="muted small">HP and the bars come from the ${isChar ? "character sheet" : "summon on its character's sheet"}.</p>` : `<div class="frow tight"><label><span>HP</span><input type="number" data-vf="hp" value="${t.hp != null ? t.hp : (t.hpMax || "")}"></label><label><span>Max HP</span><input type="number" data-vf="hpMax" value="${t.hpMax || ""}"></label><label><span>Temp HP</span><input type="number" data-vf="temp" value="${t.temp || ""}"></label></div>`}
     ${isChar ? "" : (() => { const ex = vExOf(t) || { cur: "", max: "", rise: "" }, smT = (t.ref || "").startsWith("s:"); return `${smT ? "" : `<h3 class="vopth">Exhaust Meter <small class="muted">soaks damage before HP${t.form && S.entries.get(t.form) ? " · for its current form" : t.exMax == null && vExOf(t) ? " · from the stat block" : ""}</small></h3>
       <div class="frow tight"><label><span>Left</span><input type="number" min="0" data-vf="ex" value="${ex.cur}"></label><label><span>Meter</span><input type="number" min="0" data-vf="exMax" value="${ex.max}" placeholder="none"></label><label><span>Grows by</span><input type="number" min="0" data-vf="exRise" value="${ex.rise}"></label></div>`}

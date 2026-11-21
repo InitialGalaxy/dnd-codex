@@ -1899,6 +1899,13 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vdmgtype button { flex: 1; padding: 6px 4px; background: var(--panel); border: 0; border-right: 1px solid var(--line); color: var(--muted); font: 600 .78rem var(--ui); cursor: pointer; }
 .vdmgtype button:last-child { border-right: 0; }
 .vdmgtype button.on { background: #e39a32; color: #1b1408; }
+.vbar.gmonly { opacity: .45; outline: 1px dashed rgba(255,255,255,.5); } .vbar.gmnum span { opacity: .55; }
+.vbvn { font-size: .75rem; opacity: .85; }
+.vbvis { display: grid; gap: 6px; margin-top: 4px; }
+.vbvrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.vbvrow > span { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
+.vbvrow > span i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.vbvseg button { padding: 4px 9px; font-size: .78rem; }
 .vsbl .vsbctl { display: inline-flex; gap: 3px; margin-left: 8px; } .vsbl .vsbctl .iconbtn { padding: 0 7px; line-height: 1.4; } .vsbl .vsbctl .btn { padding: 1px 8px; font-size: .74rem; }
 .vsbl strong { margin-left: auto; }
 .vsbar.broken .vsbl span { color: #e39a32; font-weight: 600; }
