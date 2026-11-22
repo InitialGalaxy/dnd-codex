@@ -15,7 +15,7 @@ const vCanEdit = () => !READONLY;
 const vPlayerTok = t => !!(t && t.owner && t.layer !== "gm" && S.chars.get(t.owner) && !S.chars.get(t.owner).hidden);
 const vTokenImg = ref => {
   if (!ref) return "";
-  if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); return e ? (e.token || e.image || "") : ""; }
+  if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); if (e) return e.token || e.image || ""; const t = [...S.vttTokens.values()].find(x => x.ref === ref && x.npc); return t ? t.npc.img || "" : ""; }
   if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); if (c) return c.token || c.image || ""; const t = [...S.vttTokens.values()].find(x => x.ref === ref && x.npc); return t ? t.npc.img || "" : ""; }
   if (ref.startsWith("s:")) {
     // A summon: the creature it has shapeshifted into, else its own token picture, else its creature's.
@@ -603,9 +603,44 @@ function vTokenPick() {
     m.querySelector("#vtnew").onclick = () => { closeModal(); pickImage(async res => { const name = await vAsk("Name this token", "Name", "", "Add token"); vPlaceToken("", name || "Token", assetPath(res)); }); };
   });
 }
+const vPickOne = l => l[Math.floor(Math.random() * l.length)];
+// Humanoids from the bestiary can become NPCs: tagged humanoid, or "humanoid" in the stat block's subtitle.
+function vNpcable(t) {
+  if (!(t && (t.ref || "").startsWith("e:"))) return false;
+  const e = S.entries.get(t.ref.slice(2)); if (!e || e.type !== "creature") return false;
+  return (e.tags || []).some(g => /^humanoids?$/i.test(g) || /^humanoids?$/i.test(typeof tagName === "function" ? tagName(g) : g)) || /humanoid/i.test((e.statblock || {}).subtitle || "");
+}
+async function vMakeNpc(id, how) {
+  const t = S.vttTokens.get(id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e) return;
+  const name = (t.name || e.title || "NPC").trim(), pic = t.img || entryTokens(e)[0] || e.image || "", now = new Date().toISOString();
+  if (!(await confirmBox(how === "sheet" ? `Make ${name} a character sheet? It's filled in from ${e.title}'s stat block, hidden from players, and this token becomes it.` : `Make ${name} a bestiary entry of its own? It copies ${e.title}'s stat block and lore, is hidden from players, and this token becomes it.`, how === "sheet" ? "Make character sheet" : "Make bestiary entry"))) return;
+  if (how === "entry") {
+    const nid = newId(), doc = JSON.parse(JSON.stringify(e));
+    Object.assign(doc, { title: name, hidden: true, npcOf: t.ref.slice(2), created: now, updated: now }); delete doc.tokNames; delete doc.tokens;
+    if (pic) doc.token = pic; else delete doc.token;
+    if (!(await safeWrite(() => S.db.doc("entries/" + nid).set(doc)))) return;
+    S.entries.set(nid, doc); vPatch("vtttokens/" + id, { ref: "e:" + nid, img: "" });
+    toast(`${name} has a bestiary entry of their own (hidden from players).`);
+  } else {
+    const sb = e.statblock || {}, c = blankCharacter(name), num = v => parseInt(String(v || ""), 10);
+    const hp = num(sb.hp) || num(t.hpMax) || 10, cur = t.hp != null && t.hp !== "" ? Math.min(hp, Number(t.hp) || 0) : hp;
+    Object.assign(c, { hidden: true, race: sb.subtitle || "", ac: String(num(sb.ac) || 10), speed: sb.speed || c.speed, hp: { max: hp, cur, temp: Number(t.temp) || 0 },
+      abilities: Object.fromEntries(["str", "dex", "con", "int", "wis", "cha"].map(k => [k, num(sb[k]) || 10])), pbOverride: num(sb.prof) ? String(num(sb.prof)) : "",
+      combatNotes: [sb.details, sb.features].filter(Boolean).join("\n\n"), npcOf: e.title });
+    if (e.body) c.notes = Object.assign({}, c.notes, { backstory: e.body });
+    if (pic) { c.token = pic; c.image = pic; }
+    const nid = "c" + Date.now().toString(36);
+    if (!(await safeWrite(() => S.db.doc("characters/" + nid).set(c)))) return;
+    S.chars.set(nid, c); vPatch("vtttokens/" + id, { ref: "c:" + nid, owner: nid, img: "" });
+    toast(`${name} has a character sheet (hidden from players).`);
+  }
+  closeModal(); vRefresh();
+}
 function vPlaceToken(ref, name, img) {
   const cur = vPageNow(), view = document.getElementById("vview"); if (!cur) return;
-  let size = 1, hpMax = null; if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); if (e) { size = vSizeOf(e); hpMax = parseInt(String((e.statblock || {}).hp || ""), 10) || null; } }
+  let size = 1, hpMax = null; if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); if (e) { size = vSizeOf(e); hpMax = parseInt(String((e.statblock || {}).hp || ""), 10) || null;
+    const pics = entryTokens(e); if (!img && pics.length > 1) img = vPickOne(pics);
+    if (Array.isArray(e.tokNames) && e.tokNames.length) name = vPickOne(e.tokNames); } }
   const r = view.getBoundingClientRect(), cx = ((r.width / 2 - VTT.panX) / VTT.zoom) / VCELL, cy = ((r.height / 2 - VTT.panY) / VTT.zoom) / VCELL;
   const x = Math.max(0, Math.min(cur.p.w - size, Math.round(cx - size / 2))), y = Math.max(0, Math.min(cur.p.h - size, Math.round(cy - size / 2)));
   const id = vid("t");
@@ -728,6 +763,12 @@ async function vttAction(a, el, ev) {
     S.vttTokens.set(id, Object.assign({}, t, { cbars: list })); vPatch("vtttokens/" + id, { cbars: list }); vTokOptions(id); return; }
   if (a === "vttopts") { if (VTT.sel && VTT.sel.kind === "tok") vTokOptions(VTT.sel.id); return; }
   if (a === "vttsize") { const box = el.closest(".vform"); if (box) { vPatch("vtttokens/" + box.dataset.tok, { size: Number(el.dataset.v) }); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", b === el); b.setAttribute("aria-pressed", b === el); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = ""; } return; }
+  if (a === "vttrandname") { const t = S.vttTokens.get(el.dataset.id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e || !(e.tokNames || []).length) return;
+    const others = e.tokNames.length > 1 ? e.tokNames.filter(n => n !== t.name) : e.tokNames, n = vPickOne(others); vPatch("vtttokens/" + el.dataset.id, { name: n }); const f = document.querySelector('.vopts [data-vf="name"]'); if (f) f.value = n; return; }
+  if (a === "vttsetpic") { const id = el.dataset.id, t = S.vttTokens.get(id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e) return;
+    const pics = entryTokens(e); let v = el.dataset.v; if (v === "*") { const cur = t.img || pics[0]; v = vPickOne(pics.length > 1 ? pics.filter(p => p !== cur) : pics); }
+    S.vttTokens.set(id, Object.assign({}, t, { img: v })); vPatch("vtttokens/" + id, { img: v }); vTokOptions(id); return; }
+  if (a === "vttnpc") { vMakeNpc(el.dataset.id, el.dataset.v); return; }
   if (a === "vttdeltok") { closeModal(); VTT.sel = { kind: "tok", id: el.dataset.id }; vDeleteSel(); return; }
   if (a === "vttpage") { VTT.page = el.dataset.id; VTT.sel = null; VTT.draft = null; render(); }
   else if (a === "vttaddpage") { const name = await vAsk("New page", "Name", "Page " + (vPages(camp).length + 1), "Add page"); if (!name) return; VTT.page = await vNewPage(camp, name, vPages(camp).length); render(); }
@@ -823,7 +864,7 @@ function vExSource(t) {
   if (!t || (t.ref || "").startsWith("c:")) return null;
   if ((t.ref || "").startsWith("s:")) { const sm = vSummonOf(t.ref); if (!sm) return null; const [, cid, sid] = t.ref.split(":"); return { sb: smView(sm).sb || {}, key: sm.form || "", st: sm, cid, sid }; }
   const own = (t.ref || "").startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null, f = t.form && S.entries.get(t.form);
-  return { sb: (f && f.statblock) || (own && own.statblock) || null, key: t.form || "", st: t };
+  return { sb: (f && f.statblock) || (own && own.statblock) || (t.npc && t.npc.sb) || null, key: t.form || "", st: t };
 }
 // Each form keeps its own meter in exm[formKey] ("" is the true form). Older tokens kept ex/exMax/exRise
 // directly; those count as the true form's.
@@ -1013,7 +1054,9 @@ function vTokOptions(id) {
   const chars = [...S.chars].filter(([, c]) => !c.hidden).sort((a, b) => String(a[1].name).localeCompare(b[1].name));
   const isChar = t.ref && t.ref.startsWith("c:");
   openModal(`<h2>Token options</h2><div class="vform vopts" data-tok="${esc(id)}">
-    <label><span>Name</span><input type="text" data-vf="name" value="${esc(t.name || "")}"></label>
+    ${(() => { const e = (t.ref || "").startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null, names = e && Array.isArray(e.tokNames) ? e.tokNames : [], pics = e ? entryTokens(e) : [], cur = t.img || pics[0] || "";
+      return `<div class="vnamerow"><label class="grow"><span>Name</span><input type="text" data-vf="name" value="${esc(t.name || "")}"></label>${names.length ? `<button type="button" class="btn ghost" data-act="vttrandname" data-id="${esc(id)}" title="Pick another name from ${esc(e.title)}'s list">🎲 Name</button>` : ""}</div>
+      ${pics.length > 1 ? `<div><span class="flabel">Token picture <small class="muted">from ${esc(e.title)}</small></span><div class="vpicrow">${pics.map(src => `<button type="button" class="vpic${src === cur ? " on" : ""}" data-act="vttsetpic" data-id="${esc(id)}" data-v="${esc(src)}" aria-pressed="${src === cur}" aria-label="Use this picture"><img src="${esc(src)}" alt=""></button>`).join("")}<button type="button" class="btn ghost" data-act="vttsetpic" data-id="${esc(id)}" data-v="*" title="Pick one at random">🎲 Random</button></div></div>` : ""}`; })()}
     <div><span class="flabel">Size</span><div class="vsizerow"><div class="seg vsize" role="group" aria-label="Size">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="${(t.size || 1) === n ? "on" : ""}" data-act="vttsize" data-v="${n}" aria-pressed="${(t.size || 1) === n}">${n}×${n}</button>`).join("")}</div>
       <label class="vsizec"><span>Custom</span><input type="number" min="0.5" max="40" step="0.5" data-vf="size" value="${(t.size || 1) > 5 || (t.size || 1) % 1 ? t.size : ""}" placeholder="e.g. 8" aria-label="Custom size in squares"><small class="muted">squares</small></label></div></div>
     <label><span>Layer</span><select data-vf="layer"><option value="token"${t.layer !== "gm" ? " selected" : ""}>Tokens (players see it)</option><option value="gm"${t.layer === "gm" ? " selected" : ""}>GM only</option></select></label>
@@ -1032,6 +1075,8 @@ function vTokOptions(id) {
       <h3 class="vopth">Custom bars <small class="muted">rage, stagger, a ward, anything you track</small></h3>
       <div class="vcbars">${(t.cbars || []).map(b => `<div class="vcbrow" data-b="${esc(b.id)}"><input type="text" data-cb="name" value="${esc(b.name || "")}" placeholder="Name" aria-label="Bar name"><input type="number" min="0" data-cb="cur" value="${Number(b.cur) || 0}" aria-label="Current"><span>/</span><input type="number" min="1" data-cb="max" value="${Number(b.max) || 0}" aria-label="Maximum"><input type="color" data-cb="color" value="${esc(b.color || "#6f8cff")}" aria-label="Colour"><button type="button" class="iconbtn" data-act="vttcbarrm" data-id="${esc(id)}" data-b="${esc(b.id)}" aria-label="Remove bar">✕</button></div>`).join("")}</div>
       <button type="button" class="btn ghost small" data-act="vttcbaradd" data-id="${esc(id)}">+ Add a bar</button>`; })()}
+    ${vNpcable(t) ? `<div class="vnpcbox"><span class="flabel">Make it an NPC <small class="muted">its own copy, named “${esc(t.name || "")}”, hidden from players</small></span>
+      <div class="vnpcbtns"><button type="button" class="btn ghost" data-act="vttnpc" data-v="entry" data-id="${esc(id)}" title="A bestiary entry of its own: the stat block, lore and this token's picture">📖 As a bestiary entry</button><button type="button" class="btn ghost" data-act="vttnpc" data-v="sheet" data-id="${esc(id)}" title="A character sheet filled in from the stat block">📜 As a character sheet</button></div></div>` : ""}
     <div class="acts"><button class="btn" type="button" data-act="closemodal">Done</button><button class="btn ghost danger" type="button" data-act="vttdeltok" data-id="${esc(id)}">Delete token</button></div></div>`);
 }
 
@@ -1392,10 +1437,10 @@ function vInitDraw(force) {
       <button class="iconbtn" data-act="vttinitmin" aria-label="${VTT.initMin ? "Show" : "Hide"} the list">${VTT.initMin ? "▸" : "▾"}</button></div>
     ${VTT.initMin ? "" : `<ol class="vtlist">${sorted.map(e => { const t = curTok(e.tok), img = e.gm ? "" : (t ? vTokSrc(t) : e.img), on = I.round && e.id === I.cur;
       const pick = t && (gm || vPlayerTok(t)), face = img ? `<img src="${esc(img)}" alt="">` : `<span class="vtini">${e.gm ? "👹" : esc((e.name || "?")[0])}</span>`;
-      return `<li class="${on ? "on" : ""}${e.gm ? " gmturn" : ""}${e.tok && !t ? " gone" : ""}${pick && VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === e.tok ? " picked" : ""}">${pick ? `<button type="button" class="vtpick" data-act="vttinitsel" data-tok="${esc(e.tok)}" title="Select ${esc(t.name || e.name || "this token")} on the map" aria-label="Select ${esc(t.name || e.name || "this token")}">${face}</button>` : face}
+      return `<li class="${on ? "on" : ""}${e.gm ? " gmturn" : ""}${e.tok && !t ? " gone" : ""}${pick && VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === e.tok ? " picked" : ""}">${pick ? `<button type="button" class="vtsel" data-act="vttinitsel" data-tok="${esc(e.tok)}" title="Select ${esc(t.name || e.name || "this token")} on the map" aria-label="Select ${esc(t.name || e.name || "this token")}">${face}</button>` : face}
         ${gm ? `<input class="vtname" type="text" data-iv="${esc(e.id)}" data-k="name" value="${esc(t && !e.gm ? t.name || e.name : e.name)}" aria-label="Name"${e.gm ? "" : " readonly tabindex=\"-1\""}><input class="vtval" type="number" data-iv="${esc(e.id)}" value="${e.val == null ? "" : esc(e.val)}" placeholder="–" aria-label="Initiative for ${esc(e.name)}">
           <button class="iconbtn" data-act="vttinitgo" data-id="${esc(e.id)}" aria-label="Make it ${esc(e.name)}'s turn" title="Jump to this turn">▸</button><button class="iconbtn" data-act="vttinitrm" data-id="${esc(e.id)}" aria-label="Take ${esc(e.name)} out">×</button>`
-        : `${pick ? `<button type="button" class="vtname vtpick" data-act="vttinitsel" data-tok="${esc(e.tok)}">${esc(t.name || e.name)}</button>` : `<span class="vtname">${esc(t ? t.name || e.name : e.name)}</span>`}<span class="vtval">${e.val == null ? "" : esc(e.val)}</span>`}</li>`; }).join("") || `<li class="muted small vtempty">Select a token and press “Add to turn order”, or add the party below.</li>`}</ol>
+        : `${pick ? `<button type="button" class="vtname vtsel" data-act="vttinitsel" data-tok="${esc(e.tok)}">${esc(t.name || e.name)}</button>` : `<span class="vtname">${esc(t ? t.name || e.name : e.name)}</span>`}<span class="vtval">${e.val == null ? "" : esc(e.val)}</span>`}</li>`; }).join("") || `<li class="muted small vtempty">Select a token and press “Add to turn order”, or add the party below.</li>`}</ol>
     ${gm ? `<div class="vtacts"><button class="btn ghost small" data-act="vttinitparty" title="Roll for every player-controlled token on this map">+ Party</button><button class="btn ghost small" data-act="vttinitgm" title="One turn for all the monsters you run together">+ GM turn</button>${I.round ? `<button class="btn ghost small" data-act="vttinitend">End combat</button>` : ""}<button class="btn ghost small danger" data-act="vttinitclear">Clear</button></div>` : ""}`}`;
 }
 

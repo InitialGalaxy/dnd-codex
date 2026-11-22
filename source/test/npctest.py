@@ -1,0 +1,45 @@
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b=p.chromium.launch(executable_path='/usr/bin/google-chrome',args=['--no-sandbox']); errs=[]
+    G=b.new_page(viewport={'width':1440,'height':950}); G.on('pageerror',lambda e:errs.append(str(e)))
+    G.goto('http://localhost:3300/#library'); G.wait_for_timeout(1200)
+    now="new Date().toISOString()"
+    G.evaluate(f"""S.db.doc('entries/commoner').set({{type:'creature',title:'Commoner',body:'Ordinary folk of the realm.',tags:['humanoid'],token:'images/face0.png',statblock:{{subtitle:'Medium humanoid (any race)',ac:'10',hp:'4 (1d8)',speed:'30 ft.',str:'10',dex:'10',con:'10',int:'10',wis:'10',cha:'10',cr:'0',details:'Senses: Passive Perception 10',features:'## Actions\\n\\n***Club.*** Melee Weapon Attack: +2 to hit.'}},updated:{now}}})"""); G.wait_for_timeout(500)
+    # editor: add three more pictures and some names
+    G.evaluate("openEditor('commoner')"); G.wait_for_timeout(1000)
+    for i in (1,2,3): G.fill('#ed-token',f'images/face{i}.png'); G.click('[data-act=edtokadd]'); G.wait_for_timeout(150)
+    print('editor thumbs', G.locator('#ed-toks .edtok').count())
+    G.locator('#ed-toks .edtok').nth(3).locator('[data-act=edtokrm]').click(); G.wait_for_timeout(150)
+    G.fill('#ed-token','images/face3.png'); G.click('[data-act=edtokadd]')
+    G.fill('#ed-toknames','Bram\nOda\nWilla\nPip')
+    G.locator('#ed-toks').screenshot(path='/tmp/npc-ed.png')
+    G.locator('form:has(#ed-toks) button[type=submit]').first.click(); G.wait_for_timeout(1500)
+    e=G.evaluate("S.entries.get('commoner')"); print('saved token', e.get('token'), 'tokens', e.get('tokens'), 'names', e.get('tokNames'))
+    G.goto('http://localhost:3300/#vtt'); G.wait_for_timeout(1000)
+    G.click('[data-act=vttnewcamp]'); G.fill('#vaskv','Town'); G.keyboard.press('Enter'); G.wait_for_timeout(1500)
+    for i in range(8): G.evaluate("vPlaceToken('e:commoner','Commoner')"); G.wait_for_timeout(120)
+    G.wait_for_timeout(600)
+    toks=G.evaluate("[...S.vttTokens.entries()].filter(([k,t])=>t.ref==='e:commoner').map(([k,t])=>[k,t.name,t.img])")
+    print('placed', [(n,i[-9:]) for k,n,i in toks])
+    tid=toks[0][0]
+    G.evaluate(f"VTT.sel={{kind:'tok',id:'{tid}'}}; vRefresh()"); G.wait_for_timeout(300); G.click('[data-act=vttopts]'); G.wait_for_timeout(400)
+    print('options: pictures', G.locator('.vpic').count(), 'name dice', G.locator('[data-act=vttrandname]').count(), 'npc buttons', G.locator('[data-act=vttnpc]').count())
+    G.locator('.vpic').nth(2).click(); G.wait_for_timeout(400); print('picked third ->', G.evaluate(f"S.vttTokens.get('{tid}').img"))
+    G.click('[data-act=vttsetpic][data-v="*"]'); G.wait_for_timeout(400); print('random ->', G.evaluate(f"S.vttTokens.get('{tid}').img"))
+    old=G.evaluate(f"S.vttTokens.get('{tid}').name"); G.click('[data-act=vttrandname]'); G.wait_for_timeout(400); print('name', old, '->', G.evaluate(f"S.vttTokens.get('{tid}').name"))
+    G.locator('#modal .mbox').screenshot(path='/tmp/npc-opts.png')
+    G.fill('.vopts [data-vf=name]','Mayor Hobb'); G.locator('.vopts [data-vf=name]').dispatch_event('change'); G.wait_for_timeout(300)
+    G.click('[data-act=vttnpc][data-v=sheet]'); G.wait_for_timeout(400); G.click('#modal .btn:has-text("Make character sheet")'); G.wait_for_timeout(1200)
+    t=G.evaluate(f"S.vttTokens.get('{tid}')"); c=G.evaluate(f"S.chars.get('{t['ref'][2:]}')") if t['ref'].startswith('c:') else None
+    print('as sheet: token ref', t['ref'][:2], 'sheet', c and [c['name'], c['hidden'], c['ac'], c['hp'], c['abilities']['str'], c.get('token','')[-9:], c['combatNotes'][:30]])
+    t2=toks[1][0]
+    G.evaluate(f"VTT.sel={{kind:'tok',id:'{t2}'}}; vRefresh()"); G.wait_for_timeout(300); G.click('[data-act=vttopts]'); G.wait_for_timeout(400)
+    G.click('[data-act=vttnpc][data-v=entry]'); G.wait_for_timeout(400); G.click('#modal .btn:has-text("Make bestiary entry")'); G.wait_for_timeout(1200)
+    t=G.evaluate(f"S.vttTokens.get('{t2}')"); ne=G.evaluate(f"S.entries.get('{t['ref'][2:]}')")
+    print('as entry: token ref', t['ref'][:2], 'entry', [ne['title'], ne.get('hidden'), ne.get('token','')[-9:], ne.get('npcOf'), 'tokens' in ne, 'tokNames' in ne])
+    P=b.new_context(viewport={'width':1280,'height':850}).new_page(); P.on('pageerror',lambda e:errs.append('P '+str(e)))
+    P.goto('http://192.0.2.2:3300/'); P.wait_for_timeout(800); P.click('[data-act=srvlogin][data-v=player]'); P.wait_for_timeout(2500)
+    P.goto('http://192.0.2.2:3300/#vtt'); P.wait_for_timeout(800); P.click('.vcamp a >> nth=0'); P.wait_for_timeout(1800)
+    print('player sees Mayor Hobb picture', P.evaluate(f"(document.querySelector('.vtok[data-tid={tid}] img')||{{}}).src||''")[-9:], 'bars', P.evaluate(f"[...document.querySelectorAll('.vtok[data-tid={tid}] .vbar')].map(e=>e.title)"))
+    print('player sees new entry token pic', P.evaluate(f"(document.querySelector('.vtok[data-tid={t2}] img')||{{}}).src||''")[-9:])
+    print('ERRORS', errs); b.close()

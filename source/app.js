@@ -309,6 +309,10 @@ function diceify(html) {
   }).join("");
 }
 function isExternal(url) { return /^https?:\/\//i.test(url) && !url.startsWith(location.origin); }
+// A creature's token pictures: e.tokens (several, picked at random) or just e.token.
+function entryTokens(e) { if (!e) return []; const l = Array.isArray(e.tokens) && e.tokens.length ? e.tokens : e.token ? [e.token] : []; return l.filter(Boolean); }
+function edTokThumb(src) { return `<span class="edtok" data-src="${esc(src)}"><img src="${esc(src)}" alt=""><button type="button" class="iconbtn" data-act="edtokrm" aria-label="Remove this picture">✕</button></span>`; }
+function edTokAdd(src) { const box = document.getElementById("ed-toks"); if (!box || [...box.querySelectorAll(".edtok")].some(x => x.dataset.src === src)) return; box.insertAdjacentHTML("beforeend", edTokThumb(src)); }
 function imageHtml(url, alt, entryId) {
   if (!/^(https?:\/\/|\/_blob\/|images\/|blob:|data:image\/)/i.test(url)) return "";
   if (!isExternal(url) || READONLY || LOCAL) return `<figure class="img"><img src="${esc(url)}" alt="${esc(alt)}" loading="lazy"></figure>`;
@@ -1712,7 +1716,10 @@ function openEditor(id, preset, embedMode) {
       <fieldset class="typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><legend>Stat block <small class="muted">leave empty for lore only</small></legend>
         ${sbFields(e.statblock || {})}
       </fieldset>
-      <div class="frow typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><label class="grow"><span>Token picture <small class="muted">for the tabletop; leave empty to use the picture below</small></span><input id="ed-token" type="text" value="${esc(e.token || "")}" placeholder="https://… or use Upload"></label>${S.assets ? `<label><span>&nbsp;</span><button class="btn ghost" type="button" data-act="edtokup">Upload…</button></label>` : ""}</div>
+      <div class="field typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><span class="flabel">Token pictures <small class="muted">each new token gets one at random; leave empty to use the picture below</small></span>
+        <div class="edtoks" id="ed-toks">${entryTokens(e).map(edTokThumb).join("")}</div>
+        <div class="frow edtokadd"><label class="grow"><span class="sr">Picture link</span><input id="ed-token" type="text" value="" placeholder="https://… link, then Add"></label><button class="btn ghost" type="button" data-act="edtokadd">Add</button>${S.assets ? `<button class="btn ghost" type="button" data-act="edtokup">Upload…</button>` : ""}</div></div>
+      <div class="field typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><span class="flabel">Token names <small class="muted">optional, one per line: each new token gets one at random</small></span><textarea id="ed-toknames" rows="3" placeholder="Bram&#10;Oda&#10;Willa">${esc((e.tokNames || []).join("\n"))}</textarea></div>
       <div class="frow"><label class="grow"><span>Picture <small class="muted">an uploaded image, or a link</small></span><input id="ed-image" type="text" value="${esc(e.image || "")}" placeholder="https://… or use Upload"></label>${S.assets ? `<label><span>&nbsp;</span><button class="btn ghost" type="button" data-act="edupload">Upload…</button></label>` : ""}</div>
       <div class="field typefields" data-for-not="item handout partset feat"${e.type === "item" || e.type === "handout" || e.type === "partset" || e.type === "feat" ? " hidden" : ""}><span class="flabel">${e.type === "creature" ? "Lore" : e.type === "spell" || e.type === "subclass" || e.type === "race" || e.type === "class" || e.type === "feat" ? "Description" : "Text"}</span><textarea id="ed-body" rows="10" placeholder="Write freely.">${esc(e.type === "item" ? "" : e.body)}</textarea></div>
       <label class="check"><input id="ed-hidden" type="checkbox"${e.hidden ? " checked" : ""}> Hide from players <small class="muted">(left out of the read-only page you share)</small></label>
@@ -2113,7 +2120,9 @@ async function saveEntry(form) {
   const doc = Object.assign({}, prev, { title, type, tags: draftTags.slice(), body: $("#ed-body").value, townId: town ? town.i : null, created: prev.created || now, updated: now });
   delete doc.example;
   const img = ($("#ed-image").value || "").trim(); if (img) doc.image = img; else delete doc.image;
-  const tk = (($("#ed-token") || {}).value || "").trim(); if (tk && type === "creature") doc.token = tk; else delete doc.token;
+  const toks = [...document.querySelectorAll("#ed-toks .edtok")].map(x => x.dataset.src), extra = (($("#ed-token") || {}).value || "").trim(); if (extra && !toks.includes(extra)) toks.push(extra);
+  if (toks.length && type === "creature") { doc.token = toks[0]; if (toks.length > 1) doc.tokens = toks; else delete doc.tokens; } else { delete doc.token; delete doc.tokens; }
+  const tn = (($("#ed-toknames") || {}).value || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 200); if (tn.length && type === "creature") doc.tokNames = tn; else delete doc.tokNames;
   if ($("#ed-hidden").checked) doc.hidden = true; else delete doc.hidden;
   if (type === "creature") { const sb = readSbFields(); if (sb) doc.statblock = sb; else delete doc.statblock; }
   if (type === "spell") doc.spell = readSpellFields(); else delete doc.spell;
@@ -2302,7 +2311,9 @@ document.addEventListener("click", async ev => {
     const e = S.entries.get(el.dataset.id); if (!e) return;
     await safeWrite(() => S.db.doc("entries/" + el.dataset.id).update({ image: assetPath(res), updated: new Date().toISOString() }), "Image saved");
   });
-  else if (a === "edtokup") pickImage(res => { const f = $("#ed-token"); if (f) f.value = assetPath(res); toast("Uploaded. Save the entry to keep it."); });
+  else if (a === "edtokup") pickImage(res => { edTokAdd(assetPath(res)); toast("Added. Save the entry to keep it."); });
+  else if (a === "edtokadd") { const f = $("#ed-token"), v = f && f.value.trim(); if (v) { edTokAdd(v); f.value = ""; } }
+  else if (a === "edtokrm") { const x = el.closest(".edtok"); if (x) x.remove(); }
   else if (a === "edupload") pickImage(res => { const f = $("#ed-image"); if (f) f.value = assetPath(res); toast("Uploaded. Save the entry to keep it."); });
   else if (a === "dllibrary") downloadLibrary();
   else if (a === "export") openExport();

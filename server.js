@@ -72,6 +72,12 @@ function playerCopy(p, doc) {
     const c = docs["characters/" + doc.ref.slice(2)];
     if (!c || c.hidden) { const hp = c && c.hp || {}; return Object.assign({}, doc, { npc: c ? { img: c.token || c.image || "", hp: { cur: Number(hp.cur) || 0, max: Number(hp.max) || 0, temp: Number(hp.temp) || 0 } } : { img: "", hp: null } }); }
   }
+  // A token for a hidden bestiary entry (a secret monster, or an NPC's own entry): just its picture, and the size and
+  // Constitution its Exhaust Meter is worked out from.
+  if (doc && p.startsWith("vtttokens/") && typeof doc.ref === "string" && doc.ref.startsWith("e:")) {
+    const e = docs["entries/" + doc.ref.slice(2)];
+    if (!e || e.hidden) { const sb = e && e.statblock || {}; return Object.assign({}, doc, { npc: { img: e ? e.token || e.image || "" : "", sb: { subtitle: String(sb.subtitle || "").split(/[,(]/)[0].trim(), con: sb.con || "", exhaust: sb.exhaust || "" } } }); }
+  }
   if (!doc || !p.startsWith("vttpages/")) return doc;
   return Object.assign({}, doc, { objs: (doc.objs || []).filter(o => o && o.layer !== "gm"), walls: (doc.walls || []).map(w => Array.isArray(w) && w[5] && w[5].secret ? w.slice(0, 5) : w) });
 }
@@ -355,10 +361,10 @@ function broadcast(msg, event) {
   }
 }
 setInterval(() => { for (const c of clients) c.write(": ping\n\n"); }, 25000);
-// A hidden character's tokens carry its hit points to players, so they're sent again when the sheet changes.
-function npcTokensChanged(cid) {
+// Tokens for a hidden sheet or entry carry what players may see of it, so they're sent again when it changes.
+function npcTokensChanged(ref) {
   if (![...clients].some(c => c.role === "player")) return;
-  for (const [k, t] of Object.entries(docs)) if (k.startsWith("vtttokens/") && t && t.ref === "c:" + cid && playerSees(k, t)) {
+  for (const [k, t] of Object.entries(docs)) if (k.startsWith("vtttokens/") && t && t.ref === ref && playerSees(k, t)) {
     const line = "data: " + JSON.stringify({ path: k, doc: playerCopy(k, t) }) + "\n\n";
     for (const c of clients) if (c.role === "player") c.write(line);
   }
@@ -463,7 +469,7 @@ async function handle(req, res) {
         if (role !== "gm" && (!playerMayWrite(op.path, op.doc) || (docs[op.path] && docs[op.path].hidden))) { rejected.push(op.path); continue; }
         if (role !== "gm" && op.doc) { op.doc = Object.assign({}, op.doc); delete op.doc.hidden; }
         if (op.doc && op.path.startsWith("vttlive/")) op.doc = Object.assign({}, op.doc, { _at: Date.now() });
-        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from }); if (op.path.startsWith("characters/")) npcTokensChanged(op.path.slice(11)); }
+        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from }); if (op.path.startsWith("characters/")) npcTokensChanged("c:" + op.path.slice(11)); else if (op.path.startsWith("entries/")) npcTokensChanged("e:" + op.path.slice(8)); }
         else { delete docs[op.path]; broadcast({ path: op.path, doc: null, from: body.from }); }
       }
       // Opening or closing maps to players: their devices reload what they're allowed to see.
