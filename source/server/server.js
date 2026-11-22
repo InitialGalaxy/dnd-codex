@@ -67,6 +67,11 @@ function playerCopy(p, doc) {
     const list = doc.init.list.filter(e => !hide(e)), cur = list.some(e => e.id === doc.init.cur) ? doc.init.cur : "";
     return Object.assign({}, doc, { init: Object.assign({}, doc.init, { list, cur }) });
   }
+  // A token for a hidden character sheet (an NPC): players get its picture and hit points, never the sheet.
+  if (doc && p.startsWith("vtttokens/") && typeof doc.ref === "string" && doc.ref.startsWith("c:")) {
+    const c = docs["characters/" + doc.ref.slice(2)];
+    if (!c || c.hidden) { const hp = c && c.hp || {}; return Object.assign({}, doc, { npc: c ? { img: c.token || c.image || "", hp: { cur: Number(hp.cur) || 0, max: Number(hp.max) || 0, temp: Number(hp.temp) || 0 } } : { img: "", hp: null } }); }
+  }
   if (!doc || !p.startsWith("vttpages/")) return doc;
   return Object.assign({}, doc, { objs: (doc.objs || []).filter(o => o && o.layer !== "gm"), walls: (doc.walls || []).map(w => Array.isArray(w) && w[5] && w[5].secret ? w.slice(0, 5) : w) });
 }
@@ -90,6 +95,7 @@ function playerLive(p, doc) {
 function playerTokenMove(p, doc) {
   if (!/^vtttokens\/[A-Za-z0-9_.-]+$/.test(p)) return false;
   const old = docs[p]; if (!old || !old.owner || old.layer === "gm" || !doc) return false;
+  if (!docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return false;
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
   for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
   if (doc.conds !== undefined && !(Array.isArray(doc.conds) && doc.conds.length <= 200 && doc.conds.every(c => c && typeof c.c === "string" && c.c.length < 60 && Number.isFinite(c.n) && Object.keys(c).length <= 2))) return false;
@@ -349,6 +355,14 @@ function broadcast(msg, event) {
   }
 }
 setInterval(() => { for (const c of clients) c.write(": ping\n\n"); }, 25000);
+// A hidden character's tokens carry its hit points to players, so they're sent again when the sheet changes.
+function npcTokensChanged(cid) {
+  if (![...clients].some(c => c.role === "player")) return;
+  for (const [k, t] of Object.entries(docs)) if (k.startsWith("vtttokens/") && t && t.ref === "c:" + cid && playerSees(k, t)) {
+    const line = "data: " + JSON.stringify({ path: k, doc: playerCopy(k, t) }) + "\n\n";
+    for (const c of clients) if (c.role === "player") c.write(line);
+  }
+}
 
 // ---------- http ----------
 function addresses(port) {
@@ -449,7 +463,7 @@ async function handle(req, res) {
         if (role !== "gm" && (!playerMayWrite(op.path, op.doc) || (docs[op.path] && docs[op.path].hidden))) { rejected.push(op.path); continue; }
         if (role !== "gm" && op.doc) { op.doc = Object.assign({}, op.doc); delete op.doc.hidden; }
         if (op.doc && op.path.startsWith("vttlive/")) op.doc = Object.assign({}, op.doc, { _at: Date.now() });
-        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from }); }
+        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from }); if (op.path.startsWith("characters/")) npcTokensChanged(op.path.slice(11)); }
         else { delete docs[op.path]; broadcast({ path: op.path, doc: null, from: body.from }); }
       }
       // Opening or closing maps to players: their devices reload what they're allowed to see.

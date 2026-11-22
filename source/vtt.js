@@ -12,10 +12,11 @@ const vid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 const vPages = camp => [...(S.vttPages || new Map())].filter(([, p]) => p.camp === camp).sort((a, b) => (a[1].order || 0) - (b[1].order || 0) || String(a[1].name).localeCompare(b[1].name));
 const vTokens = page => [...(S.vttTokens || new Map())].filter(([, t]) => t.page === page);
 const vCanEdit = () => !READONLY;
+const vPlayerTok = t => !!(t && t.owner && t.layer !== "gm" && S.chars.get(t.owner) && !S.chars.get(t.owner).hidden);
 const vTokenImg = ref => {
   if (!ref) return "";
   if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); return e ? (e.token || e.image || "") : ""; }
-  if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); return c ? (c.token || c.image || "") : ""; }
+  if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); if (c) return c.token || c.image || ""; const t = [...S.vttTokens.values()].find(x => x.ref === ref && x.npc); return t ? t.npc.img || "" : ""; }
   if (ref.startsWith("s:")) {
     // A summon: the creature it has shapeshifted into, else its own token picture, else its creature's.
     const sm = vSummonOf(ref); if (!sm) return "";
@@ -238,7 +239,7 @@ function vFogLoad(pid, p) {
 // Players' tokens can be on different floors of one building. On a shared screen, the players pick
 // which floor to look at (VTT.pfloor); "All" keeps everyone's view together.
 function vViewers(p, toks) {
-  const base = toks.filter(([, t]) => t.owner && t.layer !== "gm"), fl = vTokFloor;
+  const base = toks.filter(([, t]) => vPlayerTok(t)), fl = vTokFloor;
   const floors = [...new Set(base.map(([, t]) => fl(t)))].sort((a, b) => a - b);
   const bar = document.getElementById("vfloors");
   if (bar) {
@@ -304,7 +305,7 @@ function vFog(pid, p, toks) {
   document.querySelectorAll(".vtok").forEach(el => {
     const t = S.vttTokens.get(el.dataset.tid); if (!t || t.layer === "gm") return;
     const cx = t.x + (t.size || 1) / 2, cy = t.y + (t.size || 1) / 2, glows = dark && vTokLights(t).length > 0;
-    const seen = !!t.owner || vw.some(v => vInPoly(cx, cy, v.poly) && (!dark || glows || lit(cx, cy) || Math.hypot(cx - v.x, cy - v.y) <= v.s + 0.5 + v.dv + (t.size || 1) / 2));
+    const seen = vPlayerTok(t) || vw.some(v => vInPoly(cx, cy, v.poly) && (!dark || glows || lit(cx, cy) || Math.hypot(cx - v.x, cy - v.y) <= v.s + 0.5 + v.dv + (t.size || 1) / 2));
     el.classList.toggle("vhide", !seen);
   });
   vFloorHide(viewers);
@@ -387,7 +388,7 @@ function vWire(view) {
     const tokEl = ev.target.closest(".vtok"), objEl = ev.target.closest(".vobj");
     if (tokEl) {
       const t = S.vttTokens.get(tokEl.dataset.tid);
-      const mine = t && !gm && PLAYER && t.owner && t.layer !== "gm";
+      const mine = t && !gm && PLAYER && vPlayerTok(t);
       if (t && gm && layerOk(t.layer) && ev.shiftKey) { const id = tokEl.dataset.tid; if (VTT.sel && VTT.sel.kind === "tok") VTT.multi.add(VTT.sel.id); if (VTT.multi.has(id)) VTT.multi.delete(id); else VTT.multi.add(id); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size <= 1) VTT.multi.clear(); vRefresh(); return; }
       if (t && gm && VTT.multi.size > 1 && VTT.multi.has(tokEl.dataset.tid)) { const g = [...VTT.multi].map(id => [id, S.vttTokens.get(id)]).filter(([, q]) => q); document.querySelectorAll(".vtok.sel").forEach(e => e.classList.add("dragging")); drag = { kind: "group", g, sx: x, sy: y, moved: false }; view.setPointerCapture(ev.pointerId); return; }
       if (t && (layerOk(t.layer) || mine)) {
@@ -646,7 +647,7 @@ function vSettings() {
 // ----- Actions -----
 async function vttAction(a, el, ev) {
   if (a === "vttexfill") { const t = S.vttTokens.get(el.dataset.id), ex = vExOf(t); if (!ex) return;
-    if (!vCanEdit() && !((t.ref || "").startsWith("s:") && PLAYER && t.owner)) return;
+    if (!vCanEdit() && !((t.ref || "").startsWith("s:") && PLAYER && vPlayerTok(t))) return;
     const max = ex.cur ? ex.max : ex.max + ex.rise; vExSave(el.dataset.id, t, { ex: max, exMax: max }); return; }
   if (a === "vttpfloor") { VTT.pfloor = el.dataset.v === "" ? null : Number(el.dataset.v); vDraw(); return; }
   if (/^vtt(newcamp|rencamp|delcamp)$/.test(a)) return vttCampAction(a, el);
@@ -671,6 +672,9 @@ async function vttAction(a, el, ev) {
   if (/^vttpen/.test(a)) return vPenAction(a, el);
   if (/^vttq/.test(a) && !/^vttq(new|edit|del|show|step)$/.test(a)) return vQuestAction(a, el);
   if (a === "vttinitmin") { VTT.initMin = !VTT.initMin; vInitDraw(true); return; }
+  if (a === "vttinitsel") { const id = el.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
+    const here = vPageNow(); if (!here || t.page !== here.id) { toast(`${t.name || "That token"} is on another map.`); return; }
+    VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = (t.size || 1) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
   if (!vCanEdit()) return;
   if (/^vttinit/.test(a)) return vInitAction(a, el);
   if (/^vttq/.test(a)) return vQuestAction(a, el);
@@ -842,7 +846,9 @@ const vCBars = t => Array.isArray(t && t.cbars) ? t.cbars.filter(b => b && Numbe
 function vBars(t) {
   const out = [];
   if (t.ref && t.ref.startsWith("c:")) {
-    const c = S.chars.get(t.ref.slice(2)); if (!c) return out;
+    const c = S.chars.get(t.ref.slice(2));
+    vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
+    if (!c) { const h = t.npc && t.npc.hp; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); return out; }
     const k = typeof casterOf === "function" ? casterOf(c) : null; if (k && k.max) out.push({ cur: k.left, max: k.max, color: "#6f8cff", label: "Spell points" });
     (c.resources || []).forEach(r => { if (r && r.style === "slider" && resMax(r, c)) out.push({ cur: charResHave(c, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); });
     if (typeof equippedResItems === "function") equippedResItems(c).forEach(it => it.lines.forEach((r, i) => { if (resValid(r) && r.style === "slider" && resMax(r, c)) out.push({ cur: itemResHave(c, it.ref, i, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); }));
@@ -866,7 +872,7 @@ const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : "c:" + b.cbar;
 function vBarVis(t, b) { const v = t && t.barVis && t.barVis[vBarKey(b)]; return v === "hide" || v === "bar" || v === "full" ? v : vBarsPublic(t) ? "full" : "hide"; }
 // The bars this viewer gets, each with how much of it they see. The GM, and players on their own tokens, see everything.
 function vBarsFor(t) {
-  const all = vBars(t), mine = !vCanEdit() && PLAYER && !!t.owner && t.layer !== "gm";
+  const all = vBars(t), mine = !vCanEdit() && PLAYER && vPlayerTok(t);
   if (vCanEdit() || mine) return all.map(b => Object.assign({}, b, { vis: "full", pvis: vCanEdit() ? vBarVis(t, b) : "full" }));
   return all.map(b => Object.assign({}, b, { vis: vBarVis(t, b) })).filter(b => b.vis !== "hide");
 }
@@ -921,7 +927,7 @@ document.addEventListener("change", ev => { if (ev.target.matches && ev.target.m
 
 // ----- The side panel for a token: its bars, damage and healing, then its stat block or character sheet -----
 function vTokSideHtml(id, t) {
-  const gm = vCanEdit(), mine = !gm && PLAYER && !!t.owner;
+  const gm = vCanEdit(), mine = !gm && PLAYER && vPlayerTok(t);
   if (!gm && !mine) return "";
   const isChar = t.ref && t.ref.startsWith("c:"), c = isChar ? S.chars.get(t.ref.slice(2)) : null;
   const e = t.ref && t.ref.startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null;
@@ -953,7 +959,7 @@ function vTokSideHtml(id, t) {
       <p><a href="#char-${esc(cid)}" target="_blank" rel="noopener">Open the full character sheet ↗</a></p>`;
   } else if (sm) {
     const [, cid, sid] = t.ref.split(":"), v = smView(sm);
-    body = `${vSmFormCtl(id, t, sm, cid, gm || mine)}${v._form ? `<p class="ssnote">In the form of <strong>${esc(v._form.title)}</strong>.</p>` : ""}<div class="vssb">${statBlockHtml(Object.assign({}, v.sb || {}, { hp: `${smNowCur(sm)} / ${smNowMax(sm)}${sm.temp ? ` (+${sm.temp} temp)` : ""}` }), sm.name || sm.kind, "core")}${(v.sb || {}).features ? featuresHtml(v.sb, sm.ref || "", "sm:" + cid + ":" + sid) : ""}</div>
+    body = `${vSmFormCtl(id, t, sm, cid, gm || mine)}${v._form ? `<p class="ssnote">In the form of <strong>${esc(v._form.title)}</strong>.</p>` : ""}<div class="vssb">${statBlockHtml(Object.assign({}, (typeof smEffectiveSb === "function" ? smEffectiveSb(v) : v.sb) || {}, { hp: `${smNowCur(sm)} / ${smNowMax(sm)}${sm.temp ? ` (+${sm.temp} temp)` : ""}` }), sm.name || sm.kind, "core")}${(v.sb || {}).features ? featuresHtml(v.sb, sm.ref || "", "sm:" + cid + ":" + sid) : ""}</div>
       <p><a href="#char-${esc(cid)}" target="_blank" rel="noopener">Open the character's summons ↗</a></p>`;
   } else if (e && e.statblock && t.form && S.entries.get(t.form)) {
     const f = S.entries.get(t.form);
@@ -986,7 +992,7 @@ function vTokOptions(id) {
       return `<div class="vbvis"><span class="flabel">What players see</span>
         ${bl.length > 1 ? `<div class="vbvrow"><span>All bars</span>${seg("*", same ? vals[0] : "")}</div>` : ""}
         ${bl.map((b, i) => `<div class="vbvrow"><span><i style="background:${b.hp ? "#4caf62" : b.color}"></i>${esc(b.label)}</span>${seg(vBarKey(b), vals[i])}</div>`).join("")}
-        ${t.owner ? `<p class="muted small">The player who controls this token always sees all of its bars.</p>` : ""}</div>`; })()}
+        ${vPlayerTok(t) ? `<p class="muted small">The player who controls this token always sees all of its bars.</p>` : (t.ref || "").startsWith("c:") ? `<p class="muted small">This character sheet is hidden from players, so they see this token like a monster: these settings decide what they see.</p>` : ""}</div>`; })()}
     ${isChar || (t.ref || "").startsWith("s:") ? `<p class="muted small">HP and the bars come from the ${isChar ? "character sheet" : "summon on its character's sheet"}.</p>` : `<div class="frow tight"><label><span>HP</span><input type="number" data-vf="hp" value="${t.hp != null ? t.hp : (t.hpMax || "")}"></label><label><span>Max HP</span><input type="number" data-vf="hpMax" value="${t.hpMax || ""}"></label><label><span>Temp HP</span><input type="number" data-vf="temp" value="${t.temp || ""}"></label></div>`}
     ${isChar ? "" : (() => { const ex = vExOf(t) || { cur: "", max: "", rise: "" }, smT = (t.ref || "").startsWith("s:"); return `${smT ? "" : `<h3 class="vopth">Exhaust Meter <small class="muted">soaks damage before HP${t.form && S.entries.get(t.form) ? " · for its current form" : t.exMax == null && vExOf(t) ? " · from the stat block" : ""}</small></h3>
       <div class="frow tight"><label><span>Left</span><input type="number" min="0" data-vf="ex" value="${ex.cur}"></label><label><span>Meter</span><input type="number" min="0" data-vf="exMax" value="${ex.max}" placeholder="none"></label><label><span>Grows by</span><input type="number" min="0" data-vf="exRise" value="${ex.rise}"></label></div>`}
@@ -1068,7 +1074,7 @@ function vFormCtl(id, t, e, gm) {
 }
 function vFly(delta) {
   const id = VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id, t = id && S.vttTokens.get(id); if (!t) return;
-  if (!vCanEdit() && !(PLAYER && t.owner)) return;
+  if (!vCanEdit() && !(PLAYER && vPlayerTok(t))) return;
   const fly = Math.max(0, Math.min(99, (Number(t.fly) || 0) + delta));
   S.vttTokens.set(id, Object.assign({}, t, { fly })); vPatch("vtttokens/" + id, { fly }); vRefresh();
 }
@@ -1137,7 +1143,7 @@ function vLevelToolsHtml() {
 }
 function vTokLevel(delta) {
   const id = VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id, t = id && S.vttTokens.get(id), cur = vPageNow(); if (!t || !cur) return;
-  if (!vCanEdit() && !(PLAYER && t.owner)) return;
+  if (!vCanEdit() && !(PLAYER && vPlayerTok(t))) return;
   const lvl = Math.max(vMinLevel(cur.p), Math.min(vMaxLevel(cur.p), (Number(t.lvl) || 0) + delta));
   S.vttTokens.set(id, Object.assign({}, t, { lvl })); vPatch("vtttokens/" + id, { lvl }); vRefresh();
 }
@@ -1232,7 +1238,7 @@ function vCondSet(id, fn) {
 function vCondAction(a, el) {
   const box = el.closest(".vcondbox"), id = box && box.dataset.tok, t = id && S.vttTokens.get(id);
   if (a === "vttcondinfo") { const c = vCond(el.dataset.c); if (c) toast(`${c.emoji || ""} ${c.name}: ${c.desc || ""}`); return; }
-  if (!t || !(vCanEdit() || (PLAYER && t.owner))) return;
+  if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
   if (a === "vttcondadd") {
     const cid = box.querySelector(".vcondsel").value, c = vCond(cid), amt = Math.max(1, parseInt(box.querySelector(".vcondamt").value, 10) || 1); if (!c) return;
     vCondSet(id, list => { const x = list.find(y => y.c === cid); if (x) { if (c.stacks) x.n = (Number(x.n) || 1) + amt; } else list.push({ c: cid, n: c.stacks ? amt : 1 }); return list; });
@@ -1336,7 +1342,9 @@ async function vInitAction(a, el) {
 }
 document.addEventListener("change", ev => {
   const f = ev.target.closest && ev.target.closest(".vturns [data-iv]"); if (!f || !vCanEdit()) return;
-  const camp = vCampId(), I = vInitOf(camp); I.list = I.list.map(e => e.id === f.dataset.iv ? Object.assign({}, e, f.dataset.k === "name" ? { name: f.value || "Turn" } : { val: f.value === "" ? null : Number(f.value) }) : e);
+  const camp = vCampId(), I = vInitOf(camp);
+  if (f.dataset.iv === "__round") { I.round = Math.max(1, Math.floor(Number(f.value)) || 1); f.value = I.round; vInitSave(camp, I); return; }
+  I.list = I.list.map(e => e.id === f.dataset.iv ? Object.assign({}, e, f.dataset.k === "name" ? { name: f.value || "Turn" } : { val: f.value === "" ? null : Number(f.value) }) : e);
   vInitSave(camp, I);
 });
 function vInitDraw(force) {
@@ -1346,14 +1354,15 @@ function vInitDraw(force) {
   const show = gm ? VTT.initOpen : sorted.length > 0;
   box.hidden = !show; if (!show) { box.innerHTML = ""; return; }
   const curTok = id => id && S.vttTokens.get(id);
-  box.innerHTML = `<div class="vthead"><strong>${I.round ? `Round ${I.round}` : "Turn order"}</strong>
+  box.innerHTML = `<div class="vthead"><strong>${I.round ? (gm ? `<label class="vtround">Round <input type="number" min="1" step="1" data-iv="__round" value="${I.round}" aria-label="Round" title="Type a round number: the count carries on from it"></label>` : `Round ${I.round}`) : "Turn order"}</strong>
       ${gm ? `<button class="iconbtn" data-act="vttinitprev" aria-label="Previous turn"${sorted.length ? "" : " disabled"}>◀</button><button class="btn small" data-act="vttinitnext"${sorted.length ? "" : " disabled"}>${I.round ? "Next ▶" : "Start ▶"}</button>` : ""}
       <button class="iconbtn" data-act="vttinitmin" aria-label="${VTT.initMin ? "Show" : "Hide"} the list">${VTT.initMin ? "▸" : "▾"}</button></div>
     ${VTT.initMin ? "" : `<ol class="vtlist">${sorted.map(e => { const t = curTok(e.tok), img = e.gm ? "" : (t ? vTokSrc(t) : e.img), on = I.round && e.id === I.cur;
-      return `<li class="${on ? "on" : ""}${e.gm ? " gmturn" : ""}${e.tok && !t ? " gone" : ""}">${img ? `<img src="${esc(img)}" alt="">` : `<span class="vtini">${e.gm ? "👹" : esc((e.name || "?")[0])}</span>`}
+      const pick = t && (gm || vPlayerTok(t)), face = img ? `<img src="${esc(img)}" alt="">` : `<span class="vtini">${e.gm ? "👹" : esc((e.name || "?")[0])}</span>`;
+      return `<li class="${on ? "on" : ""}${e.gm ? " gmturn" : ""}${e.tok && !t ? " gone" : ""}${pick && VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === e.tok ? " picked" : ""}">${pick ? `<button type="button" class="vtpick" data-act="vttinitsel" data-tok="${esc(e.tok)}" title="Select ${esc(t.name || e.name || "this token")} on the map" aria-label="Select ${esc(t.name || e.name || "this token")}">${face}</button>` : face}
         ${gm ? `<input class="vtname" type="text" data-iv="${esc(e.id)}" data-k="name" value="${esc(t && !e.gm ? t.name || e.name : e.name)}" aria-label="Name"${e.gm ? "" : " readonly tabindex=\"-1\""}><input class="vtval" type="number" data-iv="${esc(e.id)}" value="${e.val == null ? "" : esc(e.val)}" placeholder="–" aria-label="Initiative for ${esc(e.name)}">
           <button class="iconbtn" data-act="vttinitgo" data-id="${esc(e.id)}" aria-label="Make it ${esc(e.name)}'s turn" title="Jump to this turn">▸</button><button class="iconbtn" data-act="vttinitrm" data-id="${esc(e.id)}" aria-label="Take ${esc(e.name)} out">×</button>`
-        : `<span class="vtname">${esc(t ? t.name || e.name : e.name)}</span><span class="vtval">${e.val == null ? "" : esc(e.val)}</span>`}</li>`; }).join("") || `<li class="muted small vtempty">Select a token and press “Add to turn order”, or add the party below.</li>`}</ol>
+        : `${pick ? `<button type="button" class="vtname vtpick" data-act="vttinitsel" data-tok="${esc(e.tok)}">${esc(t.name || e.name)}</button>` : `<span class="vtname">${esc(t ? t.name || e.name : e.name)}</span>`}<span class="vtval">${e.val == null ? "" : esc(e.val)}</span>`}</li>`; }).join("") || `<li class="muted small vtempty">Select a token and press “Add to turn order”, or add the party below.</li>`}</ol>
     ${gm ? `<div class="vtacts"><button class="btn ghost small" data-act="vttinitparty" title="Roll for every player-controlled token on this map">+ Party</button><button class="btn ghost small" data-act="vttinitgm" title="One turn for all the monsters you run together">+ GM turn</button>${I.round ? `<button class="btn ghost small" data-act="vttinitend">End combat</button>` : ""}<button class="btn ghost small danger" data-act="vttinitclear">Clear</button></div>` : ""}`}`;
 }
 
@@ -1616,7 +1625,7 @@ function vTokLightHtml(id, t, canEdit) {
 }
 document.addEventListener("change", ev => {
   if (!ev.target.matches || !ev.target.matches(".vtoklight")) return;
-  const id = ev.target.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && t.owner))) return;
+  const id = ev.target.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
   if (ev.target.value === "custom") return;
   const pre = vLight(ev.target.value);
   vPatch("vtttokens/" + id, { light: pre ? { name: pre.name, color: pre.color, bright: pre.bright, dim: pre.dim } : null });
@@ -1799,14 +1808,14 @@ function vGoHtml(p, toks) {
   const links = p.links || []; if (!links.length) return "";
   const gm = vCanEdit(), C = VCELL;
   return `<div class="vgos">${toks.map(([id, t]) => {
-    if (!(gm || (PLAYER && t.owner)) || (t.layer === "gm" && !gm)) return "";
+    if (!(gm || (PLAYER && vPlayerTok(t))) || (t.layer === "gm" && !gm)) return "";
     const s = t.size || 1, cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t);
     const l = links.find(k => cx >= k.x && cx <= k.x + k.w && cy >= k.y && cy <= k.y + k.h && (k.levels || []).includes(lv)); if (!l) return "";
     const to = (l.levels || []).filter(n => n !== lv); if (!to.length) return "";
     return `<div class="vgo" style="left:${(t.x + s) * C + 6}px;top:${t.y * C}px">${to.map(n => `<button data-tok="${esc(id)}" data-lvl="${n}" title="Move ${esc(t.name || "token")} to ${esc(vLevelName(p, n))}">${l.kind === "lift" ? "🛗" : n > lv ? "⬆" : "⬇"} ${esc(vLevelName(p, n))}</button>`).join("")}</div>`; }).join("")}</div>`;
 }
 function vGoLevel(id, n) {
-  const t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && t.owner))) return;
+  const t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
   S.vttTokens.set(id, Object.assign({}, t, { lvl: n })); vDraw();
   vPatch("vtttokens/" + id, { lvl: n });
 }
@@ -1817,7 +1826,7 @@ function vTokAC(t) {
   const ref = t.ref || "", num = v => { const m = String(v == null ? "" : v).match(/\d+/); return m ? m[0] : ""; };
   try {
     if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); return c && typeof cAC === "function" ? num(cAC(c)) : ""; }
-    if (ref.startsWith("s:")) { const sm = vSummonOf(ref); return sm ? num((smView(sm).sb || {}).ac) : ""; }
+    if (ref.startsWith("s:")) { const sm = vSummonOf(ref); return sm ? num((smEffectiveSb(smView(sm)) || {}).ac) : ""; }
     if (ref.startsWith("e:")) { const e = S.entries.get(t.form || ref.slice(2)) || S.entries.get(ref.slice(2)); return e && e.statblock ? num(e.statblock.ac) : ""; }
   } catch (e) {}
   return t.ac ? num(t.ac) : "";
