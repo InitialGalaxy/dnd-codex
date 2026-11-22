@@ -630,7 +630,7 @@ function vUniqueDialog(id) {
     const name = document.getElementById("vuq-name").value.trim() || e.title, lore = document.getElementById("vuq-lore").value.trim();
     const keep = document.getElementById("vuq-keep").checked, hidden = document.getElementById("vuq-hidden").checked, now = new Date().toISOString();
     const nid = newId(), doc = JSON.parse(JSON.stringify(e));
-    Object.assign(doc, { title: name, body: [lore, keep && e.body ? (lore ? `### ${e.title}\n\n` : "") + e.body : ""].filter(Boolean).join("\n\n"), npcOf: t.ref.slice(2), created: now, updated: now });
+    Object.assign(doc, { unique: true, title: name, body: [lore, keep && e.body ? (lore ? `### ${e.title}\n\n` : "") + e.body : ""].filter(Boolean).join("\n\n"), npcOf: t.ref.slice(2), created: now, updated: now });
     if (hidden) doc.hidden = true; else delete doc.hidden;
     delete doc.tokNames; delete doc.tokens; delete doc.fromBook; if (pic) doc.token = pic; else delete doc.token; if (!doc.image && pic) doc.image = pic;
     if (!(await safeWrite(() => S.db.doc("entries/" + nid).set(doc)))) return;
@@ -1070,7 +1070,7 @@ function vTokSideHtml(id, t) {
       <details class="smfull"><summary>True form: ${esc(e.title)}</summary><div class="vssb">${statBlockHtml(e.statblock, e.title, "core")}</div></details>`;
   } else if (e && e.statblock) {
     body = vFormCtl(id, t, e, gm);
-    body += `<div class="vssb">${statBlockHtml(Object.assign({}, e.statblock, t.hpMax ? { hp: `${t.hp != null ? t.hp : t.hpMax} / ${t.hpMax}${t.temp ? ` (+${t.temp} temp)` : ""} · stat block: ${e.statblock.hp || "—"}` } : {}), e.title, "core")}${featuresHtml(e.statblock, t.ref.slice(2), "e:tok-" + id)}</div>
+    body += `<div class="vssb${typeof isUniqueCreature === "function" && isUniqueCreature(e) ? " sbunique" : ""}">${statBlockHtml(Object.assign({}, e.statblock, t.hpMax ? { hp: `${t.hp != null ? t.hp : t.hpMax} / ${t.hpMax}${t.temp ? ` (+${t.temp} temp)` : ""} · stat block: ${e.statblock.hp || "—"}` } : {}), e.title, "core")}${featuresHtml(e.statblock, t.ref.slice(2), "e:tok-" + id)}</div>
       <p><a href="#entry-${esc(t.ref.slice(2))}" target="_blank" rel="noopener">Open the bestiary entry ↗</a></p>`;
   } else if (e) body = `<p><a href="#entry-${esc(t.ref.slice(2))}" target="_blank" rel="noopener">Open the entry ↗</a></p>`;
   else body = gm ? `<p class="muted small">A token with no library link. Use Options to set its name, size and HP.</p>` : "";

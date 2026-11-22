@@ -870,7 +870,7 @@ function viewBestiary() {
   const rows = list.map(([id, e]) => {
     const sb = e.statblock;
     const sub = sb && sb.subtitle ? sb.subtitle.replace(/,\s*[^,]*$/, "") : (e.tags || []).map(tagName).join(", ");
-    return `<a class="brow${id === sel ? " on" : ""}${sb ? "" : " nosb"}" href="#entry-${esc(id)}" data-act="beastsel" data-id="${esc(id)}">
+    return `<a class="brow${id === sel ? " on" : ""}${sb ? "" : " nosb"}${isUniqueCreature(e) ? " uniq" : ""}" href="#entry-${esc(id)}" data-act="beastsel" data-id="${esc(id)}">
       <span class="bmain"><span class="bname">${esc(e.title)}${e.hidden && !READONLY ? ` <span class="dmonly">DM only</span>` : ""}</span><span class="bsub">${esc(sub) || (e.body ? "Lore only" : "Not written yet")}</span></span>
       <span class="bstats">${sb ? `<span><b>AC</b>${esc(firstWord(sb.ac) || "—")}</span><span><b>HP</b>${esc(firstWord(sb.hp) || "—")}</span><span><b>CR</b>${esc(firstWord(sb.cr) || "—")}</span>` : `<span class="nostats">No stat block</span>`}</span>
     </a>`;
@@ -899,7 +899,7 @@ function beastDetail(id) {
   return `<div class="bdhead"><h2><a href="#entry-${esc(id)}">${esc(e.title)}</a></h2><a class="btn ghost small" href="#entry-${esc(id)}">Open full page →</a></div>
     <div class="tags">${(e.tags || []).map(s => tagChip(s)).join("")}</div>
     ${e.image ? `<div class="bdimg">${imageHtml(e.image, e.title, id)}</div>` : ""}
-    ${sb ? statBlockHtml(sb, e.title, "core") + featuresHtml(sb, id) : `<p class="muted">No stat block yet.</p>`}
+    ${sb ? `<div class="${isUniqueCreature(e) ? "sbunique" : ""}">${statBlockHtml(sb, e.title, "core")}</div>` + featuresHtml(sb, id) : `<p class="muted">No stat block yet.</p>`}
     ${ssEntryHtml(id, e)}
     ${lootHtml(e.loot, "Harvest table", creatureSizeNum(e))}
     ${e.body && e.body.trim() ? `<h3 class="sub">Lore</h3><div class="prose">${md(e.body, { entryId: id })}</div>` : ""}`;
@@ -933,10 +933,12 @@ function viewLibrary(bestiary) {
     <div class="cards">${cards}</div>
   </section>`;
 }
+// Unique creatures (made from a token, or ticked Unique in the editor) glow like unique items.
+const isUniqueCreature = e => !!e && e.type === "creature" && (e.unique != null ? !!e.unique : !!e.npcOf);
 function entryCard(id, e) {
   const t = TYPE[e.type] || TYPE.general;
   const town = e.townId != null ? S.townById.get(e.townId) : null;
-  const rar = e.item && e.item.rarity ? " rar-" + slugify(e.item.rarity) : "";
+  const rar = e.item && e.item.rarity ? " rar-" + slugify(e.item.rarity) : isUniqueCreature(e) ? " rar-unique" : "";
   return `<a class="card t-${t.id}${rar}" href="#entry-${id}">
     <div class="cardtop"><span class="pill t-${t.id}">${t.id === "item" ? { weapon: "Weapon", armour: "Armour", item: "Item" }[itemKind(e)] : t.label}</span>${town ? `<span class="muted small">📍 ${esc(town.n)}</span>` : ""}${e.statblock && e.statblock.cr ? `<span class="cr">CR ${esc(e.statblock.cr)}</span>` : ""}${e.item && e.item.magical === false ? `<span class="rar mundane">Mundane</span>` : e.item && e.item.rarity ? `<span class="rar r-${slugify(e.item.rarity)}">${esc(e.item.rarity)}</span>` : ""}</div>
     <h2>${esc(e.title || "Untitled")}${e.hidden && !READONLY ? ` <span class="dmonly" title="Hidden from players">DM only</span>` : ""}</h2>
@@ -983,7 +985,7 @@ function viewEntry(id) {
     <div class="crumbs"><a href="#${back[0]}">← ${back[1]}</a></div>
     <header class="ehead t-${t.id}">
       <span class="pill t-${t.id}">${t.label}</span>
-      <h1>${esc(e.title || "Untitled")}</h1>
+      <h1${isUniqueCreature(e) ? ` class="uqtitle" title="A unique creature"` : ""}>${esc(e.title || "Untitled")}${isUniqueCreature(e) ? ` <span class="uqpill">Unique</span>` : ""}</h1>
       <div class="tags">${own.map(s => tagChip(s)).join("")}${own.length ? "" : `<span class="muted small">No tags yet. Tags connect this entry to the rest of your lore.</span>`}</div>
       ${e.fromBook && S.books.get(e.fromBook) ? `<p class="frombook"><span aria-hidden="true">📚</span> Written in <a href="#book-${esc(e.fromBook)}">${esc(S.books.get(e.fromBook).title)}</a>. Its title, tags and text come from the book, so edit it there.</p>` : ""}
       <div class="acts">${e.fromBook && S.books.get(e.fromBook) && !READONLY ? `<button class="btn" data-act="editinbook" data-id="${id}">Edit in the book</button><button class="btn ghost" data-act="edit" data-id="${id}" title="Picture and other details">Details</button>` : `<button class="btn" data-act="edit" data-id="${id}">Edit</button>`}${hideBtn(!!e.hidden, "togglehide", id)}<button class="btn ghost" data-act="del" data-id="${id}">Delete</button>${encToHtml(id, e)}</div>
@@ -1030,7 +1032,7 @@ function creatureHtml(id, e) {
   const sb = e.statblock;
   return `<div class="beast">
       ${portraitHtml(id, e)}
-      ${statBlockHtml(sb, e.title, "core")}
+      <div class="${isUniqueCreature(e) ? "sbunique" : ""}">${statBlockHtml(sb, e.title, "core")}</div>
     </div>
     ${lootHtml(e.loot, "Harvest table", creatureSizeNum(e))}
     ${e.body && e.body.trim() ? `<h2 class="sect">Lore</h2><div class="prose main">${md(e.body, { entryId: id })}</div>` : ""}
@@ -1719,6 +1721,7 @@ function openEditor(id, preset, embedMode) {
       <div class="field typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><span class="flabel">Token pictures <small class="muted">each new token gets one at random; leave empty to use the picture below</small></span>
         <div class="edtoks" id="ed-toks">${entryTokens(e).map(edTokThumb).join("")}</div>
         <div class="frow edtokadd"><label class="grow"><span class="sr">Picture link</span><input id="ed-token" type="text" value="" placeholder="https://… link, then Add"></label><button class="btn ghost" type="button" data-act="edtokadd">Add</button>${S.assets ? `<button class="btn ghost" type="button" data-act="edtokup">Upload…</button>` : ""}</div></div>
+      <label class="check typefields uqcheck" data-for="creature"${e.type === "creature" ? "" : " hidden"}><input id="ed-unique" type="checkbox"${isUniqueCreature(e) ? " checked" : ""}> <span>Unique creature <small class="muted">a one-of-a-kind creature: it glows like a unique item</small></span></label>
       <div class="field typefields" data-for="creature"${e.type === "creature" ? "" : " hidden"}><span class="flabel">Token names <small class="muted">optional, one per line: each new token gets one at random</small></span><textarea id="ed-toknames" rows="3" placeholder="Bram&#10;Oda&#10;Willa">${esc((e.tokNames || []).join("\n"))}</textarea></div>
       <div class="frow"><label class="grow"><span>Picture <small class="muted">an uploaded image, or a link</small></span><input id="ed-image" type="text" value="${esc(e.image || "")}" placeholder="https://… or use Upload"></label>${S.assets ? `<label><span>&nbsp;</span><button class="btn ghost" type="button" data-act="edupload">Upload…</button></label>` : ""}</div>
       <div class="field typefields" data-for-not="item handout partset feat"${e.type === "item" || e.type === "handout" || e.type === "partset" || e.type === "feat" ? " hidden" : ""}><span class="flabel">${e.type === "creature" ? "Lore" : e.type === "spell" || e.type === "subclass" || e.type === "race" || e.type === "class" || e.type === "feat" ? "Description" : "Text"}</span><textarea id="ed-body" rows="10" placeholder="Write freely.">${esc(e.type === "item" ? "" : e.body)}</textarea></div>
@@ -2122,6 +2125,7 @@ async function saveEntry(form) {
   const img = ($("#ed-image").value || "").trim(); if (img) doc.image = img; else delete doc.image;
   const toks = [...document.querySelectorAll("#ed-toks .edtok")].map(x => x.dataset.src), extra = (($("#ed-token") || {}).value || "").trim(); if (extra && !toks.includes(extra)) toks.push(extra);
   if (toks.length && type === "creature") { doc.token = toks[0]; if (toks.length > 1) doc.tokens = toks; else delete doc.tokens; } else { delete doc.token; delete doc.tokens; }
+  { const u = $("#ed-unique"); if (u && type === "creature") doc.unique = u.checked; else delete doc.unique; }
   const tn = (($("#ed-toknames") || {}).value || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 200); if (tn.length && type === "creature") doc.tokNames = tn; else delete doc.tokNames;
   if ($("#ed-hidden").checked) doc.hidden = true; else delete doc.hidden;
   if (type === "creature") { const sb = readSbFields(); if (sb) doc.statblock = sb; else delete doc.statblock; }

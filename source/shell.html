@@ -428,6 +428,14 @@ figure.img.ext small { font-family: var(--ui); font-size: .75rem; opacity: .75; 
 .card.rar-divine h2 { color: #fff6da; text-shadow: 0 0 8px rgba(255,240,190,.9), 0 0 18px rgba(255,214,120,.5); }
 .card.rar-divine::before { background: linear-gradient(180deg, #fff, #ffe9a8, #d9b45a); }
 .itempage.rar-unique { box-shadow: 0 0 0 2px var(--unique), 0 0 34px rgba(255,130,30,.55), 0 8px 30px rgba(0,0,0,.35); }
+/* Unique creatures: the same ember glow as unique items */
+.sbunique { border-radius: 10px; box-shadow: 0 0 0 2px var(--unique), 0 0 34px rgba(255,130,30,.55); }
+.sbunique .statblock { box-shadow: none; }
+.sbunique .sbname { color: #c2410c; text-shadow: 0 0 12px rgba(255,140,40,.75), 0 0 2px rgba(255,190,120,.9); }
+h1.uqtitle { color: #ffb36b; text-shadow: 0 0 14px rgba(255,130,30,.6); }
+.uqpill { display: inline-block; vertical-align: middle; margin-left: 8px; padding: 2px 10px; border-radius: 999px; font: 700 .72rem var(--ui); letter-spacing: .12em; text-transform: uppercase; color: #1b1408; background: var(--unique); box-shadow: 0 0 12px rgba(255,130,30,.6); text-shadow: none; }
+.brow.uniq { box-shadow: inset 3px 0 0 var(--unique); } .brow.uniq .bname { color: #ffb36b; text-shadow: 0 0 8px rgba(255,140,40,.55); }
+.uqcheck { display: flex; align-items: center; gap: 9px; margin: 2px 0 8px; } .uqcheck input { width: auto !important; accent-color: var(--unique); }
 .itempage.rar-unique .ititle { color: #c2410c; text-shadow: 0 0 12px rgba(255,140,40,.75), 0 0 2px rgba(255,190,120,.9); }
 .itempage.rar-divine { background: radial-gradient(90% 50% at 50% 0%, #fffdf3 0%, #fbf3dc 45%, #f7f1e3 100%); box-shadow: 0 0 0 2px #f2dc94, 0 0 40px rgba(255,236,160,.75), 0 0 90px rgba(255,248,214,.35), 0 8px 30px rgba(0,0,0,.35); }
 .itempage.rar-divine::before { content: ""; position: absolute; inset: 0; border-radius: 6px; pointer-events: none; background: repeating-conic-gradient(from 0deg at 50% 0%, rgba(255,236,170,.18) 0deg 6deg, transparent 6deg 18deg); mask: radial-gradient(70% 45% at 50% 0%, #000, transparent); -webkit-mask: radial-gradient(70% 45% at 50% 0%, #000, transparent); }
@@ -435,6 +443,7 @@ figure.img.ext small { font-family: var(--ui); font-size: .75rem; opacity: .75; 
 @media (prefers-reduced-motion: no-preference) {
   .card.rar-divine, .itempage.rar-divine { animation: divine 4s ease-in-out infinite; }
   .card.rar-unique { animation: ember 3s ease-in-out infinite; }
+  .sbunique { animation: ember 3s ease-in-out infinite; }
 }
 @keyframes divine { 50% { box-shadow: 0 0 0 1px rgba(255,241,196,.8), 0 0 40px rgba(255,236,170,.6); } }
 @keyframes ember { 50% { box-shadow: 0 0 0 1px rgba(255,154,60,.9), 0 0 30px rgba(255,120,20,.5); } }
