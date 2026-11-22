@@ -672,6 +672,16 @@ async function vttAction(a, el, ev) {
   if (/^vttpen/.test(a)) return vPenAction(a, el);
   if (/^vttq/.test(a) && !/^vttq(new|edit|del|show|step)$/.test(a)) return vQuestAction(a, el);
   if (a === "vttinitmin") { VTT.initMin = !VTT.initMin; vInitDraw(true); return; }
+  if (a === "vttbarstep" || a === "vttbared" || a === "vttbarop") {
+    const id = el.dataset.id, key = el.dataset.k, t = S.vttTokens.get(id), b = t && vBars(t).find(x => vBarEdKey(x) === key);
+    if (!b || !vBarCanEdit(t, b)) return;
+    if (a === "vttbared") { VTT.barEd = VTT.barEd === id + "|" + key ? "" : id + "|" + key; vRefresh(); const n = document.querySelector(".vbared input"); if (n) n.focus(); return; }
+    if (a === "vttbarstep") { vBarSetValue(id, key, b.cur + Number(el.dataset.v)); return; }
+    const box = el.closest(".vbared"), inp = box && box.querySelector("input"), n = Math.abs(Number(inp && inp.value));
+    if (!inp || inp.value === "" || !isFinite(n)) { if (inp) inp.focus(); return; }
+    vBarSetValue(id, key, el.dataset.op === "set" ? n : el.dataset.op === "add" ? b.cur + n : b.cur - n);
+    inp.value = ""; return;
+  }
   if (a === "vttinitsel") { const id = el.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
     const here = vPageNow(); if (!here || t.page !== here.id) { toast(`${t.name || "That token"} is on another map.`); return; }
     VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = (t.size || 1) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
@@ -849,9 +859,9 @@ function vBars(t) {
     const c = S.chars.get(t.ref.slice(2));
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     if (!c) { const h = t.npc && t.npc.hp; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); return out; }
-    const k = typeof casterOf === "function" ? casterOf(c) : null; if (k && k.max) out.push({ cur: k.left, max: k.max, color: "#6f8cff", label: "Spell points" });
-    (c.resources || []).forEach(r => { if (r && r.style === "slider" && resMax(r, c)) out.push({ cur: charResHave(c, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); });
-    if (typeof equippedResItems === "function") equippedResItems(c).forEach(it => it.lines.forEach((r, i) => { if (resValid(r) && r.style === "slider" && resMax(r, c)) out.push({ cur: itemResHave(c, it.ref, i, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); }));
+    const k = typeof casterOf === "function" ? casterOf(c) : null; if (k && k.max) out.push({ cur: k.left, max: k.max, color: "#6f8cff", label: "Spell points", ed: "sp" });
+    (c.resources || []).forEach((r, ri) => { if (r && r.style === "slider" && resMax(r, c)) out.push({ cur: charResHave(c, r), max: resMax(r, c), color: resColor(r.color), label: r.name, ed: "r:" + ri }); });
+    if (typeof equippedResItems === "function") equippedResItems(c).forEach(it => it.lines.forEach((r, i) => { if (resValid(r) && r.style === "slider" && resMax(r, c)) out.push({ ed: "i:" + i + ":" + it.ref, cur: itemResHave(c, it.ref, i, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); }));
     const hp = c.hp || {}; if (Number(hp.max)) out.push({ cur: Number(hp.cur) || 0, max: Number(hp.max), temp: Number(hp.temp) || 0, hp: true, label: "HP" });
   } else if (t.ref && t.ref.startsWith("s:")) {
     const sm = vSummonOf(t.ref);
@@ -866,6 +876,26 @@ function vBars(t) {
   return out;
 }
 const vBarsPublic = t => t.bars ? t.bars === "all" : !!t.owner;
+// ----- Changing a bar from the side panel: ±1, or add / subtract / set an amount -----
+// b.ed says what a character bar changes: "sp" spell points, "r:<n>" a resource, "i:<n>:<item ref>" an item's line.
+const vBarEdKey = b => b.cbar ? "c:" + b.cbar : b.ex ? "ex" : b.ed || "";
+function vBarCanEdit(t, b) {
+  if (!vBarEdKey(b)) return false;
+  if (vCanEdit()) return true;
+  return !!(PLAYER && vPlayerTok(t) && (b.ed || b.ex));
+}
+function vBarSetValue(id, key, v) {
+  const t = S.vttTokens.get(id); if (!t) return;
+  const b = vBars(t).find(x => vBarEdKey(x) === key); if (!b) return;
+  v = Math.max(0, Math.min(Number(b.max) || 0, Math.round(Number(v) || 0)));
+  if (b.cbar) { vPatch("vtttokens/" + id, { cbars: (t.cbars || []).map(x => x.id === b.cbar ? Object.assign({}, x, { cur: v }) : x) }); return; }
+  if (b.ex) { vExSave(id, t, { ex: v }); if (!v && b.cur) toast(`${t.name || "It"}'s Exhaust Meter is broken.`); return; }
+  const cid = (t.ref || "").slice(2);
+  if (key === "sp") charChange(cid, x => { const k = casterOf(x); if (!k) return; x.caster = Object.assign({}, x.caster, { used: k.max - Math.min(k.max, v) }); });
+  else if (key.startsWith("r:")) { const ri = Number(key.slice(2)); charChange(cid, x => { x.resources = (x.resources || []).map((r, i) => { if (i !== ri) return r; const r2 = Object.assign({}, r); charResSet(x, r2, v); return r2; }); }); }
+  else if (key.startsWith("i:")) { const m = key.match(/^i:(\d+):(.*)$/); if (!m) return; const k = Number(m[1]), ref = m[2];
+    charChange(cid, x => { const it = equippedResItems(x).find(q => q.ref === ref); const r = it && it.lines[k]; if (r) itemResSet(x, ref, k, r, v); }); }
+}
 // What players see of each bar: "hide", "bar" (the bar but not the numbers) or "full". Set per bar in
 // Options (t.barVis, keyed hp / ex / c:<bar id>); bars without a setting follow "Bars shown to".
 const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : "c:" + b.cbar;
@@ -933,9 +963,12 @@ function vTokSideHtml(id, t) {
   const e = t.ref && t.ref.startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null;
   const bars = vBarsFor(t), canHp = gm || (mine && (isChar || (t.ref || "").startsWith("s:")));
   const barHtml = bars.length ? `<div class="vsbars">${bars.map(b => { const pct = Math.max(0, Math.min(100, (b.cur / b.max) * 100)), hpc = pct > 50 ? "#4caf62" : pct > 25 ? "#d9a52b" : "#d0453a";
-    const ctl = gm && b.cbar ? `<span class="vsbctl"><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="-1" aria-label="One less">−</button><button class="iconbtn" data-act="vttcbar" data-id="${esc(id)}" data-b="${esc(b.cbar)}" data-v="1" aria-label="One more">+</button></span>`
-      : canHp && b.ex ? `<span class="vsbctl"><button class="btn ghost small" data-act="vttexfill" data-id="${esc(id)}" title="${b.cur ? "Fill the meter back up" : "It broke: refill it" + (vExOf(t).rise ? `, ${vExOf(t).rise} bigger` : "")}">${b.cur ? "Refill" : `Refill${vExOf(t).rise ? " +" + vExOf(t).rise : ""}`}</button></span>` : "";
-    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}${gm && b.pvis === "hide" ? ` <small class="vbvn" title="Players can't see this bar">🙈</small>` : gm && b.pvis === "bar" ? ` <small class="vbvn" title="Players see the bar but not the numbers">◐</small>` : ""}</span>${b.vis === "full" ? `<strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>` : `<strong class="muted">${b.cur <= 0 ? "Down" : (b.cur / b.max) > .5 ? "Healthy" : (b.cur / b.max) > .25 ? "Hurt" : "Badly hurt"}</strong>`}${ctl}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div></div>`; }).join("")}</div>` : "";
+    const ek = vBarEdKey(b), canEd = vBarCanEdit(t, b), open = canEd && VTT.barEd === id + "|" + ek;
+    const steps = canEd ? `<button class="iconbtn" data-act="vttbarstep" data-id="${esc(id)}" data-k="${esc(ek)}" data-v="-1" aria-label="One less">−</button><button class="iconbtn" data-act="vttbarstep" data-id="${esc(id)}" data-k="${esc(ek)}" data-v="1" aria-label="One more">+</button><button class="iconbtn vbaredbtn${open ? " on" : ""}" data-act="vttbared" data-id="${esc(id)}" data-k="${esc(ek)}" aria-expanded="${open}" title="Add, subtract or set an amount" aria-label="Change ${esc(b.label)} by an amount">±</button>` : "";
+    const editor = open ? `<div class="vbared"><input type="number" min="0" inputmode="numeric" placeholder="Amount" aria-label="Amount for ${esc(b.label)}"><button class="btn ghost small" data-act="vttbarop" data-op="sub" data-id="${esc(id)}" data-k="${esc(ek)}">− Subtract</button><button class="btn ghost small" data-act="vttbarop" data-op="add" data-id="${esc(id)}" data-k="${esc(ek)}">+ Add</button><button class="btn small" data-act="vttbarop" data-op="set" data-id="${esc(id)}" data-k="${esc(ek)}" title="Set it to this number">Set</button></div>` : "";
+    const ctl = !canEd ? (canHp && b.ex ? "" : "") : `<span class="vsbctl">${steps}</span>`;
+    const ctl2 = canHp && b.ex ? `<span class="vsbctl"><button class="btn ghost small" data-act="vttexfill" data-id="${esc(id)}" title="${b.cur ? "Fill the meter back up" : "It broke: refill it" + (vExOf(t).rise ? `, ${vExOf(t).rise} bigger` : "")}">${b.cur ? "Refill" : `Refill${vExOf(t).rise ? " +" + vExOf(t).rise : ""}`}</button></span>` : "";
+    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}${gm && b.pvis === "hide" ? ` <small class="vbvn" title="Players can't see this bar">🙈</small>` : gm && b.pvis === "bar" ? ` <small class="vbvn" title="Players see the bar but not the numbers">◐</small>` : ""}</span>${b.vis === "full" ? `<strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>` : `<strong class="muted">${b.cur <= 0 ? "Down" : (b.cur / b.max) > .5 ? "Healthy" : (b.cur / b.max) > .25 ? "Hurt" : "Badly hurt"}</strong>`}${ctl}${ctl2}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div>${editor}</div>`; }).join("")}</div>` : "";
   const sm = t.ref && t.ref.startsWith("s:") ? vSummonOf(t.ref) : null;
   const canFly = gm || mine, fly = Math.max(0, Number(t.fly) || 0);
   const dmgMode = VTT.dmgMode || "bps", exT = !isChar && vExOf(t);

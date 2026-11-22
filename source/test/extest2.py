@@ -29,7 +29,7 @@ with sync_playwright() as p:
     G.fill('.vcbrow [data-cb=cur]','3'); G.locator('.vcbrow [data-cb=cur]').dispatch_event('change'); G.wait_for_timeout(400)
     G.locator('#modal .mbox').screenshot(path='/tmp/ex2.png')
     G.click('.mbox button[data-act=closemodal]'); G.wait_for_timeout(300)
-    G.click('[data-act=vttcbar][data-v="-1"]'); G.wait_for_timeout(500); print('rage used', bars())
+    G.click('.vsbar [data-act=vttbarstep][data-v="-1"] >> nth=0'); G.wait_for_timeout(500); print('rage used', bars())
     G.screenshot(path='/tmp/ex3.png')
     print('heal leaves exhaust:'); G.fill('.vhpn','10'); G.click('[data-act=vttdmg][data-v=heal]'); G.wait_for_timeout(500); print(bars())
     print('ERRORS', errs); b.close()
