@@ -610,6 +610,34 @@ function vNpcable(t) {
   const e = S.entries.get(t.ref.slice(2)); if (!e || e.type !== "creature") return false;
   return (e.tags || []).some(g => /^humanoids?$/i.test(g) || /^humanoids?$/i.test(typeof tagName === "function" ? tagName(g) : g)) || /humanoid/i.test((e.statblock || {}).subtitle || "");
 }
+// Any other creature from the bestiary can become a unique creature: its own bestiary entry.
+function vUniqueable(t) { if (!(t && (t.ref || "").startsWith("e:"))) return false; const e = S.entries.get(t.ref.slice(2)); return !!e && e.type === "creature"; }
+function vUniqueDialog(id) {
+  const t = S.vttTokens.get(id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e) return;
+  const pic = t.img || entryTokens(e)[0] || e.image || "";
+  openModal(`<h2>Make a unique creature</h2>
+    <p class="muted small">A bestiary entry of its own, copied from <strong>${esc(e.title)}</strong>: its stat block${pic ? " and this token's picture" : ""}. This token becomes it.</p>
+    <form class="vform" id="vuqform">
+      <label><span>Name</span><input id="vuq-name" type="text" required value="${esc(t.name || e.title)}"></label>
+      <label><span>Lore <small class="muted">optional: what happened, what makes it different</small></span><textarea id="vuq-lore" rows="6" placeholder="Fled the party at the river crossing with an arrow in its flank…"></textarea></label>
+      <label class="vcheck"><input id="vuq-keep" type="checkbox" checked> <span>Keep ${esc(e.title)}'s lore underneath</span></label>
+      <label class="vcheck"><input id="vuq-hidden" type="checkbox" checked> <span>Hidden from players</span></label>
+      <div class="acts"><button class="btn" type="submit">Make unique creature</button><button class="btn ghost" type="button" data-act="closemodal">Cancel</button></div>
+    </form>`);
+  const f = document.getElementById("vuq-name"); if (f) { f.focus(); f.select(); }
+  document.getElementById("vuqform").onsubmit = async ev => {
+    ev.preventDefault();
+    const name = document.getElementById("vuq-name").value.trim() || e.title, lore = document.getElementById("vuq-lore").value.trim();
+    const keep = document.getElementById("vuq-keep").checked, hidden = document.getElementById("vuq-hidden").checked, now = new Date().toISOString();
+    const nid = newId(), doc = JSON.parse(JSON.stringify(e));
+    Object.assign(doc, { title: name, body: [lore, keep && e.body ? (lore ? `### ${e.title}\n\n` : "") + e.body : ""].filter(Boolean).join("\n\n"), npcOf: t.ref.slice(2), created: now, updated: now });
+    if (hidden) doc.hidden = true; else delete doc.hidden;
+    delete doc.tokNames; delete doc.tokens; delete doc.fromBook; if (pic) doc.token = pic; else delete doc.token; if (!doc.image && pic) doc.image = pic;
+    if (!(await safeWrite(() => S.db.doc("entries/" + nid).set(doc)))) return;
+    S.entries.set(nid, doc); vPatch("vtttokens/" + id, { ref: "e:" + nid, img: "", name });
+    closeModal(); vRefresh(); toast(`${name} is in the bestiary${hidden ? " (hidden from players)" : ""}.`);
+  };
+}
 async function vMakeNpc(id, how) {
   const t = S.vttTokens.get(id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e) return;
   const name = (t.name || e.title || "NPC").trim(), pic = t.img || entryTokens(e)[0] || e.image || "", now = new Date().toISOString();
@@ -769,6 +797,7 @@ async function vttAction(a, el, ev) {
     const pics = entryTokens(e); let v = el.dataset.v; if (v === "*") { const cur = t.img || pics[0]; v = vPickOne(pics.length > 1 ? pics.filter(p => p !== cur) : pics); }
     S.vttTokens.set(id, Object.assign({}, t, { img: v })); vPatch("vtttokens/" + id, { img: v }); vTokOptions(id); return; }
   if (a === "vttnpc") { vMakeNpc(el.dataset.id, el.dataset.v); return; }
+  if (a === "vttunique") { vUniqueDialog(el.dataset.id); return; }
   if (a === "vttdeltok") { closeModal(); VTT.sel = { kind: "tok", id: el.dataset.id }; vDeleteSel(); return; }
   if (a === "vttpage") { VTT.page = el.dataset.id; VTT.sel = null; VTT.draft = null; render(); }
   else if (a === "vttaddpage") { const name = await vAsk("New page", "Name", "Page " + (vPages(camp).length + 1), "Add page"); if (!name) return; VTT.page = await vNewPage(camp, name, vPages(camp).length); render(); }
@@ -1075,8 +1104,10 @@ function vTokOptions(id) {
       <h3 class="vopth">Custom bars <small class="muted">rage, stagger, a ward, anything you track</small></h3>
       <div class="vcbars">${(t.cbars || []).map(b => `<div class="vcbrow" data-b="${esc(b.id)}"><input type="text" data-cb="name" value="${esc(b.name || "")}" placeholder="Name" aria-label="Bar name"><input type="number" min="0" data-cb="cur" value="${Number(b.cur) || 0}" aria-label="Current"><span>/</span><input type="number" min="1" data-cb="max" value="${Number(b.max) || 0}" aria-label="Maximum"><input type="color" data-cb="color" value="${esc(b.color || "#6f8cff")}" aria-label="Colour"><button type="button" class="iconbtn" data-act="vttcbarrm" data-id="${esc(id)}" data-b="${esc(b.id)}" aria-label="Remove bar">✕</button></div>`).join("")}</div>
       <button type="button" class="btn ghost small" data-act="vttcbaradd" data-id="${esc(id)}">+ Add a bar</button>`; })()}
-    ${vNpcable(t) ? `<div class="vnpcbox"><span class="flabel">Make it an NPC <small class="muted">its own copy, named “${esc(t.name || "")}”, hidden from players</small></span>
-      <div class="vnpcbtns"><button type="button" class="btn ghost" data-act="vttnpc" data-v="entry" data-id="${esc(id)}" title="A bestiary entry of its own: the stat block, lore and this token's picture">📖 As a bestiary entry</button><button type="button" class="btn ghost" data-act="vttnpc" data-v="sheet" data-id="${esc(id)}" title="A character sheet filled in from the stat block">📜 As a character sheet</button></div></div>` : ""}
+    ${vNpcable(t) ? `<div class="vnpcbox"><span class="flabel">Make it an NPC <small class="muted">a character sheet of its own, named “${esc(t.name || "")}”, hidden from players</small></span>
+      <div class="vnpcbtns"><button type="button" class="btn ghost" data-act="vttnpc" data-v="sheet" data-id="${esc(id)}" title="A character sheet filled in from the stat block">📜 Make an NPC sheet</button></div></div>`
+    : vUniqueable(t) ? `<div class="vnpcbox"><span class="flabel">Make it a unique creature <small class="muted">its own bestiary entry, with a new name and lore</small></span>
+      <div class="vnpcbtns"><button type="button" class="btn ghost" data-act="vttunique" data-id="${esc(id)}" title="Copy this creature into a bestiary entry of its own">✨ Make a unique creature</button></div></div>` : ""}
     <div class="acts"><button class="btn" type="button" data-act="closemodal">Done</button><button class="btn ghost danger" type="button" data-act="vttdeltok" data-id="${esc(id)}">Delete token</button></div></div>`);
 }
 
