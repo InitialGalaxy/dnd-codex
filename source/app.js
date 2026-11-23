@@ -464,7 +464,7 @@ function connectDb(db) {
     S[key] = new Map(snap.docs.filter(d => d.exists).map(d => [d.id, d.data()]));
     if (after) after(); else { const v = route().v; if (v === "vtt" || v === "vttc") render(); }
   }, () => {});
-  vttSub("vttcamps", "vttCamps", () => { const v = route().v; if (v === "vtt" || v === "vttc" || v === "home") render(); }); vttSub("vttpages", "vttPages", () => { if (typeof vPagesSnap === "function") vPagesSnap(); const v = route().v; if (v === "vtt" || v === "vttc") render(); }); vttSub("vtttokens", "vttTokens");
+  vttSub("vttcamps", "vttCamps", () => { const v = route().v; if (v === "vtt" || v === "vttc" || v === "home") render(); }); vttSub("vttpages", "vttPages", () => { if (typeof vPagesSnap === "function") vPagesSnap(); if (typeof vShipsSync === "function") vShipsSync(); const v = route().v; if (v === "vtt" || v === "vttc") render(); }); vttSub("vtttokens", "vttTokens");
   vttSub("vttfog", "vttFog", () => { if (route().v === "vttc") vDraw(); });
   vttSub("vttdraw", "vttDraw", () => { if (route().v === "vttc" && typeof vDrawingsRefresh === "function") vDrawingsRefresh(); });
   if (window.__CODEX_SERVER) vttSub("vttlive", "vttLive", () => { if (route().v === "vttc" && typeof vLiveSnap === "function") vLiveSnap(); });

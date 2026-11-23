@@ -117,7 +117,7 @@ to make the key. The key stays in `codex-config.json` and only ever goes to GitH
 
 | Path | What it is |
 |---|---|
-| `source/*.js`, `source/shell.html` | The code, split into parts (`vtt.js` is the tabletop, `vehicles.js` the vehicles, `app.js` the library and pages, `characters.js` the sheets, and so on). |
+| `source/*.js`, `source/shell.html` | The code, split into parts (`vtt.js` is the tabletop, `vehicles.js` the vehicles, `ships.js` complex vehicles on the tabletop, `app.js` the library and pages, `characters.js` the sheets, and so on). |
 | `source/build.py` | Joins the parts into `DnD Codex.html`: run `python3 build.py` in `source/`. |
 | `source/server/server.js` | The source of `server.js`. |
 | `source/web/` | Turns `DnD Codex.html` into the phone version: `python3 web/make_web.py "DnD Codex.html" web/index.html`, plus its service worker, manifest and icons. |

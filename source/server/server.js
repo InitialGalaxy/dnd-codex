@@ -86,6 +86,7 @@ function playerCopy(p, doc) {
     const e = docs["entries/" + doc.ref.slice(2)];
     if (!e || e.hidden) { const sb = e && e.statblock || {}, it = e && e.type === "item" && e.item; return Object.assign({}, doc, { npc: Object.assign({ img: e ? e.token || e.image || "" : "", sb: { subtitle: String(sb.subtitle || "").split(/[,(]/)[0].trim(), con: sb.con || "", exhaust: sb.exhaust || "" } }, it && it.vehicle ? { veh: { v: it.vehicle, cat: it.category || "" } } : {}) }); }
   }
+  if (doc && p.startsWith("vtttokens/") && doc.int && typeof doc.int === "object") doc = Object.assign({}, doc, { int: Object.assign({}, doc.int, { objs: (doc.int.objs || []).filter(o => o && o.layer !== "gm"), walls: (doc.int.walls || []).map(w => Array.isArray(w) && w[5] && w[5].secret ? w.slice(0, 5) : w) }) });
   if (!doc || !p.startsWith("vttpages/")) return doc;
   return Object.assign({}, doc, { objs: (doc.objs || []).filter(o => o && o.layer !== "gm"), walls: (doc.walls || []).map(w => Array.isArray(w) && w[5] && w[5].secret ? w.slice(0, 5) : w) });
 }
@@ -113,23 +114,40 @@ function playerVehicleWrite(p, old, doc) {
   const id = p.slice(10), keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
   let moved = false;
   let res = false;
-  for (const k of keys) { if (JSON.stringify(old[k]) === JSON.stringify(doc[k])) continue; if (k === "x" || k === "y" || k === "fly" || k === "lvl") moved = true; else if (k === "vres") res = true; else if (k !== "pilot") return false; }
+  for (const k of keys) { if (JSON.stringify(old[k]) === JSON.stringify(doc[k])) continue; if (k === "x" || k === "y" || k === "fly" || k === "lvl" || k === "rot" || k === "mv") moved = true; else if (k === "vres") res = true; else if (k === "int") { if (!old.int || JSON.stringify(shipDoorMerge(old.int, doc.int)) !== JSON.stringify(doc.int)) return false; } else if (k !== "pilot") return false; }
+  if (moved && old.int) return playerAtHelm(id) && typeof doc.x === "number" && typeof doc.y === "number" && isFinite(doc.x) && isFinite(doc.y) && isFinite(Number(doc.rot) || 0) && vttVisible(old.page);
   // Its resources (charges and pools on the vehicle): anyone with a token aboard.
   if (res && !(Array.isArray(doc.vres) && doc.vres.length <= 50 && doc.vres.every(v => v == null || (Number.isFinite(v) && v >= 0 && v < 1e6)) && Object.entries(docs).some(([k, q]) => k.startsWith("vtttokens/") && q && q.mount === id && playerAboard(k.slice(10), id)))) return false;
   if (moved && !playerAboard(old.pilot, id)) return false;
   if (doc.pilot !== old.pilot && !playerAboard(doc.pilot, id)) return false;
   return typeof doc.x === "number" && typeof doc.y === "number" && isFinite(doc.x) && isFinite(doc.y) && vttVisible(old.page);
 }
-const PLAYER_TOKEN_KEYS = ["x", "y", "fly", "lvl", "conds", "light", "mount", "mountAt", "pilot", "vres"];
+const PLAYER_TOKEN_KEYS = ["x", "y", "fly", "lvl", "conds", "light", "mount", "mountAt", "pilot", "vres", "ship", "sx", "sy", "deck", "rot", "mv"];
+// A ship's doors: players open and close the ones that aren't locked or secret; nothing else in its map changes.
+function shipDoorMerge(oldInt, newInt) {
+  if (!oldInt || !newInt || !Array.isArray(newInt.walls)) return oldInt;
+  const want = new Map(); newInt.walls.forEach(w => { if (Array.isArray(w) && w[5] && typeof w[5].id === "string") want.set(w[5].id, !!w[5].open); });
+  const walls = (oldInt.walls || []).map(w => { const m = Array.isArray(w) && w[5]; if (!m || m.k !== "door" || m.locked || m.secret || !want.has(m.id) || want.get(m.id) === !!m.open) return w; return w.slice(0, 5).concat([Object.assign({}, m, { open: want.get(m.id) })], w.slice(6)); });
+  return Object.assign({}, oldInt, { walls });
+}
+// A ship (complex vehicle): whoever stands on one of its helm squares steers it.
+function playerAtHelm(id) {
+  const sh = docs["vtttokens/" + id], helm = sh && sh.int && Array.isArray(sh.int.helm) ? sh.int.helm : []; if (!helm.length) return false;
+  return Object.entries(docs).some(([k, q]) => { if (!k.startsWith("vtttokens/") || !q || q.ship !== id || !q.owner || !docs["characters/" + q.owner] || docs["characters/" + q.owner].hidden) return false;
+    const s = Math.max(1, Number(q.size) || 1) / 2, cx = Math.floor((Number(q.sx) || 0) + s), cy = Math.floor((Number(q.sy) || 0) + s); return helm.some(h => h[0] === cx && h[1] === cy && (Number(h[2]) || 0) === (Number(q.deck) || 0)); });
+}
 function playerTokenMove(p, doc) {
   if (!/^vtttokens\/[A-Za-z0-9_.-]+$/.test(p)) return false;
   const old = docs[p]; if (!old || old.layer === "gm" || !doc) return false;
   if (!old.owner || !docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return playerVehicleWrite(p, old, doc);
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
-  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && k !== "pilot" && k !== "vres" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && k !== "pilot" && k !== "vres" && k !== "ship" && k !== "sx" && k !== "sy" && k !== "deck" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
   // Climbing onto a mount: one the player can see, on this map, not riding anything itself, and nobody riding this token.
   if (doc.mountAt != null && !Number.isFinite(doc.mountAt)) return false;
   if (doc.pilot !== old.pilot && doc.pilot != null && !playerAboard(doc.pilot, p.slice(10))) return false;
+  // Boarding a ship: one the player can see, on this map.
+  if (doc.ship != null && doc.ship !== old.ship) { const sp = "vtttokens/" + doc.ship, sh = typeof doc.ship === "string" && docs[sp]; if (!sh || !sh.int || sh.page !== old.page || sh.layer === "gm" || !playerSees(sp, sh)) return false; }
+  if (["sx", "sy", "deck"].some(k => doc[k] != null && !Number.isFinite(doc[k]))) return false;
   if (doc.mount != null && doc.mount !== old.mount) {
     const id = p.slice(10), mp = "vtttokens/" + doc.mount, m = typeof doc.mount === "string" && doc.mount !== id && docs[mp];
     if (!m || m.page !== old.page || m.layer === "gm" || m.mount || !playerSees(mp, m)) return false;
@@ -508,6 +526,7 @@ async function handle(req, res) {
         if (role !== "gm" && op.doc && op.path.startsWith("vtttokens/") && docs[op.path]) {
           const pick = {}; for (const k of PLAYER_TOKEN_KEYS) if (k in op.doc) pick[k] = op.doc[k];
           const next = Object.assign({}, docs[op.path], pick);
+          if (docs[op.path].int && op.doc.int) next.int = shipDoorMerge(docs[op.path].int, op.doc.int);
           merged = JSON.stringify(next) !== JSON.stringify(op.doc); op.doc = next;
         }
         if (role !== "gm" && (!playerMayWrite(op.path, op.doc) || (docs[op.path] && docs[op.path].hidden))) { rejected.push(op.path); continue; }
