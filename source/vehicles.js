@@ -92,19 +92,23 @@ function vehFieldsHtml(e, cat) {
   </div>`;
 }
 // A picture of a 3 × 3 square vehicle making a quarter turn to the right with this turning circle (feet across), on a 5 ft grid.
+// Its centre of mass is the middle of its middle square; like a ship on the tabletop, it comes to rest with that centre on the
+// middle of a square (so here the squares' middles are at whole numbers, and grid lines at the halves).
 function vehTurnSvg(ft) {
   ft = Math.max(0, Number(ft) || 0);
   const R = ft / 10, W = 300, H = 220; // radius in squares
-  const x0 = -2.4, x1 = R + 2.4, y0 = -R - 2.4, y1 = 2.4, k = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
+  const ex = Math.round(R), ey = -Math.round(R); // where it comes to rest: a square's middle
+  const x0 = -2.5, x1 = Math.max(R, ex) + 2.5, y0 = Math.min(-R, ey) - 2.5, y1 = 2.5, k = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
   const X = x => (ox + x * k).toFixed(1), Y = y => (oy + y * k).toFixed(1);
-  let grid = ""; for (let gx = Math.ceil(x0); gx <= x1; gx++) grid += `<line x1="${X(gx)}" y1="${Y(y0)}" x2="${X(gx)}" y2="${Y(y1)}"/>`; for (let gy = Math.ceil(y0); gy <= y1; gy++) grid += `<line x1="${X(x0)}" y1="${Y(gy)}" x2="${X(x1)}" y2="${Y(gy)}"/>`;
-  // The vehicle at turned angle a (radians): its centre on the circle, its front turning from up to right.
-  const box = (a, cls) => { const cx = R ? R - R * Math.cos(a) : 0, cy = R ? -R * Math.sin(a) : 0, c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`;
-    return `<polygon class="${cls}" points="${[[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -2.3)} ${pt(-0.7, -1.5)} ${pt(0.7, -1.5)}"/>`; };
-  const arc = R ? `<circle class="ring" cx="${X(R)}" cy="${Y(0)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(0)},${Y(0)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(R)},${Y(-R)}"/><circle class="hub" cx="${X(R)}" cy="${Y(0)}" r="3"/>` : "";
-  const dist = Math.round(Math.PI * R / 2 * 5);
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="A 3 by 3 square vehicle turning right with a ${ft} foot turning circle"><g class="grid">${grid}</g>${arc}${box(0, "veh")}${box(Math.PI / 4, "veh mid")}${box(Math.PI / 2, "veh end")}</svg>
-    <p class="muted small">${R ? `A 3 × 3 vehicle turns a quarter circle in about ${dist} ft (grid squares are 5 ft).` : "It turns on the spot."}</p>`;
+  let grid = ""; for (let gx = Math.ceil(x0 - 0.5) + 0.5; gx <= x1; gx++) grid += `<line x1="${X(gx)}" y1="${Y(y0)}" x2="${X(gx)}" y2="${Y(y1)}"/>`; for (let gy = Math.ceil(y0 - 0.5) + 0.5; gy <= y1; gy++) grid += `<line x1="${X(x0)}" y1="${Y(gy)}" x2="${X(x1)}" y2="${Y(gy)}"/>`;
+  // The vehicle with its centre at (cx, cy), turned a (radians) from facing up to facing right; a dot marks its centre of mass.
+  const box = (cx, cy, a, cls) => { const c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`;
+    return `<polygon class="${cls}" points="${[[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -2.3)} ${pt(-0.7, -1.5)} ${pt(0.7, -1.5)}"/><circle class="com" cx="${X(cx)}" cy="${Y(cy)}" r="3.5"/>`; };
+  const onArc = a => R ? [R - R * Math.cos(a), -R * Math.sin(a)] : [0, 0];
+  const arc = R ? `<circle class="ring" cx="${X(R)}" cy="${Y(0)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(0)},${Y(0)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(R)},${Y(-R)}${ex !== R ? ` L${X(ex)},${Y(ey)}` : ""}"/><circle class="hub" cx="${X(R)}" cy="${Y(0)}" r="3"/>` : "";
+  const mid = onArc(Math.PI / 4), dist = Math.round(Math.PI * R / 2 * 5);
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="A 3 by 3 square vehicle turning right with a ${ft} foot turning circle"><g class="grid">${grid}</g>${arc}${box(0, 0, 0, "veh")}${R ? box(mid[0], mid[1], Math.PI / 4, "veh mid") : box(0, 0, Math.PI / 4, "veh mid")}${box(ex, ey, Math.PI / 2, "veh end")}</svg>
+    <p class="muted small">${R ? `A 3 × 3 vehicle turns a quarter circle in about ${dist} ft (grid squares are 5 ft), coming to rest with its centre of mass (the dot) on the middle of a square.` : "It turns on the spot."}</p>`;
 }
 document.addEventListener("input", ev => { if (ev.target && ev.target.id === "veh-turn") { const box = document.getElementById("veh-turnviz"); if (box) box.innerHTML = vehTurnSvg(ev.target.value); } });
 function vehRead() {

@@ -10,5 +10,5 @@ with sync_playwright() as p:
     G.locator('#veh-turnviz').scroll_into_view_if_needed(); G.locator('#veh-turnviz').screenshot(path='/tmp/turn30.png')
     G.fill('#veh-turn','60'); G.wait_for_timeout(200); print('60:', G.locator('#veh-turnviz p').inner_text()); G.locator('#veh-turnviz').screenshot(path='/tmp/turn60.png')
     G.fill('#veh-turn','0'); G.wait_for_timeout(200); print('0:', G.locator('#veh-turnviz p').inner_text()); G.locator('#veh-turnviz').screenshot(path='/tmp/turn0.png')
-    G.fill('#veh-turn','15'); G.wait_for_timeout(200); G.locator('#veh-turnviz').screenshot(path='/tmp/turn15.png')
+    G.fill('#veh-turn','25'); G.wait_for_timeout(200); G.locator('#veh-turnviz').screenshot(path='/tmp/turn25.png')
     print('ERRORS', errs); b.close()
