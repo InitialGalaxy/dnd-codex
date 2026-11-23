@@ -2029,7 +2029,16 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vlvname:hover { background: var(--panel-2); }
 .vlvren { background: none; border: 0; color: var(--muted); padding: 5px 5px 5px 2px; cursor: pointer; font-size: .8rem; }
 .vlvren:hover { color: var(--brass); }
-.vlvadd { width: 100%; }
+.vundo { flex-direction: row !important; display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px; align-self: flex-start; align-items: start; }
+@media (max-width: 860px) { .vtools .vundo { grid-template-columns: auto auto; } }
+.vundo .vbtn { padding: 5px 2px; font-size: .74rem; white-space: nowrap; text-align: center; }
+.vundo .vbtn:disabled { opacity: .4; cursor: default; }
+.vlvadd { width: 100%; white-space: nowrap; padding-left: 2px !important; padding-right: 2px !important; font-size: .74rem !important; }
+/* The level being edited gets its tools on a line of their own, with room to tap them. */
+.vlvrow.on .vlvtools { grid-column: 1 / -1; justify-content: flex-end; gap: 2px; border-top: 1px solid var(--line); padding: 1px 4px; }
+.vlvrow.on .vlvarrows { flex-direction: row; gap: 2px; }
+.vlvrow.on .vlvmv { font-size: .78rem; padding: 4px 8px; }
+.vlvrow.on .vlvren { padding: 4px 8px; }
 .vbtn.small { font-size: .78rem; padding: 3px 6px; }
 .vobj.above, .vtok.above { opacity: .3; } .vobj.vroofoff { visibility: hidden; }
 .vwalls line.otherlvl { stroke-dasharray: 6 6; opacity: .3; }

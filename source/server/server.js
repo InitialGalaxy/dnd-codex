@@ -111,8 +111,9 @@ function playerTokenMove(p, doc) {
   const old = docs[p]; if (!old || !old.owner || old.layer === "gm" || !doc) return false;
   if (!docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return false;
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
-  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
   // Climbing onto a mount: one the player can see, on this map, not riding anything itself, and nobody riding this token.
+  if (doc.mountAt != null && !Number.isFinite(doc.mountAt)) return false;
   if (doc.mount != null && doc.mount !== old.mount) {
     const id = p.slice(10), mp = "vtttokens/" + doc.mount, m = typeof doc.mount === "string" && doc.mount !== id && docs[mp];
     if (!m || m.page !== old.page || m.layer === "gm" || m.mount || !playerSees(mp, m)) return false;

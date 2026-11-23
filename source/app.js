@@ -17,7 +17,8 @@ const TYPES = [
   { id: "partset", label: "Part set", plural: "Part sets", subject: true }
 ];
 const BOOK_STATUS = ["Complete", "In progress", "Planned"];
-const ITEM_CATEGORIES = ["Simple weapon", "Martial weapon", "Ranged weapon", "Armour", "Shield", "Ring", "Amulet", "Cloak", "Wand", "Staff", "Rod", "Potion", "Scroll", "Trinket", "Harvested part", "Adventuring gear", "Ammunition", "Equipment pack", "Kit", "Spellcasting focus", "Tool"];
+const ITEM_CATEGORIES = ["Simple weapon", "Martial weapon", "Ranged weapon", "Armour", "Shield", "Ring", "Amulet", "Cloak", "Wand", "Staff", "Rod", "Potion", "Scroll", "Trinket", "Harvested part", "Adventuring gear", "Ammunition", "Equipment pack", "Kit", "Spellcasting focus", "Tool", "Saddle"];
+const isSaddleCat = c => /^saddle$/i.test(String(c || "").trim());
 // Standard weapon properties (no 5.5e masteries). "param" asks for a value, shown in brackets.
 const WEAPON_PROPS = [
   { id: "ammunition", name: "Ammunition", param: "range", ph: "80/320; arrow", desc: "You can make a ranged attack with this weapon only if you have ammunition to fire from it. Each attack uses one piece of ammunition. After a fight, you can spend 1 minute to recover half the ammunition (round down) you used." },
@@ -462,7 +463,7 @@ function connectDb(db) {
     S[key] = new Map(snap.docs.filter(d => d.exists).map(d => [d.id, d.data()]));
     if (after) after(); else { const v = route().v; if (v === "vtt" || v === "vttc") render(); }
   }, () => {});
-  vttSub("vttcamps", "vttCamps", () => { const v = route().v; if (v === "vtt" || v === "vttc" || v === "home") render(); }); vttSub("vttpages", "vttPages"); vttSub("vtttokens", "vttTokens");
+  vttSub("vttcamps", "vttCamps", () => { const v = route().v; if (v === "vtt" || v === "vttc" || v === "home") render(); }); vttSub("vttpages", "vttPages", () => { if (typeof vPagesSnap === "function") vPagesSnap(); const v = route().v; if (v === "vtt" || v === "vttc") render(); }); vttSub("vtttokens", "vttTokens");
   vttSub("vttfog", "vttFog", () => { if (route().v === "vttc") vDraw(); });
   vttSub("vttdraw", "vttDraw", () => { if (route().v === "vttc" && typeof vDrawingsRefresh === "function") vDrawingsRefresh(); });
   if (window.__CODEX_SERVER) vttSub("vttlive", "vttLive", () => { if (route().v === "vttc" && typeof vLiveSnap === "function") vLiveSnap(); });
@@ -1822,6 +1823,7 @@ function itemFields(e) {
       <label class="grow hvhide"><span>Base item</span><input id="it-base" type="text" value="${esc(parsed.base)}" placeholder="e.g. spear, longsword, plate"></label>
     </div>
     ${harvestFieldsHtml(Object.assign({}, it, { category: parsed.category, harvest: it.harvest || (e.type === "item" && e.title ? harvestOf(e) : {}) }))}
+    <div class="frow" id="it-saddle"${isSaddleCat(parsed.category) ? "" : " hidden"}><label><span>Seats <small class="muted">how many riders it carries in all</small></span><input id="it-seats" type="number" min="1" max="20" step="1" style="width:110px" value="${esc(it.seats || 2)}"></label><p class="muted small grow">Equipped on a summon, the mount can carry this many riders. Without a saddle a mount carries one less than the squares it takes up (Large 1, Huge 2, Gargantuan 3), and always at least one.</p></div>
     <div class="field hvhide"><span class="flabel">Properties</span>
       <div class="propchips" id="it-props">${propChipsHtml()}</div>
       <div class="propadd"><select id="it-propsel" aria-label="Property to add">${WEAPON_PROPS.map(p => `<option value="${p.id}">${p.name}</option>`).join("")}</select><button class="btn ghost small" type="button" data-act="itaddprop" aria-label="Add property">+ Add</button></div>
@@ -1898,6 +1900,7 @@ function harvestMode() {
   const sel = $("#it-cat"); if (!sel) return;
   const on = isHarvestCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
   const hv = $("#it-harvest"); if (hv) hv.hidden = !on;
+  const sd = $("#it-saddle"); if (sd) sd.hidden = !isSaddleCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
   const fs = sel.closest("fieldset"); if (fs) fs.classList.toggle("hvmode", on);
 }
 // Light: an equipped item that shines on the tabletop (a torch, a glowing sword).
@@ -2146,6 +2149,7 @@ async function saveEntry(form) {
     const hl = readHolds(); if (hl) doc.item.holds = hl; else delete doc.item.holds;
     const rl = readItemRes(); if (rl) doc.item.res = rl; else delete doc.item.res;
     const lt = readItemLight(); if (lt) doc.item.light = lt; else delete doc.item.light;
+    if (isSaddleCat(doc.item.category)) doc.item.seats = Math.max(1, Math.min(20, Math.round(Number(($("#it-seats") || {}).value) || 2))); else delete doc.item.seats;
     doc.body = serializeFeatures(DRAFT.it);
     if (isHarvestCat(doc.item.category)) { doc.item.harvest = { dc: $("#hv-dc").value.trim(), qty: $("#hv-qty").value.trim(), wt: $("#hv-wt").value.trim() }; doc.body = harvestBody(doc); } else delete doc.item.harvest;
   }
