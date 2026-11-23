@@ -151,7 +151,7 @@ function vHelmHtml(toks, gm) {
     const h = vShipHelm(id, t); if (!h) return "";
     const [hid, ht] = h, mine = gm ? (VTT.sel && VTT.sel.kind === "tok" && (VTT.sel.id === hid || VTT.sel.id === id)) : PLAYER && vPlayerTok(ht); if (!mine) return "";
     const s = vTokSz(ht), r = (s / 2 + 0.55) * C, cx = (ht.x + s / 2) * C, cy = (ht.y + s / 2) * C;
-    return `<div class="vhelmring" style="left:${cx}px;top:${cy}px;width:${r * 2}px;height:${r * 2}px;transform:translate(-50%,-50%) rotate(${vShipHeading(t)}deg)"><button class="vhelmarrow" data-ship="${esc(id)}" title="Drag to steer ${esc(t.name || "the vehicle")} (hold Ctrl or Shift to try going straight there)" aria-label="Steer">➤</button></div>`;
+    return `<div class="vhelmring" style="left:${cx}px;top:${cy}px;width:${r * 2}px;height:${r * 2}px;transform:translate(-50%,-50%) rotate(${vShipHeading(t)}deg)"><button class="vhelmarrow" data-ship="${esc(id)}" title="Drag to steer ${esc(t.name || "the vehicle")}. Hold Shift to finish squared to the nearest 45°, Ctrl to go straight there, Alt to stop it snapping." aria-label="Steer">➤</button></div>`;
   }).join("");
 }
 
@@ -159,7 +159,39 @@ function vHelmHtml(toks, gm) {
 // The way a ship would go to put its centre of mass at P: forwards along its turning circle until it faces P, then straight.
 // Too tight a turn, and it goes as close as it can (or, held Ctrl / Shift, straight there anyway with the reason shown).
 function vShipSpeed(t) { const v = vVehOf(t); return v ? v.speeds[0] : { move: 30, omni: false, rev: false }; }
-function vShipPath(t, P, direct) {
+// Where its centre of mass may come to rest: the same kind of spot it sits on within the ship (the middle of a square,
+// a corner, or the middle of an edge), so its squares line up with the map's whenever it faces straight along the grid.
+// Turned on its side (nearer 90° or 270°), the ship's across and along swap.
+function vShipComOff(t, rot) {
+  const f = v => { const r = ((Number(v) || 0) % 1 + 1) % 1; return Math.abs(r - 0.5) < 0.25 ? 0.5 : 0; };
+  const fx = f(t.int.com[0]), fy = f(t.int.com[1]), q = ((Math.round((Number(rot) || 0) / 90) % 2) + 2) % 2;
+  return q ? [fy, fx] : [fx, fy];
+}
+function vShipSnapCom(t, x, y, rot) { const [ox, oy] = vShipComOff(t, rot); return [Math.round(x - ox) + ox, Math.round(y - oy) + oy]; }
+// Steering: opt.direct (Ctrl) goes straight there; opt.angle (Shift) finishes squared to the nearest 45°; opt.free (Alt) doesn't snap.
+function vShipPath(t, P, opt) {
+  opt = opt || {};
+  const first = vShipPathRaw(t, P, opt.direct); if (opt.free) return first;
+  if (opt.angle && !first.omni && !opt.direct) return vShipPathSquared(t, P, first);
+  const [sx, sy] = vShipSnapCom(t, P[0], P[1], first.omni ? (Number(t.rot) || 0) : first.rot);
+  return vShipPathRaw(t, [sx, sy], opt.direct);
+}
+// Turn along its circle until it faces the nearest 45°, then straight on as far as it comes level with where it was pointed.
+function vShipPathSquared(t, P, first) {
+  const v = vVehOf(t), R = Math.max(0, (v ? v.turn : 0) / 2 / 5), front = Number(t.int.front) || 0;
+  const H = Math.round((first.rot + front) / 45) * 45, rev = !!first.rev, h0 = vShipHeading(t) * Math.PI / 180 + (rev ? Math.PI : 0), Hp = H * Math.PI / 180 + (rev ? Math.PI : 0);
+  const diff = ((Hp - h0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI, side = Math.sign(diff) || 1;
+  const pos = [t.x, t.y], pts = [pos.slice()]; let end = pos.slice();
+  if (R > 0.01 && Math.abs(diff) > 1e-6) {
+    const hv = [Math.cos(h0), Math.sin(h0)], n = [-hv[1] * side, hv[0] * side], C0 = [pos[0] + n[0] * R, pos[1] + n[1] * R], steps = Math.max(2, Math.ceil(Math.abs(diff) / 0.05));
+    for (let i = 1; i <= steps; i++) { const th = side * Math.abs(diff) * i / steps; end = [C0[0] + R * (-n[0] * Math.cos(th) + n[1] * Math.sin(th)), C0[1] + R * (-n[0] * Math.sin(th) - n[1] * Math.cos(th))]; pts.push(end); }
+  }
+  const dir = [Math.cos(Hp), Math.sin(Hp)], along = Math.max(0, (P[0] - end[0]) * dir[0] + (P[1] - end[1]) * dir[1]);
+  const Q = vShipSnapCom(t, end[0] + dir[0] * along, end[1] + dir[1] * along, H - front); pts.push(Q);
+  let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return { pts, len, end: Q, rot: H - front, ok: true, why: "squared to " + (((H % 360) + 360) % 360) + "°", rev, squared: true };
+}
+function vShipPathRaw(t, P, direct) {
   const v = vVehOf(t), sp = vShipSpeed(t), R = Math.max(0, (v ? v.turn : 0) / 2 / 5);
   const pos = [t.x, t.y], h0 = vShipHeading(t) * Math.PI / 180, d = [P[0] - pos[0], P[1] - pos[1]], dist = Math.hypot(d[0], d[1]);
   const out = (pts, endH, extra) => { let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); const e = pts[pts.length - 1]; return Object.assign({ pts, len, end: [e[0], e[1]], rot: endH * 180 / Math.PI - (Number(t.int.front) || 0), ok: true, why: "" }, extra || {}); };
@@ -215,12 +247,13 @@ function vSteerSvg() {
   const ghost = Object.assign({}, t, { x: plan.end[0], y: plan.end[1], rot: plan.rot }), cs = vShipCorners(ghost);
   const ft = Math.round(plan.len * 5), over = lim && plan.len > lim + 1e-6;
   const label = `${ft} ft${lim ? ` of ${sp.move} ft` : ""}${plan.rev ? " · reversing" : ""}${plan.why ? " · " + plan.why : ""}${S1.hits.length ? " · hits a wall" : ""}`;
+  const warn = over || !plan.ok || S1.hits.length;
   const e = plan.end;
   return `<svg class="vsteer" width="${VTT.stageW}" height="${VTT.stageH}" aria-hidden="true">
     <polygon class="vghost${plan.ok ? "" : " bad"}${over ? " over" : ""}" points="${cs.map(c => c[0] * C + "," + c[1] * C).join(" ")}"/>
     ${line(inPts, "vsp ok")}${line(outPts, "vsp over")}
     ${S1.hits.map(h => `<g class="hitx" transform="translate(${h[0] * C},${h[1] * C}) scale(${Math.max(1, 1 / (VTT.zoom || 1))})"><line x1="-9" y1="-9" x2="9" y2="9"/><line x1="-9" y1="9" x2="9" y2="-9"/></g>`).join("")}
-    <text x="${e[0] * C + 14}" y="${e[1] * C - 12}" style="font-size:calc(15px * var(--vinv, 1))" class="vsteerlbl${over || !plan.ok || S1.hits.length ? " warn" : ""}">${esc(label)}</text></svg>`;
+    <text x="${e[0] * C + 14}" y="${e[1] * C - 12}" style="font-size:calc(15px * var(--vinv, 1))" class="vsteerlbl${warn ? " warn" : ""}">${esc(label)}</text></svg>`;
 }
 function vSteerDraw() {
   let el = document.getElementById("vsteerl"); const st = document.getElementById("vstage"); if (!st) return;
@@ -233,7 +266,7 @@ function vSteerStart(ev, id) {
   const why = vVehStall(id, t); if (why && !vCanEdit()) { toast(why); return; } if (why) toast(why + " (You can still move it.)");
   ev.preventDefault(); ev.stopPropagation();
   VTT.steer = { id, plan: null, hits: [], done: false };
-  const move = e => { const [x, y] = vPt(e), q = S.vttTokens.get(id); if (!q) return; const plan = vShipPath(q, [x, y], e.ctrlKey || e.shiftKey || e.metaKey); VTT.steer.plan = plan; VTT.steer.hits = vShipHits(q.page, id, q, plan); vSteerDraw(); };
+  const move = e => { const [x, y] = vPt(e), q = S.vttTokens.get(id); if (!q) return; const plan = vShipPath(q, [x, y], { direct: e.ctrlKey || e.metaKey, angle: e.shiftKey, free: e.altKey }); VTT.steer.plan = plan; VTT.steer.hits = vShipHits(q.page, id, q, plan); vSteerDraw(); };
   const up = e => { window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); if (!VTT.steer || !VTT.steer.plan) { VTT.steer = null; vSteerDraw(); return; } VTT.steer.done = true; vSteerDraw(); };
   window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true);
 }
@@ -261,7 +294,7 @@ function vShipPointerDown(ev, cur, gm, x, y) {
   const rh = gm && ev.target.closest(".vshiprot"); if (rh) {
     ev.preventDefault(); ev.stopPropagation(); const id = rh.dataset.ship;
     const move = e => { const [px, py] = vPt(e), q = S.vttTokens.get(id); if (!q) return; let hd = Math.atan2(py - q.y, px - q.x) * 180 / Math.PI; if (!e.shiftKey) hd = Math.round(hd / 15) * 15; S.vttTokens.set(id, Object.assign({}, q, { rot: ((hd - (Number(q.int.front) || 0)) % 360 + 360) % 360 })); vDraw(); };
-    const up = () => { window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); const q = S.vttTokens.get(id); if (q) vPatch("vtttokens/" + id, { rot: q.rot }); };
+    const up = e => { window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); const q = S.vttTokens.get(id); if (!q) return; const [x, y] = e.altKey ? [q.x, q.y] : vShipSnapCom(q, q.x, q.y, q.rot); S.vttTokens.set(id, Object.assign({}, q, { x, y })); vPatch("vtttokens/" + id, { rot: q.rot, x, y }); vDraw(); };
     window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true); return true;
   }
   const hull = ev.target.closest(".vship"); if (!hull || VTT.tool !== "select") return false;
@@ -273,7 +306,7 @@ function vShipPointerDown(ev, cur, gm, x, y) {
   if (VTT.layer !== "token" && VTT.layer !== "gm") return false;
   ev.preventDefault(); VTT.sel = { kind: "tok", id }; VTT.multi.clear();
   const ox = x - t.x, oy = y - t.y; let moved = false;
-  const move = e => { const [px, py] = vPt(e), q = S.vttTokens.get(id); if (!q) return; moved = true; let nx = px - ox, ny = py - oy; if (!e.altKey) { nx = Math.round(nx * 2) / 2; ny = Math.round(ny * 2) / 2; } S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vDraw(); };
+  const move = e => { const [px, py] = vPt(e), q = S.vttTokens.get(id); if (!q) return; moved = true; let nx = px - ox, ny = py - oy; if (!e.altKey) [nx, ny] = vShipSnapCom(q, nx, ny, q.rot); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vDraw(); };
   const up = () => { window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); const q = S.vttTokens.get(id); if (moved && q) vPatch("vtttokens/" + id, { x: q.x, y: q.y }); vRefresh(); vDraw(); };
   window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true);
   vRefresh(); vDraw(); return true;
@@ -302,7 +335,8 @@ function vShipPlace(cur, ref, e, cx, cy) {
   const v = vehOf(e), pg = v && v.page && S.vttPages.get(v.page);
   if (!pg) { toast(`${e.title} has no map yet: build it from its page first.`); return null; }
   const int = vShipIntOf(pg), id = vid("t");
-  const doc = { page: cur.id, layer: VTT.layer === "gm" ? "gm" : "token", x: Math.round(cx * 2) / 2, y: Math.round(cy * 2) / 2, rot: 0, size: 1, img: "", name: e.title, ref, owner: "", hp: v.hull, hpMax: v.hull, int, created: new Date().toISOString() };
+  const [px, py] = vShipSnapCom({ int }, cx, cy, 0);
+  const doc = { page: cur.id, layer: VTT.layer === "gm" ? "gm" : "token", x: px, y: py, rot: 0, size: 1, img: "", name: e.title, ref, owner: "", hp: v.hull, hpMax: v.hull, int, created: new Date().toISOString() };
   if (v.fuel.type === "refuel") doc.fuel = v.fuel.cap;
   vSave("vtttokens/" + id, doc); return id;
 }
