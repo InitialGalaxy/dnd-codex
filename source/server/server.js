@@ -59,7 +59,15 @@ function vttVisible(pageId, pageDoc) {
 }
 const vttVisibleSig = () => Object.keys(docs).filter(k => k.startsWith("vttpages/") && vttVisible(k.slice(9))).sort().join(",");
 // What a player receives of a doc they may see: tabletop pages lose their GM-layer pictures.
+// A shapeshifted token takes its form's size; players may not be able to see the form's entry, so send the size.
+const SIZE_SQ = { large: 2, huge: 3, gargantuan: 4 };
+function entrySquares(e) { const m = String((e && e.lootSize) || (e && e.statblock && e.statblock.subtitle) || "").match(/\b(tiny|small|medium|large|huge|gargantuan)\b/i); return (m && SIZE_SQ[m[1].toLowerCase()]) || 1; }
+function tokenFormId(t) {
+  if (typeof t.ref === "string" && t.ref.startsWith("s:")) { const [, cid, sid] = t.ref.split(":"), c = docs["characters/" + cid], sm = c && Array.isArray(c.summons) && c.summons.find(x => x && x.id === sid); return (sm && sm.form) || ""; }
+  return typeof t.form === "string" ? t.form : "";
+}
 function playerCopy(p, doc) {
+  if (doc && p.startsWith("vtttokens/")) { const f = tokenFormId(doc), e = f && docs["entries/" + f]; if (e) doc = Object.assign({}, doc, { formSz: entrySquares(e) }); }
   if (doc && p.startsWith("vttcamps/") && Array.isArray(doc.quests) && doc.quests.some(q => q && q.hidden)) doc = Object.assign({}, doc, { quests: doc.quests.filter(q => q && !q.hidden) });
   if (doc && p.startsWith("vttcamps/") && doc.init && Array.isArray(doc.init.list)) {
     // Turn order: leave out GM-only tokens, so hidden monsters don't give themselves away.
@@ -364,7 +372,8 @@ setInterval(() => { for (const c of clients) c.write(": ping\n\n"); }, 25000);
 // Tokens for a hidden sheet or entry carry what players may see of it, so they're sent again when it changes.
 function npcTokensChanged(ref) {
   if (![...clients].some(c => c.role === "player")) return;
-  for (const [k, t] of Object.entries(docs)) if (k.startsWith("vtttokens/") && t && t.ref === ref && playerSees(k, t)) {
+  const sm = ref.startsWith("c:") ? "s:" + ref.slice(2) + ":" : null; // and the character's summons, whose form may have changed
+  for (const [k, t] of Object.entries(docs)) if (k.startsWith("vtttokens/") && t && (t.ref === ref || (sm && typeof t.ref === "string" && t.ref.startsWith(sm))) && playerSees(k, t)) {
     const line = "data: " + JSON.stringify({ path: k, doc: playerCopy(k, t) }) + "\n\n";
     for (const c of clients) if (c.role === "player") c.write(line);
   }

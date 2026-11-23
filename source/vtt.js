@@ -32,6 +32,19 @@ function vTokSrc(t) {
   if ((t.ref || "").startsWith("s:") && !t.img) { const sm = vSummonOf(t.ref), f = sm && sm.form && typeof ssSummonForm === "function" && S.entries.get(sm.form); if (f && (f.token || f.image)) return f.token || f.image; }
   const f = t.form && S.entries.get(t.form); return f ? (f.token || f.image || t.img || vTokenImg(t.ref)) : (t.img || vTokenImg(t.ref)); }
 const vSizeOf = e => ({ Large: 2, Huge: 3, Gargantuan: 4 })[typeof creatureSize === "function" ? creatureSize(e) : ""] || 1;
+// Shapeshifting changes a token's size: a shifted token takes its form's size (Large 2, Huge 3...) unless the GM set
+// a size for that form (t.fsz[form]). Its true form uses t.size as always. Players may not have the form's entry,
+// so the server sends its size as t.formSz.
+function vSizeNoteHtml(t, own) {
+  const k = vShiftKey(t); if (!k) return "";
+  const f = S.entries.get(k), nm = f ? f.title : "its form", set = own != null ? own : !!(t.fsz && Number(t.fsz[k]) > 0), auto = vFormSz(t, k);
+  return `<p class="muted small vsznote">◈ Shapeshifted into ${esc(nm)}: ${set ? `you set this size for that form.` : `the size follows the form (${auto}×${auto}).`} Back in its true form it goes back to ${t.size || 1}×${t.size || 1}.${set ? ` <button type="button" class="btn ghost small" data-act="vttsizeauto">↺ Use ${esc(nm)}'s size</button>` : ""}</p>`;
+}
+function vSizeNote(box, own) { const old = box.querySelector(".vsznote"), t = S.vttTokens.get(box.dataset.tok); if (!old || !t) return; old.outerHTML = vSizeNoteHtml(t, own); }
+function vShiftKey(t) { if ((t.ref || "").startsWith("s:")) { const sm = vSummonOf(t.ref); return (sm && sm.form) || ""; } return t.form || ""; }
+function vFormSz(t, k) { const f = S.entries.get(k); return f ? vSizeOf(f) : (Number(t.formSz) || t.size || 1); }
+function vTokSz(t) { const k = vShiftKey(t); if (!k) return t.size || 1; const o = t.fsz && Number(t.fsz[k]); return o > 0 ? o : vFormSz(t, k); }
+function vSizePatch(id, v) { const t = S.vttTokens.get(id); if (!t) return; const k = vShiftKey(t); if (!k) return vPatch("vtttokens/" + id, { size: v }); return vPatch("vtttokens/" + id, { fsz: Object.assign({}, t.fsz || {}, { [k]: v }) }); }
 function vSave(path, doc) { return safeWrite(() => S.db.doc(path).set(doc)); }
 function vPatch(path, fields) { return safeWrite(() => S.db.doc(path).update(fields)); }
 function vDel(path) { return safeWrite(() => S.db.doc(path).delete()); }
@@ -160,7 +173,7 @@ function vDraw() {
   { const sig = cur.id + "|" + vMinLevel(p) + "|" + vMaxLevel(p) + "|" + JSON.stringify(p.levelNames || {}); if (VTT.lvlSig !== sig || !document.querySelector("#vtools .vlvgroup")) { VTT.lvlSig = sig; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); } }
   const lvlCls = l => vLvlHid(l) ? " lvlhid" : gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : gm && !VTT.preview && (l || 0) < 0 && (l || 0) < VTT.lvl ? " lvlhid" : "";
   const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}" src="${esc(o.img)}" alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
-  const tok = ([id, t]) => { const src = vTokSrc(t), s = (t.size || 1) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
+  const tok = ([id, t]) => { const src = vTokSrc(t), s = vTokSz(t) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
     return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t) : ""}
       ${vDead(t) ? `<span class="vdeadx" aria-label="Down"></span>` : vBarsHtml(t)}${src ? `<img src="${esc(src)}" alt="" draggable="false">` : `<span class="vinit">${esc((t.name || "?")[0])}</span>`}<span class="vname">${esc(t.name || "")}</span></div>`; };
   const grid = p.grid !== false ? `<svg class="vgrid" width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgp" width="${VCELL}" height="${VCELL}" patternUnits="userSpaceOnUse"><path d="M ${VCELL} 0 L 0 0 0 ${VCELL}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgp)"/><rect width="100%" height="100%" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/></svg>` : "";
@@ -260,7 +273,7 @@ function vFog(pid, p, toks) {
   // Each viewer is blocked only by the walls on its own height: standing level plus flight band.
   // Without dynamic lighting, walls don't block sight and only darkness limits it.
   const rect = [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]];
-  const vw = viewers.map(([, t]) => { const s = (t.size || 1) / 2, x = t.x + s, y = t.y + s; return { x, y, s, dv: dark ? vDarkvision(t) / 5 : 0, poly: p.light ? vVisPoly(x, y, vSegs(p, vHeight(t))) : rect }; });
+  const vw = viewers.map(([, t]) => { const s = vTokSz(t) / 2, x = t.x + s, y = t.y + s; return { x, y, s, dv: dark ? vDarkvision(t) / 5 : 0, poly: p.light ? vVisPoly(x, y, vSegs(p, vHeight(t))) : rect }; });
   const polys = vw.map(v => v.poly);
   // In the dark, only lit places (and what darkvision reaches) can be seen.
   const em = dark ? vEmitters(p, toks).map(e => Object.assign({ r: (e.bright + e.dim) / 5, poly: vVisPoly(e.x, e.y, vSegs(p, e.h)) }, e)).filter(e => e.r > 0) : [];
@@ -304,8 +317,8 @@ function vFog(pid, p, toks) {
   document.querySelectorAll(".vdoor").forEach(el => { const x = Number(el.dataset.x), y = Number(el.dataset.y); el.classList.toggle("vhide", ![[0, 0], [0.15, 0], [-0.15, 0], [0, 0.15], [0, -0.15]].some(([a, b]) => vw.some(v => vInPoly(x + a, y + b, v.poly) && (!dark || lit(x + a, y + b) || Math.hypot(x + a - v.x, y + b - v.y) <= v.s + 0.5 + v.dv)))); });
   document.querySelectorAll(".vtok").forEach(el => {
     const t = S.vttTokens.get(el.dataset.tid); if (!t || t.layer === "gm") return;
-    const cx = t.x + (t.size || 1) / 2, cy = t.y + (t.size || 1) / 2, glows = dark && vTokLights(t).length > 0;
-    const seen = vPlayerTok(t) || vw.some(v => vInPoly(cx, cy, v.poly) && (!dark || glows || lit(cx, cy) || Math.hypot(cx - v.x, cy - v.y) <= v.s + 0.5 + v.dv + (t.size || 1) / 2));
+    const cx = t.x + vTokSz(t) / 2, cy = t.y + vTokSz(t) / 2, glows = dark && vTokLights(t).length > 0;
+    const seen = vPlayerTok(t) || vw.some(v => vInPoly(cx, cy, v.poly) && (!dark || glows || lit(cx, cy) || Math.hypot(cx - v.x, cy - v.y) <= v.s + 0.5 + v.dv + vTokSz(t) / 2));
     el.classList.toggle("vhide", !seen);
   });
   vFloorHide(viewers);
@@ -441,7 +454,7 @@ function vWire(view) {
     if (drag.kind === "box") { drag.ex = x; drag.ey = y; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = `<rect class="vboxsel" x="${Math.min(drag.sx, x) * VCELL}" y="${Math.min(drag.sy, y) * VCELL}" width="${Math.abs(x - drag.sx) * VCELL}" height="${Math.abs(y - drag.sy) * VCELL}"/>`; return; }
     if (drag.kind === "group") { drag.moved = true; drag.dx = x - drag.sx; drag.dy = y - drag.sy; drag.g.forEach(([id, q]) => { const el = document.querySelector(`.vtok[data-tid="${CSS.escape(id)}"]`); if (el) { el.style.left = (q.x + drag.dx) * VCELL + "px"; el.style.top = (q.y + drag.dy) * VCELL + "px"; } }); return; }
     if (drag.kind === "tok") { drag.moved = true; drag.nx = x - drag.ox; drag.ny = y - drag.oy; drag.el.style.left = drag.nx * VCELL + "px"; drag.el.style.top = drag.ny * VCELL + "px";
-      const free = ev.altKey !== vNoSnap(), sz = drag.t.size || 1, snapX = free ? Math.round(drag.nx * 100) / 100 : Math.round(drag.nx), snapY = free ? Math.round(drag.ny * 100) / 100 : Math.round(drag.ny);
+      const free = ev.altKey !== vNoSnap(), sz = vTokSz(drag.t), snapX = free ? Math.round(drag.nx * 100) / 100 : Math.round(drag.nx), snapY = free ? Math.round(drag.ny * 100) / 100 : Math.round(drag.ny);
       drag.end = [snapX + sz / 2, snapY + sz / 2];
       // Right-click while dragging (pressed alongside the left button) drops a corner in the path.
       if (ev.button === 2 && (ev.buttons & 2)) vAddWaypoint(drag);
@@ -462,15 +475,15 @@ function vWire(view) {
     if (d.kind === "rot") { if (d.a != null) vObjSet(d.o.id, { rot: d.a }); return; }
     if (d.kind === "wend") { vMeasDraw(); if (d.np) vWallMoveEnd(d.pt, d.np, d.lvl); return; }
     if (d.kind === "erase") return;
-    if (d.kind === "box") { vMeasDraw(); const x1 = Math.min(d.sx, d.ex), x2 = Math.max(d.sx, d.ex), y1 = Math.min(d.sy, d.ey), y2 = Math.max(d.sy, d.ey), cur = vPageNow(); VTT.multi.clear(); if (cur) vTokens(cur.id).forEach(([id, t]) => { const s = (t.size || 1) / 2, cx = t.x + s, cy = t.y + s; if (t.layer === (VTT.layer === "gm" ? "gm" : "token") && !vLvlHid(t.lvl) && cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) VTT.multi.add(id); }); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size === 1) VTT.multi.clear(); vRefresh(); return; }
-    if (d.kind === "group") { document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging")); if (!d.moved) return; const snap = ev.altKey === vNoSnap(), dx = snap ? Math.round(d.dx) : d.dx, dy = snap ? Math.round(d.dy) : d.dy, cur = vPageNow(); d.g.forEach(([id, q]) => { const s = q.size || 1, nx = Math.max(0, Math.min((cur ? cur.p.w : 999) - s, q.x + dx)), ny = Math.max(0, Math.min((cur ? cur.p.h : 999) - s, q.y + dy)); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vPatch("vtttokens/" + id, { x: nx, y: ny }); }); vDraw(); return; }
+    if (d.kind === "box") { vMeasDraw(); const x1 = Math.min(d.sx, d.ex), x2 = Math.max(d.sx, d.ex), y1 = Math.min(d.sy, d.ey), y2 = Math.max(d.sy, d.ey), cur = vPageNow(); VTT.multi.clear(); if (cur) vTokens(cur.id).forEach(([id, t]) => { const s = vTokSz(t) / 2, cx = t.x + s, cy = t.y + s; if (t.layer === (VTT.layer === "gm" ? "gm" : "token") && !vLvlHid(t.lvl) && cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) VTT.multi.add(id); }); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size === 1) VTT.multi.clear(); vRefresh(); return; }
+    if (d.kind === "group") { document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging")); if (!d.moved) return; const snap = ev.altKey === vNoSnap(), dx = snap ? Math.round(d.dx) : d.dx, dy = snap ? Math.round(d.dy) : d.dy, cur = vPageNow(); d.g.forEach(([id, q]) => { const s = vTokSz(q), nx = Math.max(0, Math.min((cur ? cur.p.w : 999) - s, q.x + dx)), ny = Math.max(0, Math.min((cur ? cur.p.h : 999) - s, q.y + dy)); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vPatch("vtttokens/" + id, { x: nx, y: ny }); }); vDraw(); return; }
     if (d.kind === "pan" && d.place) { vLightPlace(d.place[0], d.place[1]); return; }
     if (d.kind === "light") { if (d.moved) vLightSet(d.l.id, { x: d.nx, y: d.ny }); return; }
     VTT.tdrag = null; document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging"));
     if (d.kind === "tok" && VTT.mmove) { VTT.mmove = null; vMeasDraw(); }
     const cur = vPageNow(); if (!cur) return;
     if (d.kind === "tok" && d.moved) {
-      const s = d.t.size || 1, snap = ev.altKey === vNoSnap();
+      const s = vTokSz(d.t), snap = ev.altKey === vNoSnap();
       let nx = snap ? Math.round(d.nx) : d.nx, ny = snap ? Math.round(d.ny) : d.ny;
       nx = Math.max(0, Math.min(cur.p.w - s, nx)); ny = Math.max(0, Math.min(cur.p.h - s, ny));
       d.el.style.left = nx * VCELL + "px"; d.el.style.top = ny * VCELL + "px";
@@ -753,7 +766,7 @@ async function vttAction(a, el, ev) {
   }
   if (a === "vttinitsel") { const id = el.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
     const here = vPageNow(); if (!here || t.page !== here.id) { toast(`${t.name || "That token"} is on another map.`); return; }
-    VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = (t.size || 1) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
+    VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = vTokSz(t) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
   if (!vCanEdit()) return;
   if (a === "vtttoolsopen") { vToolsShow(!VTT.toolsOpen); return; }
   if (/^vttinit/.test(a)) return vInitAction(a, el);
@@ -797,7 +810,8 @@ async function vttAction(a, el, ev) {
     if (a === "vttcbaradd") list.push({ id: vid("b"), name: "", cur: 10, max: 10, color: ["#6f8cff", "#b46ee0", "#4cc3c9", "#e05a8a"][list.length % 4] }); else list.splice(list.findIndex(b => b.id === el.dataset.b), 1);
     S.vttTokens.set(id, Object.assign({}, t, { cbars: list })); vPatch("vtttokens/" + id, { cbars: list }); vTokOptions(id); return; }
   if (a === "vttopts") { if (VTT.sel && VTT.sel.kind === "tok") vTokOptions(VTT.sel.id); return; }
-  if (a === "vttsize") { const box = el.closest(".vform"); if (box) { vPatch("vtttokens/" + box.dataset.tok, { size: Number(el.dataset.v) }); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", b === el); b.setAttribute("aria-pressed", b === el); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = ""; } return; }
+  if (a === "vttsizeauto") { const box = el.closest(".vform"), t = box && S.vttTokens.get(box.dataset.tok), k = t && vShiftKey(t); if (!k) return; const fsz = Object.assign({}, t.fsz || {}); delete fsz[k]; vPatch("vtttokens/" + box.dataset.tok, { fsz }); const v = vFormSz(t, k); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", Number(b.dataset.v) === v); b.setAttribute("aria-pressed", Number(b.dataset.v) === v); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = v > 5 || v % 1 ? v : ""; vSizeNote(box, false); return; }
+  if (a === "vttsize") { const box = el.closest(".vform"); if (box) { vSizePatch(box.dataset.tok, Number(el.dataset.v)); vSizeNote(box, true); box.querySelectorAll("[data-act=vttsize]").forEach(b => { b.classList.toggle("on", b === el); b.setAttribute("aria-pressed", b === el); }); const cs = box.querySelector(".vsizec input"); if (cs) cs.value = ""; } return; }
   if (a === "vttrandname") { const t = S.vttTokens.get(el.dataset.id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e || !(e.tokNames || []).length) return;
     const others = e.tokNames.length > 1 ? e.tokNames.filter(n => n !== t.name) : e.tokNames, n = vPickOne(others); vPatch("vtttokens/" + el.dataset.id, { name: n }); const f = document.querySelector('.vopts [data-vf="name"]'); if (f) f.value = n; return; }
   if (a === "vttsetpic") { const id = el.dataset.id, t = S.vttTokens.get(id), e = t && S.entries.get((t.ref || "").slice(2)); if (!e) return;
@@ -828,7 +842,7 @@ document.addEventListener("change", ev => {
   const f = ev.target.closest && ev.target.closest(".vform [data-vf]"); if (!f || !vCanEdit()) return;
   const form = f.closest(".vform"), k = f.dataset.vf;
   if (form.dataset.tok) { let v = ["size", "hp", "hpMax", "temp", "dv", "ex", "exMax", "exRise"].includes(k) ? (f.value === "" ? null : Number(f.value)) : f.value; if (/^ex/.test(k)) { const t0 = S.vttTokens.get(form.dataset.tok); if (t0) vPatch("vtttokens/" + form.dataset.tok, vExFields(t0, { [k]: v })); return; }
-    if (k === "size") { if (!(v > 0)) return; v = Math.max(0.5, Math.min(40, Math.round(v * 2) / 2)); form.querySelectorAll("[data-act=vttsize]").forEach(b => b.classList.toggle("on", Number(b.dataset.v) === v)); } vPatch("vtttokens/" + form.dataset.tok, { [k]: v }); }
+    if (k === "size") { if (!(v > 0)) return; v = Math.max(0.5, Math.min(40, Math.round(v * 2) / 2)); form.querySelectorAll("[data-act=vttsize]").forEach(b => b.classList.toggle("on", Number(b.dataset.v) === v)); vSizePatch(form.dataset.tok, v); vSizeNote(form, true); return; } vPatch("vtttokens/" + form.dataset.tok, { [k]: v }); }
   else if (form.dataset.obj) { const v = k === "w" || k === "h" ? Math.max(0.25, Number(f.value) || 1) : k === "level" ? Number(f.value) || 0 : f.value; if (k === "layer") VTT.layer = v; vObjSet(form.dataset.obj, { [k]: v }); const tl = document.getElementById("vtools"); if (tl && k === "layer") tl.innerHTML = vToolsHtml(); }
 });
 
@@ -1093,8 +1107,8 @@ function vTokOptions(id) {
     ${(() => { const e = (t.ref || "").startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null, names = e && Array.isArray(e.tokNames) ? e.tokNames : [], pics = e ? entryTokens(e) : [], cur = t.img || pics[0] || "";
       return `<div class="vnamerow"><label class="grow"><span>Name</span><input type="text" data-vf="name" value="${esc(t.name || "")}"></label>${names.length ? `<button type="button" class="btn ghost" data-act="vttrandname" data-id="${esc(id)}" title="Pick another name from ${esc(e.title)}'s list">🎲 Name</button>` : ""}</div>
       ${pics.length > 1 ? `<div><span class="flabel">Token picture <small class="muted">from ${esc(e.title)}</small></span><div class="vpicrow">${pics.map(src => `<button type="button" class="vpic${src === cur ? " on" : ""}" data-act="vttsetpic" data-id="${esc(id)}" data-v="${esc(src)}" aria-pressed="${src === cur}" aria-label="Use this picture"><img src="${esc(src)}" alt=""></button>`).join("")}<button type="button" class="btn ghost" data-act="vttsetpic" data-id="${esc(id)}" data-v="*" title="Pick one at random">🎲 Random</button></div></div>` : ""}`; })()}
-    <div><span class="flabel">Size</span><div class="vsizerow"><div class="seg vsize" role="group" aria-label="Size">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="${(t.size || 1) === n ? "on" : ""}" data-act="vttsize" data-v="${n}" aria-pressed="${(t.size || 1) === n}">${n}×${n}</button>`).join("")}</div>
-      <label class="vsizec"><span>Custom</span><input type="number" min="0.5" max="40" step="0.5" data-vf="size" value="${(t.size || 1) > 5 || (t.size || 1) % 1 ? t.size : ""}" placeholder="e.g. 8" aria-label="Custom size in squares"><small class="muted">squares</small></label></div></div>
+    <div><span class="flabel">Size</span><div class="vsizerow"><div class="seg vsize" role="group" aria-label="Size">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="${vTokSz(t) === n ? "on" : ""}" data-act="vttsize" data-v="${n}" aria-pressed="${vTokSz(t) === n}">${n}×${n}</button>`).join("")}</div>
+      <label class="vsizec"><span>Custom</span><input type="number" min="0.5" max="40" step="0.5" data-vf="size" value="${vTokSz(t) > 5 || vTokSz(t) % 1 ? vTokSz(t) : ""}" placeholder="e.g. 8" aria-label="Custom size in squares"><small class="muted">squares</small></label></div>${vSizeNoteHtml(t)}</div>
     <label><span>Layer</span><select data-vf="layer"><option value="token"${t.layer !== "gm" ? " selected" : ""}>Tokens (players see it)</option><option value="gm"${t.layer === "gm" ? " selected" : ""}>GM only</option></select></label>
     <label><span>Controlled by <small class="muted">its player can move it and sees through its eyes</small></span><select data-vf="owner"><option value="">Nobody (GM only)</option>${chars.map(([cid, c]) => `<option value="${esc(cid)}"${t.owner === cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
     <label><span>Darkvision (ft) <small class="muted">blank: from the sheet or stat block${(d => d ? ` (${d} ft)` : "")(vDarkvisionAuto(t))}</small></span><input type="number" min="0" step="5" data-vf="dv" value="${t.dv != null ? t.dv : ""}" placeholder="auto"></label>
@@ -1199,9 +1213,9 @@ function vSummonPlace(ref, nearId) {
   const [, cid, sid] = ref.split(":"), sm = vSummonOf(ref); if (!sm) return;
   const near = S.vttTokens.get(nearId), size = ({ Large: 2, Huge: 3, Gargantuan: 4 })[smSize(sm)] || 1;
   // Next to whoever summoned it, in the first free spot going round.
-  const taken = (x, y) => vTokens(cur.id).some(([, o]) => x < o.x + (o.size || 1) && x + size > o.x && y < o.y + (o.size || 1) && y + size > o.y);
-  let x = near ? near.x + (near.size || 1) : 0, y = near ? near.y : 0;
-  if (near) for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const nx = near.x + dx * ((dx > 0 ? near.size || 1 : size)), ny = near.y + dy * ((dy > 0 ? near.size || 1 : size)); if (nx >= 0 && ny >= 0 && nx + size <= cur.p.w && ny + size <= cur.p.h && !taken(nx, ny)) { x = nx; y = ny; break; } }
+  const taken = (x, y) => vTokens(cur.id).some(([, o]) => x < o.x + vTokSz(o) && x + size > o.x && y < o.y + vTokSz(o) && y + size > o.y);
+  let x = near ? near.x + vTokSz(near) : 0, y = near ? near.y : 0;
+  if (near) for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) { const nx = near.x + dx * ((dx > 0 ? vTokSz(near) : size)), ny = near.y + dy * ((dy > 0 ? vTokSz(near) : size)); if (nx >= 0 && ny >= 0 && nx + size <= cur.p.w && ny + size <= cur.p.h && !taken(nx, ny)) { x = nx; y = ny; break; } }
   x = Math.max(0, Math.min(cur.p.w - size, x)); y = Math.max(0, Math.min(cur.p.h - size, y));
   const id = vid("t");
   vSave("vtttokens/" + id, { page: cur.id, layer: "token", x, y, size, img: "", name: sm.name || sm.kind || "Summon", ref, owner: cid, bars: "all", created: new Date().toISOString() });
@@ -1269,7 +1283,7 @@ function vRoofHoles(p, viewers, L) {
   let d = "";
   const seen = new Set();
   (p.areas || []).filter(a => a.level === L).forEach(a => {
-    const under = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = (t.size || 1) / 2; return [t.x + s, t.y + s]; }).filter(([x, y]) => vInArea(a, x, y));
+    const under = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = vTokSz(t) / 2; return [t.x + s, t.y + s]; }).filter(([x, y]) => vInArea(a, x, y));
     if (!under.length) return;
     if (!Array.isArray(a.cells)) { d += "M" + a.pts.map(q => q[0] * VCELL + " " + q[1] * VCELL).join("L") + "Z"; return; }
     const has = new Set(a.cells.map(c => c[0] + "," + c[1]));
@@ -1650,7 +1664,7 @@ VTT.lightPreset = "torch";
 function vEmitters(p, toks) {
   const out = [];
   (p.lights || []).forEach(l => { if (vLightOk(l)) out.push({ x: l.x, y: l.y, h: l.level || 0, bright: +l.bright || 0, dim: +l.dim || 0, color: l.color || "#ffd9a0" }); });
-  toks.forEach(([id, t]) => { if (t.layer === "gm" && !vCanEdit()) return; vTokLights(t).forEach(l => out.push({ x: t.x + (t.size || 1) / 2, y: t.y + (t.size || 1) / 2, h: vHeight(t), bright: +l.bright || 0, dim: +l.dim || 0, color: l.color || "#ffd9a0" })); });
+  toks.forEach(([id, t]) => { if (t.layer === "gm" && !vCanEdit()) return; vTokLights(t).forEach(l => out.push({ x: t.x + vTokSz(t) / 2, y: t.y + vTokSz(t) / 2, h: vHeight(t), bright: +l.bright || 0, dim: +l.dim || 0, color: l.color || "#ffd9a0" })); });
   return out;
 }
 // SRD gear that gives light without any setup.
@@ -1925,7 +1939,7 @@ function vGoHtml(p, toks) {
   const gm = vCanEdit(), C = VCELL;
   return `<div class="vgos">${toks.map(([id, t]) => {
     if (!(gm || (PLAYER && vPlayerTok(t))) || (t.layer === "gm" && !gm)) return "";
-    const s = t.size || 1, cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t);
+    const s = vTokSz(t), cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t);
     const l = links.find(k => cx >= k.x && cx <= k.x + k.w && cy >= k.y && cy <= k.y + k.h && (k.levels || []).includes(lv)); if (!l) return "";
     const to = (l.levels || []).filter(n => n !== lv); if (!to.length) return "";
     return `<div class="vgo" style="left:${(t.x + s) * C + 6}px;top:${t.y * C}px">${to.map(n => `<button data-tok="${esc(id)}" data-lvl="${n}" title="Move ${esc(t.name || "token")} to ${esc(vLevelName(p, n))}">${l.kind === "lift" ? "🛗" : n > lv ? "⬆" : "⬇"} ${esc(vLevelName(p, n))}</button>`).join("")}</div>`; }).join("")}</div>`;
@@ -1981,7 +1995,7 @@ async function vPaste(offset) {
   else { const at = VTT.lastPt || [cur.p.w / 2, cur.p.h / 2]; ox = Math.round(at[0]); oy = Math.round(at[1]); }
   VTT.multi.clear(); VTT.sel = null;
   for (const t of clip) {
-    const id = vid("t"), s = t.size || 1, nx = Math.max(0, Math.min(cur.p.w - s, t.x - minX + ox)), ny = Math.max(0, Math.min(cur.p.h - s, t.y - minY + oy));
+    const id = vid("t"), s = vTokSz(t), nx = Math.max(0, Math.min(cur.p.w - s, t.x - minX + ox)), ny = Math.max(0, Math.min(cur.p.h - s, t.y - minY + oy));
     const doc = Object.assign({}, t, { page: cur.id, x: nx, y: ny }); if ((doc.ref || "").startsWith("s:")) doc.ref = "";
     VTT.multi.add(id); await vSave("vtttokens/" + id, doc);
   }
@@ -2109,7 +2123,7 @@ async function vQuestAction(a, el) {
 
 // ===== Movement paths: corners and walls in the way =====
 function vAddWaypoint(d) {
-  if (!d || !d.end) return; const last = d.wps[d.wps.length - 1] || [d.t.x + (d.t.size || 1) / 2, d.t.y + (d.t.size || 1) / 2];
+  if (!d || !d.end) return; const last = d.wps[d.wps.length - 1] || [d.t.x + vTokSz(d.t) / 2, d.t.y + vTokSz(d.t) / 2];
   const now = Date.now(); if (d.lastWp && now - d.lastWp < 250) return; d.lastWp = now;
   if (Math.hypot(d.end[0] - last[0], d.end[1] - last[1]) < 0.01) return;
   d.wps.push(d.end.slice());
