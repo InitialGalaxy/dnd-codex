@@ -1543,10 +1543,13 @@ input.smname:hover, input.smname:focus { border-color: rgba(255,255,255,.4); out
 
 #it-harvest[hidden] { display: none !important; }
 .hvmode .hvhide { display: none !important; }
+.frow[hidden], .field[hidden], .vehfields[hidden] { display: none !important; }
 .vehfields { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .vehspd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .vehspd label { display: inline-flex; align-items: center; gap: 6px; }
 .vehspd input { width: 84px; }
+.vehspd select { width: auto; min-width: 120px; }
+.vehfields input[type=number], .vehfields input[type=text], .vehfields select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font: inherit; }
 .vehspd label span { color: var(--muted); font-size: .82rem; }
 .vehfuel { margin-bottom: 4px; }
 .gargpick { min-width: 220px; } .gargpick[hidden] { display: none; }
