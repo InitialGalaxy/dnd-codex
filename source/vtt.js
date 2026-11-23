@@ -124,7 +124,35 @@ function vVehSideHtml(id, t, v, riders, gm) {
   const fuelLine = F.uses ? `${F.name}: ${f.amt} ${F.res ? esc(f.res.toLowerCase()) : "fuel"} ${f.use === "inefficient" ? "a round, on the pilot's turn" : "a square or hex"}` : `${F.name}: no fuel`;
   return `<div class="vvehinfo"><p class="small"><span class="muted">Speed</span> ${esc(vehSpeedText(v))}</p><p class="small"><span class="muted">Fuel</span> ${fuelLine}</p>
     ${riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
-    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}${vVehAbilHtml(t)}</div>`;
+    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}${vVehResHtml(id, t)}${vVehAbilHtml(t)}</div>`;
+}
+// A vehicle's resources: the item's resource lines (charges, pools), tracked on its token in t.vres[i] = how many it has.
+// A line sized by proficiency bonus uses its pilot's.
+function vVehRes(t) {
+  const e = S.entries.get((t.ref || "").slice(2)), lines = e && e.item && Array.isArray(e.item.res) ? e.item.res : [];
+  const pl = vPilotOf(t._id || "", t) || null, c = pl && (pl[1].ref || "").startsWith("c:") ? S.chars.get(pl[1].ref.slice(2)) : null;
+  return lines.map((r, i) => { if (!resValid(r)) return null; const ctr = resIsCounter(r), max = ctr ? 0 : resMax(r, c), v = Array.isArray(t.vres) ? t.vres[i] : null;
+    return { i, r, ctr, max, have: v == null || v === "" ? (ctr ? 0 : max) : Math.max(0, ctr ? Number(v) || 0 : Math.min(max, Number(v) || 0)) }; }).filter(Boolean);
+}
+// The GM, or a player with someone aboard, can change them.
+const vVehResCan = (id, t) => vCanEdit() || (PLAYER && vRidersOf(id).some(([, r]) => vPlayerTok(r)));
+function vVehResSet(id, i, v) {
+  const t = S.vttTokens.get(id); if (!t || !vVehResCan(id, t)) return;
+  const line = vVehRes(Object.assign({ _id: id }, t)).find(x => x.i === i); if (!line) return;
+  const arr = Array.isArray(t.vres) ? t.vres.slice() : []; arr[i] = Math.max(0, line.ctr ? Math.round(v) : Math.min(line.max, Math.round(v)));
+  S.vttTokens.set(id, Object.assign({}, t, { vres: arr })); vPatch("vtttokens/" + id, { vres: arr }); vRefresh();
+}
+function vVehRest(id, kind) {
+  const t = S.vttTokens.get(id); if (!t || !vVehResCan(id, t)) return;
+  const arr = Array.isArray(t.vres) ? t.vres.slice() : [];
+  vVehRes(Object.assign({ _id: id }, t)).forEach(x => { const rs = x.r.reset || "long", hit = kind === "long" ? rs !== "none" : /^short/.test(rs); if (!hit) return; arr[x.i] = x.ctr || /empty$/.test(rs) ? 0 : x.max; });
+  S.vttTokens.set(id, Object.assign({}, t, { vres: arr })); vPatch("vtttokens/" + id, { vres: arr }); toast(`${vTokName(t)}: ${kind} rest.`); vRefresh();
+}
+function vVehResHtml(id, t) {
+  const lines = vVehRes(Object.assign({ _id: id }, t)); if (!lines.length) return "";
+  const can = vVehResCan(id, t), btn = (i, d, l, dis) => `<button class="iconbtn" data-act="vttvres" data-id="${esc(id)}" data-i="${i}" data-d="${d}" aria-label="${l}"${dis ? " disabled" : ""}>${d > 0 ? "+" : "−"}</button>`;
+  return `<div class="vvres"><span class="muted small">Resources</span>${lines.map(x => `<div class="vvr"><b style="color:${esc(resColor(x.r.color))}">${esc(x.r.name)}</b><span class="n">${x.have}${x.ctr ? "" : ` / ${x.max}`}</span>${can ? btn(x.i, -1, "Use one", !x.have) + btn(x.i, 1, "Get one back", !x.ctr && x.have >= x.max) : ""}</div>`).join("")}
+    ${can ? `<div class="vvrrest"><button class="btn ghost small" data-act="vttvrest" data-id="${esc(id)}" data-v="short">Short rest</button><button class="btn ghost small" data-act="vttvrest" data-id="${esc(id)}" data-v="long">Long rest</button></div>` : ""}</div>`;
 }
 // The vehicle's abilities, from its item entry (players see them only if they can see the item).
 function vVehAbilHtml(t) {
@@ -1026,6 +1054,8 @@ async function vttAction(a, el, ev) {
   if (a === "vttexfill") { const t = S.vttTokens.get(el.dataset.id), ex = vExOf(t); if (!ex) return;
     if (!vCanEdit() && !((t.ref || "").startsWith("s:") && PLAYER && vPlayerTok(t))) return;
     const max = ex.cur ? ex.max : ex.max + ex.rise; vExSave(el.dataset.id, t, { ex: max, exMax: max }); return; }
+  if (a === "vttvres") { const t = S.vttTokens.get(el.dataset.id), i = Number(el.dataset.i); if (!t) return; const x = vVehRes(Object.assign({ _id: el.dataset.id }, t)).find(q => q.i === i); if (x) vVehResSet(el.dataset.id, i, x.have + Number(el.dataset.d)); return; }
+  if (a === "vttvrest") { vVehRest(el.dataset.id, el.dataset.v === "short" ? "short" : "long"); return; }
   if (a === "vttdismount") { const r = S.vttTokens.get(el.dataset.id); if (r && (vCanEdit() || (PLAYER && vPlayerTok(r)))) vDismount(el.dataset.id); return; }
   if (a === "vttpfloor") { VTT.pfloor = el.dataset.v === "" ? null : Number(el.dataset.v); vDraw(); return; }
   if (/^vtt(newcamp|rencamp|delcamp)$/.test(a)) return vttCampAction(a, el);

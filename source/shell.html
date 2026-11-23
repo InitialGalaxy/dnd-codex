@@ -1543,7 +1543,12 @@ input.smname:hover, input.smname:focus { border-color: rgba(255,255,255,.4); out
 #it-harvest[hidden] { display: none !important; }
 .hvmode .hvhide { display: none !important; }
 .frow[hidden], .field[hidden], .vehfields[hidden] { display: none !important; }
-.vehmode label:has(#it-base), .vehmode .field:has(#it-props), .vehmode .itchecks, .vehmode .itopt, .vehmode .statpanel { display: none !important; }
+.vehmode label:has(#it-base), .vehmode .field:has(#it-props), .vehmode .itchecks > label:not(:has(#it-res-on)), .vehmode .itopt:not(#it-res-wrap), .vehmode .statpanel { display: none !important; }
+#it-res-wrap[hidden] { display: none !important; }
+.vvres { display: grid; gap: 4px; margin-top: 4px; }
+.vvres .vvr { display: flex; align-items: center; gap: 6px; font-size: .85rem; }
+.vvres .vvr b { flex: 1; font-weight: 600; } .vvres .vvr .n { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+.vvres .vvrrest { display: flex; gap: 6px; justify-content: flex-end; }
 .vvehabil { margin-top: 4px; } .vvehabil summary { cursor: pointer; font-weight: 600; font-size: .85rem; } .vvehabil .vabil { max-height: 40vh; overflow: auto; font-size: .85rem; padding-top: 4px; }
 .vehfields { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .vehspd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }

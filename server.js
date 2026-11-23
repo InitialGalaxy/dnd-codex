@@ -112,18 +112,21 @@ const playerAboard = (tid, id) => { const t = typeof tid === "string" && docs["v
 function playerVehicleWrite(p, old, doc) {
   const id = p.slice(10), keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
   let moved = false;
-  for (const k of keys) { if (JSON.stringify(old[k]) === JSON.stringify(doc[k])) continue; if (k === "x" || k === "y" || k === "fly" || k === "lvl") moved = true; else if (k !== "pilot") return false; }
+  let res = false;
+  for (const k of keys) { if (JSON.stringify(old[k]) === JSON.stringify(doc[k])) continue; if (k === "x" || k === "y" || k === "fly" || k === "lvl") moved = true; else if (k === "vres") res = true; else if (k !== "pilot") return false; }
+  // Its resources (charges and pools on the vehicle): anyone with a token aboard.
+  if (res && !(Array.isArray(doc.vres) && doc.vres.length <= 50 && doc.vres.every(v => v == null || (Number.isFinite(v) && v >= 0 && v < 1e6)) && Object.entries(docs).some(([k, q]) => k.startsWith("vtttokens/") && q && q.mount === id && playerAboard(k.slice(10), id)))) return false;
   if (moved && !playerAboard(old.pilot, id)) return false;
   if (doc.pilot !== old.pilot && !playerAboard(doc.pilot, id)) return false;
   return typeof doc.x === "number" && typeof doc.y === "number" && isFinite(doc.x) && isFinite(doc.y) && vttVisible(old.page);
 }
-const PLAYER_TOKEN_KEYS = ["x", "y", "fly", "lvl", "conds", "light", "mount", "mountAt", "pilot"];
+const PLAYER_TOKEN_KEYS = ["x", "y", "fly", "lvl", "conds", "light", "mount", "mountAt", "pilot", "vres"];
 function playerTokenMove(p, doc) {
   if (!/^vtttokens\/[A-Za-z0-9_.-]+$/.test(p)) return false;
   const old = docs[p]; if (!old || old.layer === "gm" || !doc) return false;
   if (!old.owner || !docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return playerVehicleWrite(p, old, doc);
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
-  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && k !== "pilot" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && k !== "pilot" && k !== "vres" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
   // Climbing onto a mount: one the player can see, on this map, not riding anything itself, and nobody riding this token.
   if (doc.mountAt != null && !Number.isFinite(doc.mountAt)) return false;
   if (doc.pilot !== old.pilot && doc.pilot != null && !playerAboard(doc.pilot, p.slice(10))) return false;
