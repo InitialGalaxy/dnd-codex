@@ -46,6 +46,93 @@ function vFormSz(t, k) { const f = S.entries.get(k); return f ? vSizeOf(f) : (Nu
 function vTokSz(t) { const k = vShiftKey(t); if (!k) return t.size || 1; const o = t.fsz && Number(t.fsz[k]); return o > 0 ? o : vFormSz(t, k); }
 function vSizePatch(id, v) { const t = S.vttTokens.get(id); if (!t) return; const k = vShiftKey(t); if (!k) return vPatch("vtttokens/" + id, { size: v }); return vPatch("vtttokens/" + id, { fsz: Object.assign({}, t.fsz || {}, { [k]: v }) }); }
 
+// ===== Vehicles: a token for a vehicle item. Riders board it like a mount; one of them (t.pilot) drives it. =====
+// On the token: hp / hpMax are its hull points, fuel what's left in its tank (a refuelled vehicle), pilot the rider driving.
+// The GM's screen keeps the books: it uses fuel as the vehicle moves (efficient) or on the pilot's turn (inefficient),
+// and keeps a pilot in the seat while anyone is aboard.
+function vVehOf(t) {
+  if (!t || !(t.ref || "").startsWith("e:") || typeof vehOf !== "function") return null;
+  const e = S.entries.get(t.ref.slice(2)); if (e) return vehOf(e);
+  const n = t.npc && t.npc.veh; return n ? vehSpec(n.v, n.cat) : null; // players who can't see the item get its details from the server
+}
+function vPilotOf(id, t) { const p = t && t.pilot && S.vttTokens.get(t.pilot); return p && p.mount === id ? [t.pilot, p] : null; }
+// A player may drive a vehicle whose pilot is one of their tokens.
+function vDriveTok(id, t) { if (!PLAYER || vCanEdit() || !vVehOf(t)) return false; const pl = vPilotOf(id, t); return !!(pl && vPlayerTok(pl[1])); }
+const vFuelLeft = (t, v) => t.fuel == null || t.fuel === "" ? v.fuel.cap : Math.max(0, Math.min(v.fuel.cap, Number(t.fuel) || 0));
+// What a powered vehicle's pilot pays with: their spell points, or a resource of that name on their sheet.
+function vPowerSrc(pilot, v) {
+  if (!pilot || !(pilot.ref || "").startsWith("c:")) return null;
+  const cid = pilot.ref.slice(2), c = S.chars.get(cid); if (!c) return null;
+  if (/spell\s*points?/i.test(v.fuel.res)) { const k = typeof casterOf === "function" && casterOf(c); return k ? { cid, have: k.left, sp: true } : null; }
+  const ri = (c.resources || []).findIndex(r => r && String(r.name || "").trim().toLowerCase() === v.fuel.res.toLowerCase());
+  return ri < 0 ? null : { cid, ri, have: charResHave(c, c.resources[ri]) };
+}
+// Why a vehicle can't move right now ("" if it can).
+function vVehStall(id, t) {
+  const v = vVehOf(t); if (!v) return "";
+  if (vDead(t)) return `${vTokName(t)} is wrecked.`;
+  const f = v.fuel; if (f.type === "manual" || !f.amt) return "";
+  if (f.type === "refuel") return vFuelLeft(t, v) <= 0 ? `${vTokName(t)} is out of fuel.` : "";
+  const pl = vPilotOf(id, t); if (!pl) return `${vTokName(t)} has no pilot to power it.`;
+  const src = vPowerSrc(pl[1], v); if (!src) return `${vTokName(pl[1])} has no ${f.res.toLowerCase()} to power ${vTokName(t)}.`;
+  return src.have < f.amt ? `${vTokName(pl[1])} hasn't the ${f.res.toLowerCase()} left to power ${vTokName(t)}.` : "";
+}
+// Spend n of a vehicle's fuel (or its pilot's resource). Only the GM's screen calls this.
+function vVehUse(id, t, n) {
+  const v = vVehOf(t); if (!v || !(n > 0)) return; const f = v.fuel;
+  if (f.type === "refuel") { const had = vFuelLeft(t, v), left = Math.max(0, had - n); S.vttTokens.set(id, Object.assign({}, t, { fuel: left })); vPatch("vtttokens/" + id, { fuel: left }); if (had > 0 && !left) toast(`${vTokName(t)} is out of fuel.`); return; }
+  if (f.type === "power") {
+    const pl = vPilotOf(id, t), src = pl && vPowerSrc(pl[1], v); if (!src) return;
+    const pay = Math.min(src.have, n); if (pay < n) toast(`${vTokName(pl[1])} couldn't pay all the ${f.res.toLowerCase()} ${vTokName(t)} needed.`);
+    if (!pay) return;
+    if (src.sp) charChange(src.cid, x => { const k = casterOf(x); if (!k) return; x.caster = Object.assign({}, x.caster, { used: Math.min(k.max, k.max - k.left + pay) }); });
+    else charChange(src.cid, x => { x.resources = (x.resources || []).map((r, i) => { if (i !== src.ri) return r; const r2 = Object.assign({}, r); charResSet(x, r2, charResHave(x, r) - pay); return r2; }); });
+  }
+}
+// How many squares (or hexes) apart two spots are, for a token of size s.
+function vGridSteps(p, a, b, s) {
+  if (typeof vHexOf === "function" && vHexOf(p)) { const h = vHexNear(p, a[0] + s / 2, a[1] + s / 2), k = vHexNear(p, b[0] + s / 2, b[1] + s / 2); return vHexDist(h, k); }
+  return Math.round(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])));
+}
+VTT.vehLast = VTT.vehLast || {}; VTT.vehTurn = VTT.vehTurn || {};
+function vVehTick() {
+  const camp = vCampId(), I = camp ? vInitOf(camp) : null;
+  for (const [id, t] of [...S.vttTokens]) {
+    const v = vVehOf(t); if (!v) continue;
+    // Someone aboard always has the controls: the first to board, until the GM or a player picks another.
+    const riders = vRidersOf(id).filter(([, r]) => r.page === t.page);
+    if ((t.pilot && !riders.some(([rid]) => rid === t.pilot)) || (!t.pilot && riders.length)) { const np = riders.length ? riders[0][0] : null; if ((t.pilot || null) !== np) { S.vttTokens.set(id, Object.assign({}, t, { pilot: np })); vPatch("vtttokens/" + id, { pilot: np }); } }
+    const f = v.fuel, pos = [t.x, t.y, t.page], last = VTT.vehLast[id]; VTT.vehLast[id] = pos;
+    if (f.type === "manual" || !f.amt) continue;
+    if (f.use === "efficient" && last && last[2] === t.page && (last[0] !== t.x || last[1] !== t.y)) { const cur = S.vttPages.get(t.page), n = vGridSteps(cur || {}, last, pos, vTokSz(t)); if (n > 0) vVehUse(id, S.vttTokens.get(id), n * f.amt); }
+    if (f.use === "inefficient" && I && I.round) { const pl = vPilotOf(id, S.vttTokens.get(id)); if (pl && vIsTurn(pl[0], pl[1])) { const key = camp + ":" + I.round + ":" + I.cur; if (VTT.vehTurn[id] !== key && t.fuelTurn !== key) { VTT.vehTurn[id] = key; vPatch("vtttokens/" + id, { fuelTurn: key }); vVehUse(id, S.vttTokens.get(id), f.amt); } } }
+  }
+}
+
+// A player looking at a vehicle they don't own: what it is, who's aboard, and the controls if they're on it.
+function vVehPlayerSide(id, t) {
+  const v = vVehOf(t); if (!v) return "";
+  const riders = vRidersOf(id), e = S.entries.get((t.ref || "").slice(2)), cat = e ? e.item.category : (t.npc && t.npc.veh && t.npc.veh.cat) || "Vehicle";
+  const bars = vBarsFor(t).filter(b => b.vis === "full").map(b => `<p class="small"><span class="muted">${esc(b.label)}</span> ${b.cur} / ${b.max}</p>`).join("");
+  return `<div class="vshead"><div><h2>${esc(t.name || "Vehicle")}</h2><p class="muted small">${esc(cat)}</p></div></div>${bars}${vVehSideHtml(id, t, v, riders, false)}
+    ${riders.length ? `<div class="vflyrow vmountrow"><span>Aboard <small class="muted">${riders.length}/${v.seats}</small></span><span class="vriders">${riders.map(([rid, r]) => `<span>${t.pilot === rid ? "★ " : ""}${esc(vTokName(r))}${vPlayerTok(r) ? ` <button class="btn small ghost" data-act="vttdismount" data-id="${esc(rid)}" title="${esc(vTokName(r))} gets out">⤵</button>` : ""}</span>`).join("")}</span></div>` : ""}`;
+}
+// The vehicle's own lines in the side panel: speeds, fuel, who's piloting.
+function vVehSideHtml(id, t, v, riders, gm) {
+  const f = v.fuel, F = VEH_FUELS[f.type], stall = vVehStall(id, t), pl = vPilotOf(id, t);
+  const canPick = riders.length > 1 && (gm || riders.some(([, r]) => PLAYER && vPlayerTok(r)));
+  const fuelLine = F.uses ? `${F.name}: ${f.amt} ${F.res ? esc(f.res.toLowerCase()) : "fuel"} ${f.use === "inefficient" ? "a round, on the pilot's turn" : "a square or hex"}` : `${F.name}: no fuel`;
+  return `<div class="vvehinfo"><p class="small"><span class="muted">Speed</span> ${esc(vehSpeedText(v))}</p><p class="small"><span class="muted">Fuel</span> ${fuelLine}</p>
+    ${riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
+    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}</div>`;
+}
+document.addEventListener("change", ev => {
+  const s = ev.target.matches && ev.target.matches(".vpilotsel") && ev.target; if (!s) return;
+  const id = s.dataset.id, r = S.vttTokens.get(s.value); if (!r || !(vCanEdit() || (PLAYER && vPlayerTok(r)))) return;
+  const t = S.vttTokens.get(id); if (t) S.vttTokens.set(id, Object.assign({}, t, { pilot: s.value }));
+  vPatch("vtttokens/" + id, { pilot: s.value }); vRefresh();
+});
+
 // ===== Mounts: a rider token (t.mount = the mount's token id) sits on its mount and moves with it =====
 // The rider's own x/y/fly/lvl are worked out from the mount whenever tokens change (vRidersFix), so every screen
 // draws it in the right place, and the GM's screen writes the worked-out spot back so the library stays in step.
@@ -63,7 +150,7 @@ function vSizeCat(t) {
   const sq = vTokSz(t); if (sq >= 2) i = Math.max(i, Math.min(5, Math.floor(sq) + 1));
   return i;
 }
-const vCanCarry = (rider, mount) => vSizeCat(mount) > vSizeCat(rider);
+const vCanCarry = (rider, mount) => vVehOf(mount) ? !vVehOf(rider) : vSizeCat(mount) > vSizeCat(rider);
 // How many riders a mount carries: one less than the squares it takes up (Large 1, Huge 2, Gargantuan 3), at least one;
 // or, for a summon with a saddle equipped, the saddle's seats if that's more.
 function vSaddleSeats(t) {
@@ -73,7 +160,7 @@ function vSaddleSeats(t) {
   for (const k of smEqKeys(sm)) { const sl = inv.slots[k]; if (!sl) continue; const r = invResolve(sl.ref, sl.name), it = (r.e && r.e.item) || {}; if (isSaddleCat(it.category)) n = Math.max(n, Number(it.seats) || 1); }
   return n;
 }
-const vMountCap = m => Math.max(1, Math.floor(vTokSz(m)) - 1, vSaddleSeats(m));
+const vMountCap = m => { const v = vVehOf(m); return v ? v.seats : Math.max(1, Math.floor(vTokSz(m)) - 1, vSaddleSeats(m)); };
 // In the order they got on (the last on is the first off when there's no room).
 const vRidersOf = (mid, toks) => (toks || [...S.vttTokens]).filter(([, q]) => q.mount === mid).sort((a, b) => (Number(a[1].mountAt) || 0) - (Number(b[1].mountAt) || 0) || (a[0] < b[0] ? -1 : 1));
 const vTokName = t => t.name || "token";
@@ -97,6 +184,7 @@ function vRidersFix() {
     }
   }
   if (gm) for (const [id, r] of all) if (r.mount) vRiderCheck(id, S.vttTokens.get(id));
+  if (gm) vVehTick();
 }
 // The GM's screen throws riders off: the mount gone or turned too small, the mount down or prone, the rider prone.
 function vRiderCheck(id, r) {
@@ -105,6 +193,7 @@ function vRiderCheck(id, r) {
   const hp = m && vBars(m).find(b => /^hp$/i.test(b.label)), down = m && (vDead(m) || (hp && Number(hp.max) > 0 && Number(hp.cur) <= 0));
   let why = "";
   if (!m || m.page !== r.page || m.mount) why = " ";
+  else if (down && vVehOf(m)) why = `${vTokName(m)} is wrecked: ${vTokName(r)} is thrown clear. They can use their reaction to land on their feet; otherwise they land prone.`;
   else if (down) why = `${vTokName(m)} dropped to 0 hit points: ${vTokName(r)} falls off. They can use their reaction to land on their feet; otherwise they land prone.`;
   else if (prone(m)) why = `${vTokName(m)} was knocked prone: ${vTokName(r)} is thrown off. They can use their reaction to land on their feet; otherwise they land prone.`;
   else if (prone(r)) why = `${vTokName(r)} was knocked prone and falls off ${vTokName(m)}.`;
@@ -154,7 +243,7 @@ function vRideOn(id, mid) {
 function vMountCands(id, t, toks) {
   const s = vTokSz(t), cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t), gm = vCanEdit();
   // Only onto something bigger, or the same size if this is the token just dropped there (so two tokens sharing a square don't both ask).
-  return toks.filter(([mid, m]) => mid !== id && !m.mount && m.page === t.page && (gm || m.layer !== "gm") && vTokFloor(m) === lv && !vRidersOf(id, toks).length &&
+  return toks.filter(([mid, m]) => mid !== id && !m.mount && m.page === t.page && !vDead(m) && (gm || m.layer !== "gm") && vTokFloor(m) === lv && !vRidersOf(id, toks).length &&
     (vTokSz(m) > s || (vTokSz(m) === s && VTT.lastDrop === id)) &&
     cx >= m.x && cx <= m.x + vTokSz(m) && cy >= m.y && cy <= m.y + vTokSz(m)).sort((a, b) => vTokSz(b[1]) - vTokSz(a[1])).slice(0, 2);
 }
@@ -355,7 +444,7 @@ function vDraw() {
   const tok = ([id, t]) => { const src = vTokSrc(t), s = vTokSz(t) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
     return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t) : ""}
       ${vDead(t) ? `<span class="vdeadx" aria-label="Down"></span>` : vBarsHtml(t)}${src ? `<img src="${esc(src)}" alt="" draggable="false">` : `<span class="vinit">${esc((t.name || "?")[0])}</span>`}<span class="vname">${esc(t.name || "")}</span></div>`; };
-  const grid = p.grid !== false ? `<svg class="vgrid" width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgp" width="${VCELL}" height="${VCELL}" patternUnits="userSpaceOnUse"><path d="M ${VCELL} 0 L 0 0 0 ${VCELL}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgp)"/><rect width="100%" height="100%" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/></svg>` : "";
+  const grid = p.grid !== false && vHexOf(p) ? vHexGridSvg(p, W, H) : p.grid !== false ? `<svg class="vgrid" width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgp" width="${VCELL}" height="${VCELL}" patternUnits="userSpaceOnUse"><path d="M ${VCELL} 0 L 0 0 0 ${VCELL}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgp)"/><rect width="100%" height="100%" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/></svg>` : "";
   const showWalls = gm && !VTT.preview;
   const wallSel = VTT.sel && VTT.sel.kind === "wall" ? VTT.sel.i : -1;
   const areaSel = VTT.sel && VTT.sel.kind === "area" ? VTT.sel.id : "";
@@ -568,7 +657,7 @@ function vWire(view) {
     if (ev.button === 1 || ev.button === 2 || (gm && VTT.tool === "pan")) return pan();
     if (gm && VTT.tool === "area") { ev.preventDefault(); if (!VTT.lvl) vAreaPickLevel(); const sx = Math.floor(x), sy = Math.floor(y); drag = { kind: "area", sx, sy, ex: sx, ey: sy, rm: ev.altKey }; view.setPointerCapture(ev.pointerId); vLinkDraft(drag); return; }
     if (gm && VTT.tool === "wall") { ev.preventDefault(); return vWallClick(x, y, ev); }
-    if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
+    if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : vHexOf(cur.p) ? vHexSnapPt(cur.p, x, y) : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
     if (VTT.tool === "ping") { ev.preventDefault(); vPing(x, y, gm && ev.shiftKey); return; }
     if (VTT.tool === "travel") { ev.preventDefault(); vTravelClick(x, y, ev); return; }
     if (gm && VTT.tool === "scale") { ev.preventDefault(); drag = { kind: "scale" }; VTT.meas = { shape: "scale", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
@@ -580,7 +669,7 @@ function vWire(view) {
     const tokEl = ev.target.closest(".vtok"), objEl = ev.target.closest(".vobj");
     if (tokEl) {
       const t = S.vttTokens.get(tokEl.dataset.tid);
-      const mine = t && !gm && PLAYER && vPlayerTok(t);
+      const mine = t && !gm && PLAYER && (vPlayerTok(t) || vDriveTok(tokEl.dataset.tid, t));
       if (t && gm && layerOk(t.layer) && ev.shiftKey) { const id = tokEl.dataset.tid; if (VTT.sel && VTT.sel.kind === "tok") VTT.multi.add(VTT.sel.id); if (VTT.multi.has(id)) VTT.multi.delete(id); else VTT.multi.add(id); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size <= 1) VTT.multi.clear(); vRefresh(); return; }
       if (t && gm && VTT.multi.size > 1 && VTT.multi.has(tokEl.dataset.tid)) { const g = [...VTT.multi].map(id => [id, S.vttTokens.get(id)]).filter(([, q]) => q); document.querySelectorAll(".vtok.sel").forEach(e => e.classList.add("dragging")); drag = { kind: "group", g, sx: x, sy: y, moved: false }; view.setPointerCapture(ev.pointerId); return; }
       if (t && (layerOk(t.layer) || mine)) {
@@ -588,7 +677,9 @@ function vWire(view) {
         VTT.sel = { kind: "tok", id: tokEl.dataset.tid }; document.querySelectorAll(".vtok.sel,.vobj.sel").forEach(e => e.classList.remove("sel")); tokEl.classList.add("sel"); vGoRefresh();
         // Grabbing a rider moves its mount (and so both) when you may move the mount; otherwise it pulls the rider off.
         const mt = t.mount && S.vttTokens.get(t.mount), mEl = mt && document.querySelector(`.vtok[data-tid="${CSS.escape(t.mount)}"]`);
-        if (mt && mEl && ((gm && layerOk(mt.layer)) || (!gm && PLAYER && vPlayerTok(mt)))) { drag = { kind: "tok", id: t.mount, el: mEl, ox: x - mt.x, oy: y - mt.y, t: mt, moved: false, wps: [] }; VTT.tdrag = drag; mEl.classList.add("dragging"); tokEl.classList.add("dragging"); view.setPointerCapture(ev.pointerId); return; }
+        const stalled = (vid2, q) => { const why = vVehStall(vid2, q); if (!why) return false; toast(why + (gm ? " (You can still move it.)" : "")); return !gm; };
+        if (mt && mEl && ((gm && layerOk(mt.layer)) || (!gm && PLAYER && (vPlayerTok(mt) || vDriveTok(t.mount, mt))))) { if (stalled(t.mount, mt)) return; drag = { kind: "tok", id: t.mount, el: mEl, ox: x - mt.x, oy: y - mt.y, t: mt, moved: false, wps: [] }; VTT.tdrag = drag; mEl.classList.add("dragging"); tokEl.classList.add("dragging"); view.setPointerCapture(ev.pointerId); return; }
+        if (vVehOf(t) && stalled(tokEl.dataset.tid, t)) return;
         drag = { kind: "tok", id: tokEl.dataset.tid, el: tokEl, ox: x - t.x, oy: y - t.y, t, moved: false, wps: [] }; VTT.tdrag = drag; tokEl.classList.add("dragging"); view.setPointerCapture(ev.pointerId);
         const s = document.getElementById("vside"); if (s) s.innerHTML = vSideHtml();
         return;
@@ -637,7 +728,7 @@ function vWire(view) {
     if (drag.kind === "group") { drag.moved = true; drag.dx = x - drag.sx; drag.dy = y - drag.sy; drag.g.forEach(([id, q]) => { const el = document.querySelector(`.vtok[data-tid="${CSS.escape(id)}"]`); if (el) { el.style.left = (q.x + drag.dx) * VCELL + "px"; el.style.top = (q.y + drag.dy) * VCELL + "px"; } }); return; }
     if (drag.kind === "tok") { drag.moved = true; drag.nx = x - drag.ox; drag.ny = y - drag.oy; drag.el.style.left = drag.nx * VCELL + "px"; drag.el.style.top = drag.ny * VCELL + "px";
       vRiderSpots(Object.assign({}, drag.t, { x: drag.nx, y: drag.ny }), vRidersOf(drag.id)).forEach(([rid, rx, ry]) => { const re = document.querySelector(`.vtok[data-tid="${CSS.escape(rid)}"]`); if (re) { re.style.left = rx * VCELL + "px"; re.style.top = ry * VCELL + "px"; } });
-      const free = ev.altKey !== vNoSnap(), sz = vTokSz(drag.t), snapX = free ? Math.round(drag.nx * 100) / 100 : Math.round(drag.nx), snapY = free ? Math.round(drag.ny * 100) / 100 : Math.round(drag.ny);
+      const free = ev.altKey !== vNoSnap(), sz = vTokSz(drag.t), cp = (vPageNow() || {}).p, [hx, hy] = free ? [0, 0] : vSnapTok(cp, drag.nx, drag.ny, sz), snapX = free ? Math.round(drag.nx * 100) / 100 : hx, snapY = free ? Math.round(drag.ny * 100) / 100 : hy;
       drag.end = [snapX + sz / 2, snapY + sz / 2];
       // Right-click while dragging (pressed alongside the left button) drops a corner in the path.
       if (ev.button === 2 && (ev.buttons & 2)) vAddWaypoint(drag);
@@ -667,7 +758,7 @@ function vWire(view) {
     const cur = vPageNow(); if (!cur) return;
     if (d.kind === "tok" && d.moved) {
       const s = vTokSz(d.t), snap = ev.altKey === vNoSnap();
-      let nx = snap ? Math.round(d.nx) : d.nx, ny = snap ? Math.round(d.ny) : d.ny;
+      let [nx, ny] = snap ? vSnapTok(cur.p, d.nx, d.ny, s) : [d.nx, d.ny];
       nx = Math.max(0, Math.min(cur.p.w - s, nx)); ny = Math.max(0, Math.min(cur.p.h - s, ny));
       d.el.style.left = nx * VCELL + "px"; d.el.style.top = ny * VCELL + "px";
       if (d.t.mount) { // a rider dragged off its mount gets off there; dropped back on it, it stays on
@@ -731,7 +822,7 @@ document.addEventListener("keydown", ev => {
   if (k === "m" || k === "M") { vSetTool(VTT.tool === "measure" ? "select" : "measure"); return; }
   if (k === "p" || k === "P") { vSetTool(VTT.tool === "ping" ? "select" : "ping"); return; }
   if ((k === "[" || k === "]") && vCanEdit() && VTT.sel && VTT.sel.kind === "tok") { vTokZ(k === "]" ? "up" : "down"); return; }
-  if ((k === "t" || k === "T") && (vCanEdit() || ((vPageNow() || {}).p || {}).scale)) { vSetTool(VTT.tool === "travel" ? "select" : "travel"); return; }
+  if ((k === "t" || k === "T") && (vCanEdit() || vTravelOk(((vPageNow() || {}).p)))) { vSetTool(VTT.tool === "travel" ? "select" : "travel"); return; }
   if (k === "Enter" && VTT.meas && VTT.meas.shape === "travel" && VTT.meas.open) { vTravelFinish(); return; }
   if ((k === "d" || k === "D") && !ev.ctrlKey && !ev.metaKey) { vSetTool(VTT.tool === "draw" ? "select" : "draw"); return; }
   if (!vCanEdit()) return;
@@ -803,9 +894,11 @@ function vTokenPick() {
   const cur = vPageNow(); if (!cur) return;
   const creatures = [...S.entries].filter(([, e]) => e.type === "creature").sort((a, b) => String(a[1].title).localeCompare(b[1].title));
   const chars = [...S.chars].sort((a, b) => String(a[1].name).localeCompare(b[1].name));
+  const vehs = typeof isVehicle === "function" ? [...S.entries].filter(([, e]) => isVehicle(e)).sort((a, b) => String(a[1].title).localeCompare(b[1].title)) : [];
   const tile = (ref, name, img, sub) => `<button class="vtpick" data-ref="${esc(ref)}" data-name="${esc(name)}">${img ? `<img src="${esc(img)}" alt="">` : `<span class="vinit">${esc((name || "?")[0])}</span>`}<span>${esc(name)}${sub ? `<small class="muted">${esc(sub)}</small>` : ""}</span></button>`;
-  openModal(`<h2>Add a token</h2><input id="vtq" type="search" placeholder="Search creatures and characters" aria-label="Search">
+  openModal(`<h2>Add a token</h2><input id="vtq" type="search" placeholder="Search creatures, characters and vehicles" aria-label="Search">
     <div class="vtpicks"><h3>Characters</h3><div class="vtgrid">${chars.map(([id, c]) => tile("c:" + id, c.name, c.token || c.image, charSub ? charSub(c) : "")).join("") || `<p class="muted small">No characters.</p>`}</div>
+    ${vehs.length ? `<h3>Vehicles</h3><div class="vtgrid">${vehs.map(([id, e]) => tile("e:" + id, e.title, e.token || e.image, e.item.category)).join("")}</div>` : ""}
     <h3>Bestiary</h3><div class="vtgrid">${creatures.map(([id, e]) => tile("e:" + id, e.title, e.token || e.image, (e.statblock && e.statblock.subtitle) ? e.statblock.subtitle.split(",")[0] : "")).join("") || `<p class="muted small">No creatures yet.</p>`}</div></div>
     <div class="acts"><button class="btn ghost" id="vtnew">Upload a new token picture…</button><button class="btn ghost" data-act="closemodal">Close</button></div>`, m => {
     const q = m.querySelector("#vtq");
@@ -877,16 +970,18 @@ async function vMakeNpc(id, how) {
 }
 function vPlaceToken(ref, name, img) {
   const cur = vPageNow(), view = document.getElementById("vview"); if (!cur) return;
-  let size = 1, hpMax = null; if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); if (e) { size = vSizeOf(e); hpMax = parseInt(String((e.statblock || {}).hp || ""), 10) || null;
+  let size = 1, hpMax = null, extra = {}; if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)), v = e && typeof vehOf === "function" && vehOf(e); if (v) { size = v.size; hpMax = v.hull; if (v.fuel.type === "refuel") extra.fuel = v.fuel.cap; } else if (e) { size = vSizeOf(e); hpMax = parseInt(String((e.statblock || {}).hp || ""), 10) || null;
     const pics = entryTokens(e); if (!img && pics.length > 1) img = vPickOne(pics);
-    if (Array.isArray(e.tokNames) && e.tokNames.length) name = vPickOne(e.tokNames); } }
+    if (Array.isArray(e.tokNames) && e.tokNames.length) name = vPickOne(e.tokNames); }
+    if (v) { const pics = entryTokens(e); if (!img && pics.length > 1) img = vPickOne(pics); } }
   const r = view.getBoundingClientRect(), cx = ((r.width / 2 - VTT.panX) / VTT.zoom) / VCELL, cy = ((r.height / 2 - VTT.panY) / VTT.zoom) / VCELL;
-  const x = Math.max(0, Math.min(cur.p.w - size, Math.round(cx - size / 2))), y = Math.max(0, Math.min(cur.p.h - size, Math.round(cy - size / 2)));
+  let x = Math.max(0, Math.min(cur.p.w - size, Math.round(cx - size / 2))), y = Math.max(0, Math.min(cur.p.h - size, Math.round(cy - size / 2)));
+  if (vHexOf(cur.p)) [x, y] = vSnapTok(cur.p, x, y, size);
   const id = vid("t");
   const owner = ref.startsWith("c:") ? ref.slice(2) : "";
   VTT.sel = { kind: "tok", id };
   if (VTT.layer !== "gm" && VTT.layer !== "token") VTT.layer = "token";
-  vSave("vtttokens/" + id, { page: cur.id, layer: VTT.layer === "gm" ? "gm" : "token", x, y, size, img: img || "", name, ref, owner, hp: hpMax, hpMax, created: new Date().toISOString() });
+  vSave("vtttokens/" + id, { page: cur.id, layer: VTT.layer === "gm" ? "gm" : "token", x, y, size, img: img || "", name, ref, owner, hp: hpMax, hpMax, created: new Date().toISOString(), ...extra });
 }
 
 // ----- Page settings -----
@@ -960,6 +1055,9 @@ async function vttAction(a, el, ev) {
   if (a === "vttinitsel") { const id = el.dataset.tok, t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;
     const here = vPageNow(); if (!here || t.page !== here.id) { toast(`${t.name || "That token"} is on another map.`); return; }
     VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = vTokSz(t) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
+  // Players plan routes too: pace and clearing work for everyone.
+  if (a === "vtttpace") { VTT.pace = el.dataset.v; VTT.travelBy = ""; if (VTT.meas && VTT.meas.shape === "travel") { VTT.meas.pace = VTT.pace; VTT.meas.by = ""; vMeasDraw(); vLiveMeas(true); } vMeasToolsRefresh(); return; }
+  if (a === "vtttclear") { vMeasClear(); return; }
   if (!vCanEdit()) return;
   if (a === "vtttoolsopen") { vToolsShow(!VTT.toolsOpen); return; }
   if (a === "vttundo" || a === "vttredo") { vUndoRun(a === "vttredo"); return; }
@@ -967,8 +1065,6 @@ async function vttAction(a, el, ev) {
   if (/^vttq/.test(a)) return vQuestAction(a, el);
   if (/^vttmulti/.test(a)) return vMultiAction(a, el);
   if (a === "vttscaleclr") { const cur = vPageNow(); if (cur) vPatch("vttpages/" + cur.id, { scale: null }); return; }
-  if (a === "vtttpace") { VTT.pace = el.dataset.v; if (VTT.meas && VTT.meas.shape === "travel") { VTT.meas.pace = VTT.pace; vMeasDraw(); vLiveMeas(true); } vMeasToolsRefresh(); return; }
-  if (a === "vtttclear") { vMeasClear(); return; }
   if (a === "vttwsnap") { VTT.wallSnap = el.checked; try { localStorage.setItem("vttWallSnap", el.checked ? "1" : "0"); } catch (e) {} return; }
   if (a === "vttobjrot") { const cur = vPageNow(), o = cur && VTT.sel && (cur.p.objs || []).find(q => q.id === VTT.sel.id); if (o) vObjSet(o.id, { rot: (((Number(o.rot) || 0) + Number(el.dataset.v)) % 360 + 360) % 360 }); return; }
   if (a === "vtttokz") return vTokZ(el.dataset.v);
@@ -1049,7 +1145,7 @@ function vMeasToolsHtml(gm) {
   const shapes = VSHAPES.map(([v, i, l]) => `<button class="vbtn icon${VTT.mshape === v ? " on" : ""}" data-act="vttmshape" data-v="${v}" title="${l}" aria-label="${l}" aria-pressed="${VTT.mshape === v}">${i}</button>`).join("");
   const beam = VTT.mshape === "beam" ? `<select data-act="vttmbeam" class="vbeamw" aria-label="Beam width">${[5, 10, 15, 20, 30].map(n => `<option value="${n}"${VTT.mbeam === n ? " selected" : ""}>${n} ft</option>`).join("")}</select>` : "";
   if (gm) return on || VTT.meas ? `<div class="vgroup"><span class="vlab">Measure</span>${on ? `<div class="vshapes">${shapes}</div>${beam ? `<label class="small">Width ${beam}</label>` : ""}` : ""}<div class="vmrow">${bc}${clr}</div></div>` : "";
-  return `<button class="vbtn icon${!on && VTT.tool !== "ping" ? " on" : ""}" data-act="vtttool" data-v="select" title="Move tokens" aria-label="Move tokens">↖</button><button class="vbtn icon${on ? " on" : ""}" data-act="vtttool" data-v="measure" title="Measure (M)" aria-label="Measure">📏</button>${(((vPageNow() || {}).p || {}).scale || {}).len ? `<button class="vbtn icon${VTT.tool === "travel" ? " on" : ""}" data-act="vtttool" data-v="travel" title="Travel (T): click out a route to see how long it takes" aria-label="Travel">🧭</button>` : ""}<button class="vbtn icon${VTT.tool === "draw" ? " on" : ""}" data-act="vtttool" data-v="draw" title="Draw (D): doodle on the map" aria-label="Draw">✏️</button><button class="vbtn icon${VTT.tool === "ping" ? " on" : ""}" data-act="vtttool" data-v="ping" title="Ping (P): tap the map to point something out. You can also hold your finger or mouse still on the map." aria-label="Ping">📍</button>
+  return `<button class="vbtn icon${!on && VTT.tool !== "ping" ? " on" : ""}" data-act="vtttool" data-v="select" title="Move tokens" aria-label="Move tokens">↖</button><button class="vbtn icon${on ? " on" : ""}" data-act="vtttool" data-v="measure" title="Measure (M)" aria-label="Measure">📏</button>${vTravelOk((vPageNow() || {}).p) ? `<button class="vbtn icon${VTT.tool === "travel" ? " on" : ""}" data-act="vtttool" data-v="travel" title="Travel (T): click out a route to see how long it takes" aria-label="Travel">🧭</button>` : ""}<button class="vbtn icon${VTT.tool === "draw" ? " on" : ""}" data-act="vtttool" data-v="draw" title="Draw (D): doodle on the map" aria-label="Draw">✏️</button><button class="vbtn icon${VTT.tool === "ping" ? " on" : ""}" data-act="vtttool" data-v="ping" title="Ping (P): tap the map to point something out. You can also hold your finger or mouse still on the map." aria-label="Ping">📍</button>
     ${on ? `<span class="vsep"></span>${shapes}${beam}` : ""}${VTT.tool === "travel" ? `<span class="vsep"></span>${vTravelToolsHtml(false)}` : ""}${VTT.tool === "draw" ? `<span class="vsep"></span>${vPenHtml(false)}` : ""}${vQuestBtn()}${on || VTT.meas ? `<span class="vsep"></span>${bc}${clr}` : ""}${(((vPageNow() || {}).p || {}).fx || {}).k ? `<span class="vsep"></span><button class="vbtn icon${VTT.fxOff ? "" : " on"}" data-act="vttfxlocal" title="Weather and lighting effects on this device" aria-label="Weather effects" aria-pressed="${!VTT.fxOff}">🌦</button>` : ""}${window.__CODEX_SERVER ? `<span class="vsep"></span><button class="vbtn" data-act="vttmyname" title="Your name on pings and measurements">👤 ${esc(vLiveName())}</button>` : ""}`;
 }
 function vMeasToolsRefresh() { const tl = document.getElementById("vtools"); if (tl && vCanEdit()) tl.innerHTML = vToolsHtml(); const pt = document.getElementById("vptools"); if (pt) pt.innerHTML = vMeasToolsHtml(false); }
@@ -1058,16 +1154,20 @@ function vMeasClear() { VTT.meas = null; vMeasDraw(); vLiveMeas(true); vMeasTool
 const vFt5 = (dx, dy) => Math.round(Math.max(Math.abs(dx), Math.abs(dy))) * 5;
 const vFtE = (dx, dy) => Math.round(Math.hypot(dx, dy)) * 5;
 function vMeasShape(m) {
-  if (m.shape === "travel") { const pts = m.pts.concat(m.open && m.hover ? [m.hover] : []); return { path: pts, label: vTravelLabel(pts, m.pace), at: pts[pts.length - 1], nohits: true, travel: true }; }
+  if (m.shape === "travel") { const pts = m.pts.concat(m.open && m.hover ? [m.hover] : []); return { path: pts, label: vTravelLabel(pts, m.pace, m.by), at: pts[pts.length - 1], nohits: true, travel: true }; }
   if (m.shape === "scale") return { line: [m.s[0], m.s[1], m.e[0], m.e[1]], label: "This much travel is…", at: m.e };
+  const hp = (vPageNow() || {}).p, hx = vHexOf(hp);
+  if (m.shape === "path" && hx) { let n = 0; for (let i = 1; i < m.pts.length; i++) n += vHexDist(vHexNear(hp, m.pts[i - 1][0], m.pts[i - 1][1]), vHexNear(hp, m.pts[i][0], m.pts[i][1])); return { path: m.pts, label: vHexText(hp, n), at: m.pts[m.pts.length - 1] }; }
   if (m.shape === "path") { let ft = 0; for (let i = 1; i < m.pts.length; i++) ft += vFt5(m.pts[i][0] - m.pts[i - 1][0], m.pts[i][1] - m.pts[i - 1][1]); return { path: m.pts, label: `${ft} ft${m.pts.length > 2 ? ` · ${m.pts.length - 2} turn${m.pts.length > 3 ? "s" : ""}` : ""}`, at: m.pts[m.pts.length - 1] }; }
   const [sx, sy] = m.s, [ex, ey] = m.e, dx = ex - sx, dy = ey - sy, L = Math.hypot(dx, dy), ux = L ? dx / L : 1, uy = L ? dy / L : 0;
   if (m.shape === "beam") { const bw = m.bw || VTT.mbeam, hw = (bw / 5) / 2, nx = -uy * hw, ny = ux * hw; return { poly: [[sx + nx, sy + ny], [ex + nx, ey + ny], [ex - nx, ey - ny], [sx - nx, sy - ny]], label: `${vFtE(dx, dy)} ft line, ${bw} ft wide`, at: [ex, ey] }; }
   if (m.shape === "cone") { const hw = L / 2, nx = -uy * hw, ny = ux * hw; return { poly: [[sx, sy], [ex + nx, ey + ny], [ex - nx, ey - ny]], label: `${vFtE(dx, dy)} ft cone`, at: [ex, ey] }; }
   if (m.shape === "square") { const side = Math.max(Math.abs(dx), Math.abs(dy)), side5 = Math.max(1, Math.round(side)), x2 = sx + Math.sign(dx || 1) * side5, y2 = sy + Math.sign(dy || 1) * side5; return { poly: [[sx, sy], [x2, sy], [x2, y2], [sx, y2]], label: `${side5 * 5} ft cube`, at: [x2, y2] }; }
   if (m.shape === "circle") { const r = Math.max(0.5, Math.round(L * 2) / 2); return { circle: [sx, sy, r], label: `${Math.round(r) * 5} ft radius`, at: [ex, ey] }; }
+  if (hx) return { line: [sx, sy, ex, ey], label: vHexText(hp, vHexDist(vHexNear(hp, sx, sy), vHexNear(hp, ex, ey))), at: [ex, ey] };
   return { line: [sx, sy, ex, ey], label: `${vFt5(dx, dy)} ft`, at: [ex, ey] };
 }
+const vHexText = (p, n) => `${n} hex${n === 1 ? "" : "es"}${Number(p.hexMi) > 0 ? ` · ${Math.round(n * p.hexMi * 10) / 10} mi` : ""}`;
 function vMeasSvg(m, col, who) {
   const g = vMeasShape(m), C = VCELL, P = q => q[0] * C + "," + q[1] * C;
   let shape = "", cells = "";
@@ -1156,7 +1256,9 @@ function vBars(t) {
   } else {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
-    if (Number(t.hpMax)) out.push({ cur: Number(t.hp != null ? t.hp : t.hpMax) || 0, max: Number(t.hpMax), temp: Number(t.temp) || 0, hp: true, label: "HP" });
+    const v = vVehOf(t);
+    if (v && v.fuel.type === "refuel") out.push({ cur: vFuelLeft(t, v), max: v.fuel.cap, color: "#c98b3a", label: "Fuel", ed: "fuel", fuel: true });
+    if (Number(t.hpMax)) out.push({ cur: Number(t.hp != null ? t.hp : t.hpMax) || 0, max: Number(t.hpMax), temp: Number(t.temp) || 0, hp: true, label: v ? "Hull" : "HP" });
   }
   return out;
 }
@@ -1167,7 +1269,7 @@ const vBarEdKey = b => b.cbar ? "c:" + b.cbar : b.ex ? "ex" : b.ed || "";
 function vBarCanEdit(t, b) {
   if (!vBarEdKey(b)) return false;
   if (vCanEdit()) return true;
-  return !!(PLAYER && vPlayerTok(t) && (b.ed || b.ex));
+  return !!(PLAYER && vPlayerTok(t) && (b.ed || b.ex) && !b.fuel);
 }
 function vBarSetValue(id, key, v) {
   const t = S.vttTokens.get(id); if (!t) return;
@@ -1175,6 +1277,7 @@ function vBarSetValue(id, key, v) {
   v = Math.max(0, Math.min(Number(b.max) || 0, Math.round(Number(v) || 0)));
   if (b.cbar) { vPatch("vtttokens/" + id, { cbars: (t.cbars || []).map(x => x.id === b.cbar ? Object.assign({}, x, { cur: v }) : x) }); return; }
   if (b.ex) { vExSave(id, t, { ex: v }); if (!v && b.cur) toast(`${t.name || "It"}'s Exhaust Meter is broken.`); return; }
+  if (key === "fuel") { S.vttTokens.set(id, Object.assign({}, t, { fuel: v })); vPatch("vtttokens/" + id, { fuel: v }); return; }
   const cid = (t.ref || "").slice(2);
   if (key === "sp") charChange(cid, x => { const k = casterOf(x); if (!k) return; x.caster = Object.assign({}, x.caster, { used: k.max - Math.min(k.max, v) }); });
   else if (key.startsWith("r:")) { const ri = Number(key.slice(2)); charChange(cid, x => { x.resources = (x.resources || []).map((r, i) => { if (i !== ri) return r; const r2 = Object.assign({}, r); charResSet(x, r2, v); return r2; }); }); }
@@ -1183,7 +1286,7 @@ function vBarSetValue(id, key, v) {
 }
 // What players see of each bar: "hide", "bar" (the bar but not the numbers) or "full". Set per bar in
 // Options (t.barVis, keyed hp / ex / c:<bar id>); bars without a setting follow "Bars shown to".
-const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : "c:" + b.cbar;
+const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : b.fuel ? "fuel" : "c:" + b.cbar;
 function vBarVis(t, b) { const v = t && t.barVis && t.barVis[vBarKey(b)]; return v === "hide" || v === "bar" || v === "full" ? v : vBarsPublic(t) ? "full" : "hide"; }
 // The bars this viewer gets, each with how much of it they see. The GM, and players on their own tokens, see everything.
 function vBarsFor(t) {
@@ -1243,7 +1346,7 @@ document.addEventListener("change", ev => { if (ev.target.matches && ev.target.m
 // ----- The side panel for a token: its bars, damage and healing, then its stat block or character sheet -----
 function vTokSideHtml(id, t) {
   const gm = vCanEdit(), mine = !gm && PLAYER && vPlayerTok(t);
-  if (!gm && !mine) return "";
+  if (!gm && !mine) return PLAYER ? vVehPlayerSide(id, t) : "";
   const isChar = t.ref && t.ref.startsWith("c:"), c = isChar ? S.chars.get(t.ref.slice(2)) : null;
   const e = t.ref && t.ref.startsWith("e:") ? S.entries.get(t.ref.slice(2)) : null;
   const bars = vBarsFor(t), canHp = gm || (mine && (isChar || (t.ref || "").startsWith("s:")));
@@ -1263,8 +1366,10 @@ function vTokSideHtml(id, t) {
   const lvlRow = vMaxLevel(pg) > 0 || vMinLevel(pg) < 0 || lv ? `<div class="vflyrow"><span>Standing on</span>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="-1" aria-label="Down a level"${lv > vMinLevel(pg) ? "" : " disabled"}>−</button>` : ""}<strong class="vlvlname">${esc(vLevelName(pg, lv))}</strong>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="1" aria-label="Up a level"${lv < vMaxLevel(pg) ? "" : " disabled"}>+</button>` : ""}</div>` : "";
   const flyRow = canFly || fly ? `<div class="vflyrow"><span>Flight band</span>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="-1" aria-label="Fly lower"${fly ? "" : " disabled"}>−</button>` : ""}<strong>${fly || "Ground"}</strong>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="1" aria-label="Fly higher">+</button>` : ""}</div>` : "";
   const mt = t.mount && S.vttTokens.get(t.mount), riders = vRidersOf(id), canOff = r => gm || (PLAYER && vPlayerTok(r));
-  const mountRow = (mt ? `<div class="vflyrow vmountrow"><span>Riding</span><strong>🐎 ${esc(vTokName(mt))}</strong>${canFly ? `<button class="btn small ghost" data-act="vttdismount" data-id="${esc(id)}">⤵ Dismount</button>` : ""}</div>` : "")
-    + (riders.length ? `<div class="vflyrow vmountrow"><span>Carrying <small class="muted">${riders.length}/${vMountCap(t)}</small></span><span class="vriders">${riders.map(([rid, r]) => `<span>${esc(vTokName(r))}${canOff(r) ? ` <button class="btn small ghost" data-act="vttdismount" data-id="${esc(rid)}" title="${esc(vTokName(r))} gets off">⤵</button>` : ""}</span>`).join("")}</span></div>` : "");
+  const veh = vVehOf(t), mtVeh = mt && vVehOf(mt), pil = veh && vPilotOf(id, t);
+  const mountRow = (mt ? `<div class="vflyrow vmountrow"><span>${mtVeh ? "Aboard" : "Riding"}</span><strong>${mtVeh ? "🛞" : "🐎"} ${esc(vTokName(mt))}${mt.pilot === id ? ` <small class="muted">(pilot)</small>` : ""}</strong>${canFly ? `<button class="btn small ghost" data-act="vttdismount" data-id="${esc(id)}">⤵ ${mtVeh ? "Get out" : "Dismount"}</button>` : ""}</div>` : "")
+    + (veh ? vVehSideHtml(id, t, veh, riders, gm) : "")
+    + (riders.length ? `<div class="vflyrow vmountrow"><span>${veh ? "Aboard" : "Carrying"} <small class="muted">${riders.length}/${vMountCap(t)}</small></span><span class="vriders">${riders.map(([rid, r]) => `<span>${pil && pil[0] === rid ? "★ " : ""}${esc(vTokName(r))}${canOff(r) ? ` <button class="btn small ghost" data-act="vttdismount" data-id="${esc(rid)}" title="${esc(vTokName(r))} gets off">⤵</button>` : ""}</span>`).join("")}</span></div>` : "");
   const head = `<div class="vshead"><div><h2>${esc(t.name || "Token")}</h2>${c ? `<p class="muted small">${esc(charSub(c))}</p>` : sm ? `<p class="muted small">${esc(sm.kind || "Summon")} · summoned by ${esc((S.chars.get(t.owner) || {}).name || "")}</p>` : e && e.statblock && e.statblock.subtitle ? `<p class="muted small">${esc(e.statblock.subtitle)}</p>` : ""}</div>
     ${gm ? `<button class="btn ghost small" data-act="vttopts" title="Name, size, layer, who controls it, who sees its bars">⚙ Options</button>` : ""}</div>`;
   let body = "";
@@ -2144,10 +2249,10 @@ function vGoHtml(p, toks) {
     let btns = "";
     if (!t.mount) { const l = links.find(k => cx >= k.x && cx <= k.x + k.w && cy >= k.y && cy <= k.y + k.h && (k.levels || []).includes(lv)), to = l ? (l.levels || []).filter(n => n !== lv) : [];
       btns += to.map(n => `<button data-tok="${esc(id)}" data-lvl="${n}" title="Move ${esc(t.name || "token")} to ${esc(vLevelName(p, n))}">${l.kind === "lift" ? "🛗" : n > lv ? "⬆" : "⬇"} ${esc(vLevelName(p, n))}</button>`).join("");
-      btns += vMountCands(id, t, toks).map(([mid, m]) => { const full = vRidersOf(mid, toks).length >= vMountCap(m), fits = vCanCarry(t, m);
-        if (full && fits) return gm ? `<button class="vgowarn" data-tok="${esc(id)}" data-mount="${esc(mid)}" title="${esc(vTokName(m))} already carries ${vMountCap(m)}; a saddle with more seats lets it carry more. You can still put ${esc(vTokName(t))} on it">🐎 Mount ${esc(vTokName(m))} ⚠</button>` : `<span class="vgonote">${esc(vTokName(m))} has no room (${vMountCap(m)} rider${vMountCap(m) === 1 ? "" : "s"})</span>`;
-        return fits ? `<button data-tok="${esc(id)}" data-mount="${esc(mid)}" title="${esc(vTokName(t))} climbs onto ${esc(vTokName(m))}">🐎 Mount ${esc(vTokName(m))}</button>`
-        : gm ? `<button class="vgowarn" data-tok="${esc(id)}" data-mount="${esc(mid)}" title="By the rules a mount is at least one size larger than its rider; you can still put ${esc(vTokName(t))} on it">🐎 Mount ${esc(vTokName(m))} ⚠</button>`
+      btns += vMountCands(id, t, toks).map(([mid, m]) => { const full = vRidersOf(mid, toks).length >= vMountCap(m), fits = vCanCarry(t, m), veh = !!vVehOf(m), ico = veh ? "🛞 Board" : "🐎 Mount";
+        if (full && fits) return gm ? `<button class="vgowarn" data-tok="${esc(id)}" data-mount="${esc(mid)}" title="${esc(vTokName(m))} already carries ${vMountCap(m)}; a saddle with more seats lets it carry more. You can still put ${esc(vTokName(t))} on it">${ico} ${esc(vTokName(m))} ⚠</button>` : `<span class="vgonote">${esc(vTokName(m))} has no room (${vMountCap(m)} ${veh ? "seat" : "rider"}${vMountCap(m) === 1 ? "" : "s"})</span>`;
+        return fits ? `<button data-tok="${esc(id)}" data-mount="${esc(mid)}" title="${esc(vTokName(t))} climbs onto ${esc(vTokName(m))}">${ico} ${esc(vTokName(m))}</button>`
+        : gm ? `<button class="vgowarn" data-tok="${esc(id)}" data-mount="${esc(mid)}" title="By the rules a mount is at least one size larger than its rider; you can still put ${esc(vTokName(t))} on it">${ico} ${esc(vTokName(m))} ⚠</button>`
         : `<span class="vgonote">${esc(vTokName(m))} is too small to carry you</span>`; }).join("");
     } else if (VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) btns = `<button data-tok="${esc(id)}" data-dismount="1" title="${esc(vTokName(t))} gets off">⤵ Dismount</button>`;
     if (!btns) return "";
@@ -2370,9 +2475,11 @@ function vPageSideHtml(p) {
       <div class="frow tight"><label><span>Width</span><input type="number" min="1" max="200" data-ps="w" value="${p.w}"></label><label><span>Height</span><input type="number" min="1" max="200" data-ps="h" value="${p.h}"></label><label><span>Background</span><input type="color" data-ps="bg" value="${esc(p.bg || "#1b1f27")}"></label></div>
       <label><span>Folder</span><select data-ps="folder"><option value="">(top level)</option>${vFolders(camp).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(camp, f.parent) + f.name)}</option>`).join("")}</select></label>
       <label class="check"><input type="checkbox" data-ps="open"${p.open ? " checked" : ""}> Players can switch to this map themselves</label>
+      <label><span>Grid</span><select data-ps="gridType"><option value=""${vHexOf(p) ? "" : " selected"}>Squares</option><option value="hexflat"${p.gridType === "hexflat" ? " selected" : ""}>Hexes, flat-topped</option><option value="hexpointy"${p.gridType === "hexpointy" ? " selected" : ""}>Hexes, pointy-topped</option></select></label>
+      ${vHexOf(p) ? `<label><span>Each hex is <small class="muted">miles across, for the 🧭 travel tool</small></span><input type="number" min="0.1" step="0.5" data-ps="hexMi" value="${esc(p.hexMi || "")}" placeholder="6" style="width:110px"></label>` : ""}
       <label class="check"><input type="checkbox" data-ps="grid"${p.grid !== false ? " checked" : ""}> Show the grid</label>
       <label class="check"><input type="checkbox" data-ps="snap"${p.snap !== false ? " checked" : ""}> Snap tokens to the grid <small class="muted">untick for world and region maps (Alt flips it)</small></label>
-      <div><span class="flabel">Travel scale</span>${p.scale && p.scale.len ? `<p class="small">${vScaleText(p.scale)} <button class="linkbtn small" data-act="vttscaleclr">Clear</button></p>` : `<p class="muted small">None yet. Use the <strong>📐 Scale</strong> tool to drag a line and say how far a day's travel is; then anyone can plan routes with <strong>🧭 Travel</strong>.</p>`}</div>
+      ${vHexOf(p) ? "" : `<div><span class="flabel">Travel scale</span>${p.scale && p.scale.len ? `<p class="small">${vScaleText(p.scale)} <button class="linkbtn small" data-act="vttscaleclr">Clear</button></p>` : `<p class="muted small">None yet. Use the <strong>📐 Scale</strong> tool to drag a line and say how far a day's travel is; then anyone can plan routes with <strong>🧭 Travel</strong>.</p>`}</div>`}
       <label class="check"><input type="checkbox" data-ps="light"${p.light ? " checked" : ""}> Dynamic lighting <small class="muted">walls block what players' tokens can see</small></label>
       <label class="check"><input type="checkbox" data-ps="fogMem"${p.fogMem !== false ? " checked" : ""}> Remember explored areas</label>
       <div class="acts wrap"><button class="btn ghost small" data-act="vttpsfog">Reset explored areas</button><button class="btn ghost small" data-act="vttpswalls">Remove all walls</button><button class="btn ghost small danger" data-act="vttpsdel">Delete page</button></div>
@@ -2385,6 +2492,11 @@ document.addEventListener("change", ev => {
   const k = f.dataset.ps; let v = f.type === "checkbox" ? f.checked : f.value;
   if (k === "w" || k === "h") v = Math.max(1, Math.min(200, Math.round(Number(v) || 15)));
   if (k === "name") v = String(v).trim() || "Page";
+  if (k === "hexMi") v = Math.max(0.1, Math.min(1000, Number(v) || 6));
+  if (k === "gridType") { const pg = S.vttPages.get(pid) || {}, f2 = { gridType: v };
+    // A hex map is a map of a region: players can open it themselves, and travel needs its miles a hex.
+    if (v && !pg.gridType) { if (!pg.open) f2.open = true; if (!(Number(pg.hexMi) > 0)) f2.hexMi = 6; toast(`Now a hex map${f2.open ? ", and players can switch to it themselves" : ""}. Each hex is ${f2.hexMi || pg.hexMi} miles: change it below.`); }
+    vPatch("vttpages/" + pid, f2); return; }
   vPatch("vttpages/" + pid, { [k]: v }); if (k === "w" || k === "h") VTT.fitDone = "";
 });
 document.addEventListener("click", async ev => {
@@ -2459,6 +2571,35 @@ document.addEventListener("change", ev => {
 });
 
 
+// ===== Hex maps =====
+// page.gridType: "" (squares), "hexflat" (flat sides top and bottom) or "hexpointy" (a point at the top).
+// Neighbouring hexes' centres are one square apart, so everything else (walls, sizes, pictures) still counts in squares.
+// page.hexMi: miles across a hex, for the travel tool. A hex map is a map of a region, so players can switch to it themselves.
+const vHexOf = p => p && (p.gridType === "hexflat" || p.gridType === "hexpointy") ? { flat: p.gridType === "hexflat" } : null;
+const VH = Math.sqrt(3) / 2;
+function vHexCenter(p, h) { return vHexOf(p).flat ? [VH * h.q + 0.5, h.r + h.q / 2 + 0.5] : [h.q + h.r / 2 + 0.5, VH * h.r + 0.5]; }
+function vHexNear(p, x, y) {
+  const fl = vHexOf(p).flat, q = fl ? (x - 0.5) / VH : (x - 0.5) - ((y - 0.5) / VH) / 2, r = fl ? (y - 0.5) - ((x - 0.5) / VH) / 2 : (y - 0.5) / VH;
+  let rx = Math.round(q), rz = Math.round(r), ry = Math.round(-q - r);
+  const dx = Math.abs(rx - q), dz = Math.abs(rz - r), dy = Math.abs(ry + q + r);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+  return { q: rx, r: rz };
+}
+const vHexDist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+const vHexSnapPt = (p, x, y) => vHexCenter(p, vHexNear(p, x, y));
+// A token's top-left for its centre on the nearest hex (or square).
+function vSnapTok(p, nx, ny, s) {
+  if (vHexOf(p)) { const [cx, cy] = vHexSnapPt(p, nx + s / 2, ny + s / 2); return [Math.round((cx - s / 2) * 1000) / 1000, Math.round((cy - s / 2) * 1000) / 1000]; }
+  return [Math.round(nx), Math.round(ny)];
+}
+function vHexGridSvg(p, W, H) {
+  const fl = vHexOf(p).flat, C = VCELL, R = 1 / Math.sqrt(3);
+  const corners = fl ? [[R, 0], [R / 2, 0.5], [-R / 2, 0.5], [-R, 0], [-R / 2, -0.5], [R / 2, -0.5]] : [[0, -R], [0.5, -R / 2], [0.5, R / 2], [0, R], [-0.5, R / 2], [-0.5, -R / 2]];
+  const hex = (cx, cy) => "M" + corners.map(([a, b]) => ((cx + a) * C).toFixed(1) + " " + ((cy + b) * C).toFixed(1)).join("L") + "Z";
+  const pw = fl ? 2 * VH : 1, ph = fl ? 1 : 2 * VH, centres = fl ? [[0, 0.5], [VH, 0], [VH, 1], [2 * VH, 0.5]] : [[0.5, 0], [0, VH], [1, VH], [0.5, 2 * VH]];
+  return `<svg class="vgrid" width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgh" width="${pw * C}" height="${ph * C}" patternUnits="userSpaceOnUse" patternTransform="translate(${fl ? 0.5 * C : 0},${fl ? 0 : 0.5 * C})"><path d="${centres.map(([a, b]) => hex(a, b)).join("")}" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgh)"/><rect width="100%" height="100%" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/></svg>`;
+}
+
 // ===== Grid snapping per page =====
 const vNoSnap = () => { const cur = vPageNow(); return !!(cur && cur.p && cur.p.snap === false); };
 
@@ -2475,23 +2616,68 @@ function vFmtDays(h) {
   const d = Math.floor(h / 8), r = Math.round(h - d * 8);
   return r === 8 ? `${d + 1} days` : `${d} day${d === 1 ? "" : "s"}${r ? ` ${r} h` : ""}`;
 }
-function vTravelLabel(pts, pace) {
-  const cur = vPageNow(), sc = cur && cur.p.scale; if (!sc || !sc.len) return "No travel scale on this map yet";
-  const len = vRouteLen(pts), hoursPerLen = (sc.unit === "hour" ? sc.amt : sc.amt * 8) / sc.len, f = (VPACE[pace || "normal"] || VPACE.normal)[0];
-  const h = len * hoursPerLen / f, mi = sc.mi ? len * sc.mi / sc.len : 0;
-  return `${vFmtDays(h)}${pace && pace !== "normal" ? ` (${VPACE[pace][1].toLowerCase()} pace)` : ""}${mi ? ` · ${mi >= 10 ? Math.round(mi) : Math.round(mi * 10) / 10} mi` : ""}`;
+document.addEventListener("change", ev => {
+  const sel = ev.target.matches && ev.target.matches(".vtravelby") && ev.target; if (!sel) return;
+  VTT.travelBy = sel.value; if (VTT.meas && VTT.meas.shape === "travel") { VTT.meas.by = sel.value; vMeasDraw(); vLiveMeas(true); }
+  vMeasToolsRefresh();
+});
+// Travel works on a map with a scale, or a hex map with its miles a hex set.
+const vTravelOk = p => !!(p && ((p.scale && p.scale.len) || (vHexOf(p) && Number(p.hexMi) > 0)));
+// On foot: 18 / 24 / 30 miles in an 8-hour travel day at slow / normal / fast pace.
+const VFOOT_MPH = { slow: 2.25, normal: 3, fast: 3.75 };
+// What a route is travelled by: "" on foot, "t:<token>:<mode>" a vehicle on this map, "e:<item>:<mode>" one from the library.
+function vTravelVeh(by) {
+  const m = String(by || "").match(/^([te]):(.+):(ground|flight|naval)$/); if (!m) return null;
+  let v = null, name = "", left = null;
+  if (m[1] === "t") { const t = S.vttTokens.get(m[2]); v = t && vVehOf(t); if (!v) return null; name = t.name || "the vehicle";
+    if (v.fuel.type === "refuel") { const fb = vCanEdit() ? true : vBarsFor(t).find(b => b.fuel); left = fb ? vFuelLeft(t, v) : null; } else if (v.fuel.type === "power") { const pl = vPilotOf(m[2], t), src = pl && vPowerSrc(pl[1], v); left = src ? src.have : null; } }
+  else { const e = S.entries.get(m[2]); v = e && vehOf(e); if (!v) return null; name = e.title; }
+  const sp = v.speeds.find(x => x.mode === m[3]); if (!sp || !(sp.travel > 0)) return null;
+  return { v, name, mph: sp.travel, mode: m[3], left };
+}
+function vTravelVehOpts() {
+  const cur = vPageNow(), out = [], seen = new Set();
+  const add = (val, label, v) => v.speeds.filter(x => x.travel > 0).forEach(x => out.push([`${val}:${x.mode}`, `${label}${v.speeds.filter(y => y.travel > 0).length > 1 ? ` (${VEH_MODES[x.mode].toLowerCase()})` : ""}, ${x.travel} mph`]));
+  if (cur) vTokens(cur.id).forEach(([id, t]) => { const v = vVehOf(t); if (!v || (t.layer === "gm" && !vCanEdit())) return; seen.add((t.ref || "").slice(2)); add("t:" + id, `${t.name || "Vehicle"} (on the map)`, v); });
+  if (typeof isVehicle === "function") [...S.entries].filter(([id, e]) => isVehicle(e) && !seen.has(id)).sort((a, b) => byName(a[1].title, b[1].title)).forEach(([id, e]) => add("e:" + id, e.title, vehOf(e)));
+  return out;
+}
+function vTravelLabel(pts, pace, by) {
+  const cur = vPageNow(), p = cur && cur.p, hex = vHexOf(p), veh = vTravelVeh(by), foot = VFOOT_MPH[pace || "normal"] || 3;
+  let steps = 0, hours = 0, miles = 0;
+  if (hex) {
+    const mi = Number(p.hexMi) || 0; for (let i = 1; i < pts.length; i++) steps += vHexDist(vHexNear(p, pts[i - 1][0], pts[i - 1][1]), vHexNear(p, pts[i][0], pts[i][1]));
+    if (!mi) return `${steps} hex${steps === 1 ? "" : "es"} · set the miles a hex in the page settings`;
+    miles = steps * mi; hours = miles / (veh ? veh.mph : foot);
+  } else {
+    const sc = p && p.scale; if (!sc || !sc.len) return "No travel scale on this map yet";
+    const len = vRouteLen(pts), footH = len * (sc.unit === "hour" ? sc.amt : sc.amt * 8) / sc.len; // hours at normal pace
+    for (let i = 1; i < pts.length; i++) steps += Math.round(Math.max(Math.abs(pts[i][0] - pts[i - 1][0]), Math.abs(pts[i][1] - pts[i - 1][1])));
+    miles = sc.mi ? len * sc.mi / sc.len : 0;
+    hours = veh ? (miles ? miles / veh.mph : footH * 3 / veh.mph) : footH * 3 / foot;
+  }
+  const mi = miles >= 10 ? Math.round(miles) : Math.round(miles * 10) / 10;
+  let fuel = "";
+  if (veh && veh.v.fuel.type !== "manual" && veh.v.fuel.use === "efficient" && veh.v.fuel.amt) {
+    const need = Math.ceil(steps * veh.v.fuel.amt), word = veh.v.fuel.type === "power" ? veh.v.fuel.res.toLowerCase() : "fuel";
+    fuel = ` · ${need} ${word}${veh.left != null ? (veh.left < need ? ` (has only ${veh.left})` : ` (has ${veh.left})`) : ""}`;
+  }
+  return `${vFmtDays(hours)}${veh ? ` by ${veh.name}` : pace && pace !== "normal" ? ` (${VPACE[pace][1].toLowerCase()} pace)` : ""}${hex ? ` · ${steps} hex${steps === 1 ? "" : "es"}` : ""}${mi ? ` · ${mi} mi` : ""}${fuel}`;
 }
 function vTravelToolsHtml(gm) {
   const cur = vPageNow(), sc = cur && cur.p.scale;
   if (VTT.tool === "scale") return `<p class="muted small vlhint">Drag a line over a stretch of the map, then say how much travel it is.${sc && sc.len ? `<br>Now: ${esc(vScaleText(sc))}.` : ""}</p>`;
   const paces = Object.entries(VPACE).map(([k, [, l]]) => `<button class="${(VTT.pace || "normal") === k ? "on" : ""}" data-act="vtttpace" data-v="${k}" aria-pressed="${(VTT.pace || "normal") === k}">${l}</button>`).join("");
-  return `<div class="seg vpace" role="group" aria-label="Travel pace">${paces}</div>${VTT.meas && VTT.meas.shape === "travel" ? `<button class="vbtn" data-act="vtttclear">✕ Clear route</button>` : ""}${gm ? `<p class="muted small vlhint">Click to add stops; double-click or Enter to finish. ${sc && sc.len ? esc(vScaleText(sc)) + "." : "Set a scale first with 📐."}</p>` : ""}`;
+  const opts = vTravelVehOpts(), by = VTT.travelBy || "";
+  const bySel = opts.length ? `<label class="vtravelbyw"><span class="small muted">Travelling by</span><select class="vtravelby" aria-label="Travelling by"><option value="">On foot</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${v === by ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : "";
+  return `${bySel}<div class="seg vpace${by ? " off" : ""}" role="group" aria-label="Travel pace">${paces}</div>${VTT.meas && VTT.meas.shape === "travel" ? `<button class="vbtn" data-act="vtttclear">✕ Clear route</button>` : ""}${gm ? `<p class="muted small vlhint">Click to add stops; double-click or Enter to finish. ${vHexOf(cur && cur.p) ? (Number(cur.p.hexMi) > 0 ? `Each hex is ${cur.p.hexMi} miles.` : "Set the miles a hex in the page settings.") : sc && sc.len ? esc(vScaleText(sc)) + "." : "Set a scale first with 📐."}</p>` : ""}`;
 }
 function vTravelClick(x, y, ev) {
   const now = Date.now(), m = VTT.meas, lc = VTT.lastTravelClick;
   VTT.lastTravelClick = { t: now, cx: ev.clientX, cy: ev.clientY };
   if (m && m.shape === "travel" && m.open && lc && now - lc.t < 400 && Math.hypot(ev.clientX - lc.cx, ev.clientY - lc.cy) < 8) { vTravelFinish(); return; }
-  if (!m || m.shape !== "travel" || !m.open) VTT.meas = { shape: "travel", pts: [[x, y]], open: true, pace: VTT.pace || "normal" };
+  const cp = (vPageNow() || {}).p; if (vHexOf(cp) && !ev.altKey) [x, y] = vHexSnapPt(cp, x, y);
+  if (!m || m.shape !== "travel" || !m.open) VTT.meas = { shape: "travel", pts: [[x, y]], open: true, pace: VTT.pace || "normal", by: VTT.travelBy || "" };
   else m.pts.push([x, y]);
   vMeasDraw(); vLiveMeas(true); vMeasToolsRefresh();
 }

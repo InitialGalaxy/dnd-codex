@@ -172,7 +172,7 @@ document.addEventListener("change", ev => { if (LOCAL && ev.target.id === "lffir
 
 
 // ---------- Server mode: talk to server.js; changes from other devices arrive as they happen ----------
-const SRV = { id: "c" + Math.random().toString(36).slice(2, 10), queue: [], sending: false, es: null, info: null, online: true };
+const SRV = { id: "c" + Math.random().toString(36).slice(2, 10), queue: [], sending: false, es: null, info: null, online: true, inflight: null, held: {} };
 function lfWrote(path) {
   if (GH) { ghmChanged(); return; }
   if (!SERVER) { lfChanged(); return; }
@@ -184,7 +184,7 @@ function lfWrote(path) {
 async function srvFlush() {
   if (SRV.sending || !SRV.queue.length) return;
   SRV.sending = true; lfStatus("Saving…");
-  const batch = SRV.queue.slice();
+  const batch = SRV.queue.slice(); SRV.inflight = new Set(batch.map(o => o.path)); SRV.held = {};
   try {
     const r = await fetch("api/ops", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: SRV.id, ops: batch }) });
     if (r.status === 401) { location.reload(); return; }
@@ -193,8 +193,17 @@ async function srvFlush() {
     if (out.rejected && out.rejected.length) { toast("Players can only change characters. That change wasn't saved.", "bad"); srvLoadAll().then(lfNotify).catch(() => {}); }
     // Anything written again while sending stays queued.
     SRV.queue = SRV.queue.filter(o => !batch.includes(o));
+    // Changes others made to the same docs while ours was on its way: whichever the server took last wins.
+    let changed = false;
+    for (const path of SRV.inflight) {
+      if (SRV.queue.some(o => o.path === path)) continue;
+      const sv = (out.saved || {})[path], h = SRV.held[path];
+      if (h && (!sv || h.seq == null || h.seq > sv.seq)) { if (h.doc) LF.store.set(path, h.doc); else LF.store.delete(path); changed = true; }
+      else if (sv && sv.doc) { LF.store.set(path, sv.doc); changed = true; }
+    }
+    SRV.inflight = null; SRV.held = {}; if (changed) lfNotify();
     lfStatus(SRV.queue.length ? "Saving…" : "Saved");
-  } catch (e) { lfStatus("Not saved yet: can't reach the codex computer. Retrying…", true); setTimeout(() => { SRV.sending = false; srvFlush(); }, 3000); return; }
+  } catch (e) { SRV.inflight = null; SRV.held = {}; lfStatus("Not saved yet: can't reach the codex computer. Retrying…", true); setTimeout(() => { SRV.sending = false; srvFlush(); }, 3000); return; }
   SRV.sending = false;
   if (SRV.queue.length) srvFlush();
 }
@@ -213,6 +222,8 @@ function srvListen() {
   es.onmessage = ev => {
     let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     if (m.from === SRV.id) return;
+    // Our own change to this doc is on its way: keep this until the server says which came last.
+    if (SRV.inflight && SRV.inflight.has(m.path)) { SRV.held[m.path] = m; return; }
     if (SRV.queue.some(o => o.path === m.path)) return; // our own newer change wins
     if (m.doc) LF.store.set(m.path, m.doc); else LF.store.delete(m.path);
     lfNotify();

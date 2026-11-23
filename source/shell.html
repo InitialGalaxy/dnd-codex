@@ -1542,6 +1542,12 @@ input.smname:hover, input.smname:focus { border-color: rgba(255,255,255,.4); out
 
 #it-harvest[hidden] { display: none !important; }
 .hvmode .hvhide { display: none !important; }
+.vehfields { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+.vehspd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.vehspd label { display: inline-flex; align-items: center; gap: 6px; }
+.vehspd input { width: 84px; }
+.vehspd label span { color: var(--muted); font-size: .82rem; }
+.vehfuel { margin-bottom: 4px; }
 .gargpick { min-width: 220px; } .gargpick[hidden] { display: none; }
 .gargslide { display: flex; align-items: center; gap: 8px; } .gargslide input { flex: 1; accent-color: var(--brass); }
 .gargcfg { margin-top: 10px; max-width: 420px; }
@@ -1879,6 +1885,17 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vgo button:hover { background: #f2d36b; }
 .vgo button.vgowarn { background: #c9a36a; border-style: dashed; }
 .vgonote { font: 600 12px var(--ui); color: #f3e3c3; background: rgba(20,16,10,.85); border: 1px solid rgba(232,194,122,.5); border-radius: 99px; padding: 4px 10px; white-space: nowrap; }
+.vvehinfo { display: grid; gap: 4px; margin: 6px 0 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+.vvehinfo p { margin: 0; }
+.vvehinfo .muted { display: inline-block; min-width: 46px; }
+.vstall { color: #f0b35a; font-weight: 600; }
+.vpilotsel { max-width: 60%; }
+.vtravelbyw { display: grid; gap: 2px; }
+.vtravelby { max-width: 100%; font-size: .8rem; }
+.vpace.off { opacity: .45; }
+.vptools .vtravelbyw { display: flex; align-items: center; }
+.vptools .vtravelbyw span { display: none; }
+.vptools .vtravelby { max-width: 160px; padding: 4px 6px; }
 .vriders { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: flex-end; }
 .vriders > span { display: inline-flex; align-items: center; gap: 4px; }
 .vlinklv { display: flex; flex-direction: column; gap: 2px; }

@@ -84,7 +84,7 @@ function playerCopy(p, doc) {
   // Constitution its Exhaust Meter is worked out from.
   if (doc && p.startsWith("vtttokens/") && typeof doc.ref === "string" && doc.ref.startsWith("e:")) {
     const e = docs["entries/" + doc.ref.slice(2)];
-    if (!e || e.hidden) { const sb = e && e.statblock || {}; return Object.assign({}, doc, { npc: { img: e ? e.token || e.image || "" : "", sb: { subtitle: String(sb.subtitle || "").split(/[,(]/)[0].trim(), con: sb.con || "", exhaust: sb.exhaust || "" } } }); }
+    if (!e || e.hidden) { const sb = e && e.statblock || {}, it = e && e.type === "item" && e.item; return Object.assign({}, doc, { npc: Object.assign({ img: e ? e.token || e.image || "" : "", sb: { subtitle: String(sb.subtitle || "").split(/[,(]/)[0].trim(), con: sb.con || "", exhaust: sb.exhaust || "" } }, it && it.vehicle ? { veh: { v: it.vehicle, cat: it.category || "" } } : {}) }); }
   }
   if (!doc || !p.startsWith("vttpages/")) return doc;
   return Object.assign({}, doc, { objs: (doc.objs || []).filter(o => o && o.layer !== "gm"), walls: (doc.walls || []).map(w => Array.isArray(w) && w[5] && w[5].secret ? w.slice(0, 5) : w) });
@@ -106,14 +106,27 @@ function playerLive(p, doc) {
   return true;
 }
 // Players may move a token that a character controls (only its position changes) and add to what's been explored.
+// A token a player controls (its character is one they can see), standing on map: tid's token aboard vehicle id.
+const playerAboard = (tid, id) => { const t = typeof tid === "string" && docs["vtttokens/" + tid]; return !!(t && t.mount === id && t.layer !== "gm" && t.owner && docs["characters/" + t.owner] && !docs["characters/" + t.owner].hidden); };
+// A vehicle: its pilot's player may drive it (move it) and anyone aboard may take the controls (change the pilot to their own token).
+function playerVehicleWrite(p, old, doc) {
+  const id = p.slice(10), keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
+  let moved = false;
+  for (const k of keys) { if (JSON.stringify(old[k]) === JSON.stringify(doc[k])) continue; if (k === "x" || k === "y" || k === "fly" || k === "lvl") moved = true; else if (k !== "pilot") return false; }
+  if (moved && !playerAboard(old.pilot, id)) return false;
+  if (doc.pilot !== old.pilot && !playerAboard(doc.pilot, id)) return false;
+  return typeof doc.x === "number" && typeof doc.y === "number" && isFinite(doc.x) && isFinite(doc.y) && vttVisible(old.page);
+}
+const PLAYER_TOKEN_KEYS = ["x", "y", "fly", "lvl", "conds", "light", "mount", "mountAt", "pilot"];
 function playerTokenMove(p, doc) {
   if (!/^vtttokens\/[A-Za-z0-9_.-]+$/.test(p)) return false;
-  const old = docs[p]; if (!old || !old.owner || old.layer === "gm" || !doc) return false;
-  if (!docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return false;
+  const old = docs[p]; if (!old || old.layer === "gm" || !doc) return false;
+  if (!old.owner || !docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return playerVehicleWrite(p, old, doc);
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
-  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && k !== "mountAt" && k !== "pilot" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
   // Climbing onto a mount: one the player can see, on this map, not riding anything itself, and nobody riding this token.
   if (doc.mountAt != null && !Number.isFinite(doc.mountAt)) return false;
+  if (doc.pilot !== old.pilot && doc.pilot != null && !playerAboard(doc.pilot, p.slice(10))) return false;
   if (doc.mount != null && doc.mount !== old.mount) {
     const id = p.slice(10), mp = "vtttokens/" + doc.mount, m = typeof doc.mount === "string" && doc.mount !== id && docs[mp];
     if (!m || m.page !== old.page || m.layer === "gm" || m.mount || !playerSees(mp, m)) return false;
@@ -366,6 +379,7 @@ function unpackImages(v) {
 // ---------- live updates (server-sent events) ----------
 const clients = new Set();
 // Players only hear about what they're allowed to see; something hidden after they loaded it is removed from their screen.
+let SEQ = 0; // every change sent out gets the next number, so a device can tell which of two arrived last
 function broadcast(msg, event) {
   const line = (event ? "event: " + event + "\n" : "") + "data: " + JSON.stringify(msg) + "\n\n";
   let pline = null;
@@ -476,24 +490,34 @@ async function handle(req, res) {
       res.role = role; res.write("retry: 2000\n\n"); clients.add(res); req.on("close", () => clients.delete(res)); return;
     }
     if (p === "/api/ops" && req.method === "POST") {
-      const body = JSON.parse((await readBody(req, 80 * 1024 * 1024)).toString("utf8")), rejected = [];
+      // saved: each write's place in the order of changes (seq), and the doc as stored when the server changed it.
+      const body = JSON.parse((await readBody(req, 80 * 1024 * 1024)).toString("utf8")), rejected = [], saved = {};
       const visBefore = role === "gm" && (body.ops || []).some(o => /^vtt(camps|pages)\//.test(String(o.path))) ? vttVisibleSig() : null;
       for (const op of body.ops || []) {
         if (typeof op.path !== "string" || !/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(op.path)) continue;
         // Players may only touch characters they can see, and can't hide or unhide one.
-        if (role !== "gm" && op.path.startsWith("vttpages/")) { const merged = playerDoorWrite(op.path, op.doc); if (!merged) { rejected.push(op.path); continue; } docs[op.path] = merged; broadcast({ path: op.path, doc: merged, from: body.from }); continue; }
+        if (role !== "gm" && op.path.startsWith("vttpages/")) { const merged = playerDoorWrite(op.path, op.doc); if (!merged) { rejected.push(op.path); continue; } docs[op.path] = merged; const sq = ++SEQ; broadcast({ path: op.path, doc: merged, from: body.from, seq: sq }); saved[op.path] = { seq: sq }; continue; }
         // What the server adds to tokens for players (a form's size, an NPC's picture) comes back with their writes: drop it.
         if (role !== "gm" && op.doc && op.path.startsWith("vtttokens/")) { op.doc = Object.assign({}, op.doc); delete op.doc.formSz; delete op.doc.npc; }
+        // A player moving a token sends its whole doc, which can be a moment out of date (the GM changed its fuel or HP
+        // while the move was on its way). Take only what a player may change from it, on top of what's stored.
+        let merged = false;
+        if (role !== "gm" && op.doc && op.path.startsWith("vtttokens/") && docs[op.path]) {
+          const pick = {}; for (const k of PLAYER_TOKEN_KEYS) if (k in op.doc) pick[k] = op.doc[k];
+          const next = Object.assign({}, docs[op.path], pick);
+          merged = JSON.stringify(next) !== JSON.stringify(op.doc); op.doc = next;
+        }
         if (role !== "gm" && (!playerMayWrite(op.path, op.doc) || (docs[op.path] && docs[op.path].hidden))) { rejected.push(op.path); continue; }
         if (role !== "gm" && op.doc) { op.doc = Object.assign({}, op.doc); delete op.doc.hidden; }
         if (op.doc && op.path.startsWith("vttlive/")) op.doc = Object.assign({}, op.doc, { _at: Date.now() });
-        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from }); if (op.path.startsWith("characters/")) npcTokensChanged("c:" + op.path.slice(11)); else if (op.path.startsWith("entries/")) npcTokensChanged("e:" + op.path.slice(8)); }
-        else { delete docs[op.path]; broadcast({ path: op.path, doc: null, from: body.from }); }
+        const sq = ++SEQ; saved[op.path] = { seq: sq };
+        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from, seq: sq }); if (merged) saved[op.path].doc = playerCopy(op.path, d); if (op.path.startsWith("characters/")) npcTokensChanged("c:" + op.path.slice(11)); else if (op.path.startsWith("entries/")) npcTokensChanged("e:" + op.path.slice(8)); }
+        else { delete docs[op.path]; broadcast({ path: op.path, doc: null, from: body.from, seq: sq }); }
       }
       // Opening or closing maps to players: their devices reload what they're allowed to see.
       if (visBefore !== null && visBefore !== vttVisibleSig()) for (const c of clients) if (c.role === "player") c.write("event: reload\ndata: {}\n\n");
       if ((body.ops || []).some(o => !String(o.path).startsWith("vttlive/"))) scheduleSave();
-      return send(res, 200, { ok: true, rejected });
+      return send(res, 200, { ok: true, rejected, saved });
     }
     if (p === "/api/import" && req.method === "POST") {
       if (role !== "gm") return send(res, 403, { error: "gm only" });

@@ -17,7 +17,7 @@ const TYPES = [
   { id: "partset", label: "Part set", plural: "Part sets", subject: true }
 ];
 const BOOK_STATUS = ["Complete", "In progress", "Planned"];
-const ITEM_CATEGORIES = ["Simple weapon", "Martial weapon", "Ranged weapon", "Armour", "Shield", "Ring", "Amulet", "Cloak", "Wand", "Staff", "Rod", "Potion", "Scroll", "Trinket", "Harvested part", "Adventuring gear", "Ammunition", "Equipment pack", "Kit", "Spellcasting focus", "Tool", "Saddle"];
+const ITEM_CATEGORIES = ["Simple weapon", "Martial weapon", "Ranged weapon", "Armour", "Shield", "Ring", "Amulet", "Cloak", "Wand", "Staff", "Rod", "Potion", "Scroll", "Trinket", "Harvested part", "Adventuring gear", "Ammunition", "Equipment pack", "Kit", "Spellcasting focus", "Tool", "Saddle", "Land vehicle", "Sea vehicle", "Air vehicle"];
 const isSaddleCat = c => /^saddle$/i.test(String(c || "").trim());
 // Standard weapon properties (no 5.5e masteries). "param" asks for a value, shown in brackets.
 const WEAPON_PROPS = [
@@ -66,6 +66,7 @@ function useText(u) {
 function damageText(st) { return damageParts(st).map(p => p.damage + (p.dtype ? " " + p.dtype : "")).join(" + "); }
 // Short stat summary for cards: "1d8 slashing" or "AC 15 + Dex (max 2)".
 function itemStatShort(e) {
+  if (typeof isVehicle === "function" && isVehicle(e)) { const v = vehOf(e); return `${v.hull} hull · ${v.seats} seat${v.seats === 1 ? "" : "s"} · ${vehSpeedText(v)}`; }
   const it = e.item || {}, st = it.stats; if (!st) return "";
   const k = kindOfCategory(it.category);
   if (k === "armour") { const a = acText(st, /shield/i.test(it.category || "")); return a ? "AC " + a : ""; }
@@ -941,7 +942,7 @@ function entryCard(id, e) {
   const town = e.townId != null ? S.townById.get(e.townId) : null;
   const rar = e.item && e.item.rarity ? " rar-" + slugify(e.item.rarity) : isUniqueCreature(e) ? " rar-unique" : "";
   return `<a class="card t-${t.id}${rar}" href="#entry-${id}">
-    <div class="cardtop"><span class="pill t-${t.id}">${t.id === "item" ? { weapon: "Weapon", armour: "Armour", item: "Item" }[itemKind(e)] : t.label}</span>${town ? `<span class="muted small">📍 ${esc(town.n)}</span>` : ""}${e.statblock && e.statblock.cr ? `<span class="cr">CR ${esc(e.statblock.cr)}</span>` : ""}${e.item && e.item.magical === false ? `<span class="rar mundane">Mundane</span>` : e.item && e.item.rarity ? `<span class="rar r-${slugify(e.item.rarity)}">${esc(e.item.rarity)}</span>` : ""}</div>
+    <div class="cardtop"><span class="pill t-${t.id}">${t.id === "item" ? (isVehicle(e) ? "Vehicle" : { weapon: "Weapon", armour: "Armour", item: "Item" }[itemKind(e)]) : t.label}</span>${town ? `<span class="muted small">📍 ${esc(town.n)}</span>` : ""}${e.statblock && e.statblock.cr ? `<span class="cr">CR ${esc(e.statblock.cr)}</span>` : ""}${e.item && e.item.magical === false ? `<span class="rar mundane">Mundane</span>` : e.item && e.item.rarity ? `<span class="rar r-${slugify(e.item.rarity)}">${esc(e.item.rarity)}</span>` : ""}</div>
     <h2>${esc(e.title || "Untitled")}${e.hidden && !READONLY ? ` <span class="dmonly" title="Hidden from players">DM only</span>` : ""}</h2>
     ${itemStatShort(e) ? `<p class="istatshort">${esc(itemStatShort(e))}</p>` : ""}
     ${e.item && (e.item.meta || e.item.category) ? `<p class="imeta">${esc(e.item.category != null ? buildItemLine(e.item) : String(e.item.meta).replace(/,?\s*\[rarity\]/ig, ""))}${e.item.holder ? ` · ${esc(e.item.holder)}` : ""}</p>` : e.statblock && e.statblock.subtitle ? `<p class="imeta">${esc(e.statblock.subtitle)}</p>` : e.subclass ? `<p class="imeta">${esc(e.subclass.cls || "")} subclass · ${(e.subclass.features || []).length} features</p>` : e.partset ? `<p class="imeta">${((e.partset || {}).parts || []).length} harvested parts</p>` : e.cls ? `<p class="imeta">d${esc(e.cls.hd || 8)} hit die · ${(e.cls.features || []).length} features</p>` : e.race ? `<p class="imeta">${esc([e.race.size, e.race.speed].filter(Boolean).join(" · "))}</p>` : ""}
@@ -1056,7 +1057,7 @@ function itemPageHtml(id, e) {
     ${it.magical === false ? `<p class="irar"><span class="rar mundane">Mundane</span></p>` : it.rarity ? `<p class="irar"><span class="rar r-${r}">${esc(it.rarity)}</span></p>` : ""}
     ${e.image || (S.assets && canEdit) ? `<div class="iimg">${e.image ? imageHtml(e.image, e.title, id) : ""}${S.assets && canEdit ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">${e.image ? "Replace image" : "Add image"}</button>` : ""}</div>` : ""}
     ${flavour.trim() ? `<div class="flavour">${md(flavour, { entryId: id })}</div>` : canEdit ? `<div class="iimg"><button class="btn ghost small" data-act="addlore" data-id="${esc(id)}">Add lore</button></div>` : ""}
-    ${itemStatsHtml(it)}${itemResPreviewHtml(it)}
+    ${isVehicle(e) ? vehStatHtml(e) : ""}${itemStatsHtml(it)}${itemResPreviewHtml(it)}
     <div class="iprops">${md(paras.join("\n\n"), { entryId: id })}</div>
     ${(it.props || []).length ? `<div class="wprops"><h3>Properties</h3>${it.props.map(p => { const d = PROP[p.id]; return d ? `<p><strong><em>${esc(d.name)}${p.param ? ` (${esc(propLabel(p).replace(/^[^(]*\(|\)$/g, ""))})` : ""}.</em></strong> ${esc(d.desc)}</p>` : ""; }).join("")}</div>` : ""}
   </div>`;
@@ -1314,7 +1315,7 @@ document.addEventListener("input", ev => {
 function viewItems() {
   if (!S.loaded.entries && !S.offline) return loadingOr(false);
   const allItems = [...S.entries.entries()].filter(([, e]) => e.type === "item");
-  const parts = allItems.filter(([, e]) => isHarvest(e)), all = allItems.filter(([, e]) => !isHarvest(e));
+  const parts = allItems.filter(([, e]) => isHarvest(e)), vehs = allItems.filter(([, e]) => isVehicle(e)), all = allItems.filter(([, e]) => !isHarvest(e) && !isVehicle(e));
   const holders = [...new Set(all.map(([, e]) => (e.item && e.item.holder) || "").filter(Boolean))].sort(byName);
   const h = S.items.holder, rr = S.items.rarity, q = String(S.items.q || "").trim().toLowerCase();
   const rarOf = e => ((e.item && e.item.rarity) || "").toLowerCase();
@@ -1329,20 +1330,20 @@ function viewItems() {
   return `<section>
     <div class="libhead">
       <h1>Items</h1>
-      <p class="muted">${mg === "harvest" ? `${parts.length} harvested part${parts.length === 1 ? "" : "s"}` : `${list.length} of ${all.length} items`}${READONLY ? "" : ` · <a href="#srd">Add standard equipment from the SRD →</a>`}</p>
+      <p class="muted">${mg === "vehicle" ? `${vehs.length} vehicle${vehs.length === 1 ? "" : "s"}` : mg === "harvest" ? `${parts.length} harvested part${parts.length === 1 ? "" : "s"}` : `${list.length} of ${all.length} items`}${READONLY ? "" : ` · <a href="#srd">Add standard equipment from the SRD →</a>`}</p>
       <div class="segrow">
-      <div class="seg kindseg" role="group" aria-label="Magical or mundane"><button class="${!mg ? "on" : ""}" data-act="imagic" data-v="" aria-pressed="${!mg}">All <span>${all.length}</span></button><button class="${mg === "magical" ? "on" : ""}" data-act="imagic" data-v="magical" aria-pressed="${mg === "magical"}">✦ Magical <span>${mcount("magical")}</span></button><button class="${mg === "mundane" ? "on" : ""}" data-act="imagic" data-v="mundane" aria-pressed="${mg === "mundane"}">Mundane <span>${mcount("mundane")}</span></button><button class="${mg === "harvest" ? "on" : ""}" data-act="imagic" data-v="harvest" aria-pressed="${mg === "harvest"}">Harvested parts <span>${parts.length}</span></button></div>
-      ${mg === "harvest" ? "" : `
+      <div class="seg kindseg" role="group" aria-label="Magical or mundane"><button class="${!mg ? "on" : ""}" data-act="imagic" data-v="" aria-pressed="${!mg}">All <span>${all.length}</span></button><button class="${mg === "magical" ? "on" : ""}" data-act="imagic" data-v="magical" aria-pressed="${mg === "magical"}">✦ Magical <span>${mcount("magical")}</span></button><button class="${mg === "mundane" ? "on" : ""}" data-act="imagic" data-v="mundane" aria-pressed="${mg === "mundane"}">Mundane <span>${mcount("mundane")}</span></button><button class="${mg === "harvest" ? "on" : ""}" data-act="imagic" data-v="harvest" aria-pressed="${mg === "harvest"}">Harvested parts <span>${parts.length}</span></button><button class="${mg === "vehicle" ? "on" : ""}" data-act="imagic" data-v="vehicle" aria-pressed="${mg === "vehicle"}">🛞 Vehicles <span>${vehs.length}</span></button></div>
+      ${mg === "harvest" || mg === "vehicle" ? "" : `
       <div class="seg kindseg" role="group" aria-label="Kind of item"><button class="${!kk ? "on" : ""}" data-act="ikind" data-v="" aria-pressed="${!kk}">All kinds <span>${all.filter(([, e]) => magOk(e)).length}</span></button>${ITEM_KINDS.map(([k, l]) => `<button class="${kk === k ? "on" : ""}" data-act="ikind" data-v="${k}" aria-pressed="${kk === k}">${l} <span>${kcount(k)}</span></button>`).join("")}</div>
       </div>
       </div>`}
       <label class="search big itemsearch"><span class="sr">Search items</span><input id="itemq" type="search" placeholder="Search items, e.g. ring, +1, rare, Vakryn" value="${esc(S.items.q || "")}" autocomplete="off"></label>
-      ${mg === "harvest" ? "" : `<div class="itemfilters">
+      ${mg === "harvest" || mg === "vehicle" ? "" : `<div class="itemfilters">
         <label class="rarsel"><span>Rarity</span><select id="irar" data-input="irar"><option value="">All rarities</option>${rarOpts.map(r => `<option value="${esc(r)}"${rr === r ? " selected" : ""}>${r === "none" ? "No rarity set" : esc(r[0].toUpperCase() + r.slice(1))} (${rcount(r)})</option>`).join("")}</select></label>
       <div class="chiprow"><button class="lg${!h ? " on" : ""}" data-act="holder" data-v="">Everyone</button>${holders.map(x => `<button class="lg${h === x ? " on" : ""}" data-act="holder" data-v="${esc(x)}">${esc(x)} <span>${all.filter(([, e]) => e.item && e.item.holder === x).length}</span></button>`).join("")}</div>
       </div>`}
     </div>
-    ${mg === "harvest" ? harvestListHtml(parts, q) : `
+    ${mg === "vehicle" ? vehListHtml(vehs, q) : mg === "harvest" ? harvestListHtml(parts, q) : `
     ${!list.length ? `<div class="cards"><div class="empty"><p>${all.length ? "No items match." : "No items yet."}</p>${all.length ? "" : `<button class="btn" data-act="new" data-type="item">Add an item</button>`}</div></div>`
       : kk ? `<div class="cards">${list.map(([id, e]) => entryCard(id, e)).join("")}</div>`
       : ITEM_KINDS.map(([k, l]) => { const g = list.filter(([, e]) => itemKind(e) === k); return g.length ? `<h2 class="sect">${l} <span class="muted small">${g.length}</span></h2><div class="cards">${g.map(([id, e]) => entryCard(id, e)).join("")}</div>` : ""; }).join("")}
@@ -1824,6 +1825,7 @@ function itemFields(e) {
     </div>
     ${harvestFieldsHtml(Object.assign({}, it, { category: parsed.category, harvest: it.harvest || (e.type === "item" && e.title ? harvestOf(e) : {}) }))}
     <div class="frow" id="it-saddle"${isSaddleCat(parsed.category) ? "" : " hidden"}><label><span>Seats <small class="muted">how many riders it carries in all</small></span><input id="it-seats" type="number" min="1" max="20" step="1" style="width:110px" value="${esc(it.seats || 2)}"></label><p class="muted small grow">Equipped on a summon, the mount can carry this many riders. Without a saddle a mount carries one less than the squares it takes up (Large 1, Huge 2, Gargantuan 3), and always at least one.</p></div>
+    ${vehFieldsHtml(e, parsed.category)}
     <div class="field hvhide"><span class="flabel">Properties</span>
       <div class="propchips" id="it-props">${propChipsHtml()}</div>
       <div class="propadd"><select id="it-propsel" aria-label="Property to add">${WEAPON_PROPS.map(p => `<option value="${p.id}">${p.name}</option>`).join("")}</select><button class="btn ghost small" type="button" data-act="itaddprop" aria-label="Add property">+ Add</button></div>
@@ -1900,8 +1902,12 @@ function harvestMode() {
   const sel = $("#it-cat"); if (!sel) return;
   const on = isHarvestCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
   const hv = $("#it-harvest"); if (hv) hv.hidden = !on;
+  const cat = sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value, veh = isVehicleCat(cat);
+  const vf = $("#it-vehicle"); if (vf) vf.hidden = !veh;
+  // A vehicle is a token on the tabletop: it gets the token pictures field, and not the item-only fields.
+  const tf = $("#ed-toks") && $("#ed-toks").closest(".field"); if (tf) tf.hidden = !(($("#ed-type") || {}).value === "creature" || (veh && ($("#ed-type") || {}).value === "item"));
   const sd = $("#it-saddle"); if (sd) sd.hidden = !isSaddleCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
-  const fs = sel.closest("fieldset"); if (fs) fs.classList.toggle("hvmode", on);
+  const fs = sel.closest("fieldset"); if (fs) fs.classList.toggle("hvmode", on || veh);
 }
 // Light: an equipped item that shines on the tabletop (a torch, a glowing sword).
 function itemLightFieldsHtml(it) {
@@ -2127,7 +2133,8 @@ async function saveEntry(form) {
   delete doc.example;
   const img = ($("#ed-image").value || "").trim(); if (img) doc.image = img; else delete doc.image;
   const toks = [...document.querySelectorAll("#ed-toks .edtok")].map(x => x.dataset.src), extra = (($("#ed-token") || {}).value || "").trim(); if (extra && !toks.includes(extra)) toks.push(extra);
-  if (toks.length && type === "creature") { doc.token = toks[0]; if (toks.length > 1) doc.tokens = toks; else delete doc.tokens; } else { delete doc.token; delete doc.tokens; }
+  const vehCat = type === "item" && isVehicleCat((($("#it-cat") || {}).value === "__other" ? ($("#it-catother") || {}).value : ($("#it-cat") || {}).value));
+  if (toks.length && (type === "creature" || vehCat)) { doc.token = toks[0]; if (toks.length > 1) doc.tokens = toks; else delete doc.tokens; } else { delete doc.token; delete doc.tokens; }
   { const u = $("#ed-unique"); if (u && type === "creature") doc.unique = u.checked; else delete doc.unique; }
   const tn = (($("#ed-toknames") || {}).value || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 200); if (tn.length && type === "creature") doc.tokNames = tn; else delete doc.tokNames;
   if ($("#ed-hidden").checked) doc.hidden = true; else delete doc.hidden;
@@ -2149,6 +2156,7 @@ async function saveEntry(form) {
     const hl = readHolds(); if (hl) doc.item.holds = hl; else delete doc.item.holds;
     const rl = readItemRes(); if (rl) doc.item.res = rl; else delete doc.item.res;
     const lt = readItemLight(); if (lt) doc.item.light = lt; else delete doc.item.light;
+    if (isVehicleCat(doc.item.category)) doc.item.vehicle = vehRead(); else delete doc.item.vehicle;
     if (isSaddleCat(doc.item.category)) doc.item.seats = Math.max(1, Math.min(20, Math.round(Number(($("#it-seats") || {}).value) || 2))); else delete doc.item.seats;
     doc.body = serializeFeatures(DRAFT.it);
     if (isHarvestCat(doc.item.category)) { doc.item.harvest = { dc: $("#hv-dc").value.trim(), qty: $("#hv-qty").value.trim(), wt: $("#hv-wt").value.trim() }; doc.body = harvestBody(doc); } else delete doc.item.harvest;
@@ -2460,7 +2468,7 @@ document.addEventListener("change", ev => {
     atkEl.querySelector(".atkprevtext").innerHTML = inline(esc(buildAttack(readAttack(atkEl))));
   }
   if (t.id === "ed-tag") { addDraftTag(t.value); t.value = ""; return; }
-  if (t.id === "ed-type") { document.querySelectorAll(".typefields").forEach(fs => { fs.hidden = fs.dataset.for ? fs.dataset.for !== t.value : fs.dataset.forNot.split(" ").includes(t.value); }); return; }
+  if (t.id === "ed-type") { document.querySelectorAll(".typefields").forEach(fs => { fs.hidden = fs.dataset.for ? fs.dataset.for !== t.value : fs.dataset.forNot.split(" ").includes(t.value); }); harvestMode(); return; }
   if (t.id === "it-cat") { $("#it-catother-wrap").hidden = t.value !== "__other"; harvestMode(); updateItemLine(); updateStatPanels(); return; }
   if (t.id === "st-dex") { $("#st-dexmax-wrap").hidden = !t.checked; updateStatPanels(); return; }
   if (t.id === "it-attune") { updateItemLine(); return; }
