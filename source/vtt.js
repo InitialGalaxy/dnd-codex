@@ -104,11 +104,11 @@ function viewVttCamp(camp) {
     : avail.length > 1 ? `<label class="vpsel"><span class="sr">Map</span><select id="vpsel">${avail.map(([id, pg]) => `<option value="${esc(id)}"${id === pid ? " selected" : ""}>${c.playerPage === id ? "★ " : ""}${esc(vFolderPath(c, pg.folder) + (pg.name || "Map"))}</option>`).join("")}</select></label>${pid !== c.playerPage && c.playerPage ? `<button class="btn ghost small" data-act="vttgoparty">★ Back to the party</button>` : ""}`
     : p ? `<span class="vcurpage"><strong>${esc(p.name || "Map")}</strong></span>` : "";
   return `<section class="vtt" data-camp="${esc(camp)}">
-    <div class="vttbar"><a href="#vtt" class="vback">← Campaigns</a><h1>${esc(c.name)}</h1>${tabs}
+    <div class="vttbar"><a href="#vtt" class="vback">← Campaigns</a><h1>${esc(c.name)}</h1>${p && gm ? `<button class="btn small vtoolsbtn${VTT.toolsOpen ? " on" : ""}" data-act="vtttoolsopen" aria-expanded="${!!VTT.toolsOpen}">🛠 Tools</button>` : ""}${tabs}
       ${p && gm ? `<button class="btn ghost small${VTT.initOpen ? " on" : ""}" data-act="vttinitopen" aria-expanded="${!!VTT.initOpen}">⚔ Turn order</button>` : ""}${gm && p ? `<button class="btn ghost small" data-act="vttcondlib">✦ Conditions</button><button class="btn ghost small${VTT.questOpen ? " on" : ""}" data-act="vttqopen" aria-expanded="${!!VTT.questOpen}">📜 Quests</button>` : ""}
       ${gm && p ? `<div class="vbaracts">${c.playerPage === pid ? `<span class="vpill">★ Players are here</span>` : `<button class="btn small" data-act="vttsend">Send players here</button>`}<button class="btn ghost small" data-act="vttsettings">Page settings</button></div>` : ""}</div>
     ${gm && VTT.mapsOpen ? `<div class="vmaps" id="vmaps">${vMapsHtml(camp)}</div>` : ""}
-    ${p ? `<div class="vttwrap">${gm ? `<div class="vtools" id="vtools">${vToolsHtml()}</div>` : ""}
+    ${p ? `<div class="vttwrap${VTT.toolsOpen ? " toolsopen" : ""}">${gm ? `<div class="vtools" id="vtools">${vToolsHtml()}</div>` : ""}
       <div class="vview" id="vview" tabindex="0" aria-label="Board"><div class="vstage" id="vstage"></div>
         ${gm ? "" : `<div class="vptools" id="vptools">${vMeasToolsHtml(false)}</div>`}
         <div class="vzoom"><button class="iconbtn" data-act="vttzoom" data-v="-1" aria-label="Zoom out">−</button><button class="iconbtn" data-act="vttzoom" data-v="0" aria-label="Fit board">⤢</button><button class="iconbtn" data-act="vttzoom" data-v="1" aria-label="Zoom in">+</button></div>
@@ -545,6 +545,12 @@ document.addEventListener("keydown", ev => {
   else if (k === "a" || k === "A") vSetTool("area");
   else if (k === "s" || k === "S") vSetTool("link");
 });
+// Phones: the tool panel is a sheet over the map, opened with the Tools button.
+function vToolsShow(on) {
+  VTT.toolsOpen = on; const w = document.querySelector(".vttwrap"), btn = document.querySelector(".vtoolsbtn");
+  if (w) w.classList.toggle("toolsopen", on); if (btn) { btn.classList.toggle("on", on); btn.setAttribute("aria-expanded", on); }
+}
+function vToolsAutoClose() { if (VTT.toolsOpen && matchMedia("(max-width: 860px)").matches) vToolsShow(false); }
 function vSetTool(t) { VTT.tool = t; if (t === "area" && !VTT.lvl) vAreaPickLevel(); if (t === "wall" || t === "area" || t === "link") VTT.layer = "walls"; VTT.draft = null; VTT.hover = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vDraw(); }
 async function vDeleteSel() {
   const cur = vPageNow(), s = VTT.sel; if (!cur) return;
@@ -717,7 +723,7 @@ async function vttAction(a, el, ev) {
   const root = document.querySelector(".vtt"), camp = root && root.dataset.camp;
   if (a === "vttzoom") { const v = Number(el.dataset.v), view = document.getElementById("vview"), r = view.getBoundingClientRect(); if (!v) vFit(); else vZoomAt(v > 0 ? 1.25 : 0.8, r.width / 2, r.height / 2); return; }
   if (a === "vtttool" && !vCanEdit()) { vSetTool(["measure", "ping", "draw", "travel"].includes(el.dataset.v) ? el.dataset.v : "select"); return; }
-  if (a === "vtttool" && el.dataset.v === "measure") { vSetTool(VTT.tool === "measure" && !vCanEdit() ? "select" : "measure"); return; }
+  if (a === "vtttool" && el.dataset.v === "measure") { vSetTool(VTT.tool === "measure" && !vCanEdit() ? "select" : "measure"); vToolsAutoClose(); return; }
   if (a === "vttmshape") { VTT.mshape = el.dataset.v; if (VTT.tool !== "measure") vSetTool("measure"); else { const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); const pt = document.getElementById("vptools"); if (pt) pt.innerHTML = vMeasToolsHtml(false); } return; }
   if (a === "vttmbeam") { VTT.mbeam = Number(el.value) || 5; if (VTT.meas && VTT.meas.shape === "beam") { VTT.meas.bw = VTT.mbeam; vLiveMeas(true); } vMeasDraw(); return; }
   if (a === "vttmclear") { vMeasClear(); return; }
@@ -749,6 +755,7 @@ async function vttAction(a, el, ev) {
     const here = vPageNow(); if (!here || t.page !== here.id) { toast(`${t.name || "That token"} is on another map.`); return; }
     VTT.multi.clear(); VTT.sel = { kind: "tok", id }; const s = (t.size || 1) / 2; vCenterOn(t.x + s, t.y + s); vDraw(); vRefresh(); vInitDraw(true); return; }
   if (!vCanEdit()) return;
+  if (a === "vtttoolsopen") { vToolsShow(!VTT.toolsOpen); return; }
   if (/^vttinit/.test(a)) return vInitAction(a, el);
   if (/^vttq/.test(a)) return vQuestAction(a, el);
   if (/^vttmulti/.test(a)) return vMultiAction(a, el);
@@ -803,8 +810,8 @@ async function vttAction(a, el, ev) {
   else if (a === "vttaddpage") { const name = await vAsk("New page", "Name", "Page " + (vPages(camp).length + 1), "Add page"); if (!name) return; VTT.page = await vNewPage(camp, name, vPages(camp).length); render(); }
   else if (a === "vttsend") { await vPatch("vttcamps/" + camp, { playerPage: VTT.page }); toast("Players are now on this page"); }
   else if (a === "vttsettings") { VTT.sel = null; VTT.multi.clear(); vRefresh(); const sd = document.getElementById("vside"); if (sd) { sd.scrollTop = 0; const f = sd.querySelector("#ps-name"); if (f) f.focus(); } }
-  else if (a === "vttlayer") { VTT.layer = el.dataset.v; VTT.sel = null; if (VTT.tool === "wall" && VTT.layer !== "walls") VTT.tool = "select"; document.getElementById("vtools").innerHTML = vToolsHtml(); vRefresh(); }
-  else if (a === "vtttool") vSetTool(el.dataset.v);
+  else if (a === "vttlayer") { vToolsAutoClose(); VTT.layer = el.dataset.v; VTT.sel = null; if (VTT.tool === "wall" && VTT.layer !== "walls") VTT.tool = "select"; document.getElementById("vtools").innerHTML = vToolsHtml(); vRefresh(); }
+  else if (a === "vtttool") { vSetTool(el.dataset.v); vToolsAutoClose(); }
   else if (a === "vttpreview") { VTT.preview = el.checked; vDraw(); }
   else if (a === "vttaddimg") vAddImage();
   else if (a === "vtttokpick") vTokenPick();

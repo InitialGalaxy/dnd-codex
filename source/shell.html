@@ -1799,7 +1799,22 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vtpick .vinit { display: grid; place-items: center; background: #6b4a2b; color: #fff; font-weight: 700; } .vtpick small { display: block; }
 .vtpick[hidden] { display: none; } #vtq { width: 100%; }
 .ctokprev { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; margin-left: 6px; vertical-align: middle; }
-@media (max-width: 860px) { .vttwrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; } .vtools { width: auto; flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); } .vside { max-height: 32vh; border-left: 0; border-top: 1px solid var(--line); } }
+.vtoolsbtn { display: none; }
+@media (max-width: 860px) {
+  /* Phones: the map gets the whole screen. The GM's tools open as a sheet over it; the side panel sits underneath. */
+  .vttwrap, .vttwrap:not(:has(.vtools)) { position: relative; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .vttwrap > .vview { grid-row: 1; min-height: 0; }
+  .vttwrap > .vside { grid-row: 2; }
+  .vtoolsbtn { display: inline-flex; }
+  .vtools { display: none; position: absolute; z-index: 20; top: 0; left: 0; right: 0; width: auto; max-height: 62%; flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 12px 18px; padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--line); box-shadow: 0 14px 30px rgba(0,0,0,.55); overflow: auto; }
+  .vttwrap.toolsopen > .vtools { display: flex; }
+  .vside { max-height: 34vh; overflow: auto; border-left: 0; border-top: 1px solid var(--line); }
+  .vttbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; padding: 7px 12px; }
+  .vttbar::-webkit-scrollbar { display: none; }
+  .vttbar > *, .vbaracts > * { flex: none; white-space: nowrap; }
+  .vttbar h1 { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vbaracts { margin-left: 0; }
+}
 
 .vmeas { pointer-events: none; overflow: visible; }
 .vmeas .cells rect { fill: rgba(255, 210, 60, .22); stroke: rgba(255, 210, 60, .35); stroke-width: 1; }
