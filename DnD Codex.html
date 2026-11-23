@@ -1878,6 +1878,10 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vgo { position: absolute; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
 .vgo button { display: flex; align-items: center; gap: 4px; font: 700 13px var(--ui); color: #1a1205; background: #e8c27a; border: 2px solid #1a1205; border-radius: 99px; padding: 4px 10px; cursor: pointer; white-space: nowrap; box-shadow: 0 3px 10px rgba(0,0,0,.5); }
 .vgo button:hover { background: #f2d36b; }
+.vgo button.vgowarn { background: #c9a36a; border-style: dashed; }
+.vgonote { font: 600 12px var(--ui); color: #f3e3c3; background: rgba(20,16,10,.85); border: 1px solid rgba(232,194,122,.5); border-radius: 99px; padding: 4px 10px; white-space: nowrap; }
+.vriders { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: flex-end; }
+.vriders > span { display: inline-flex; align-items: center; gap: 4px; }
 .vlinklv { display: flex; flex-direction: column; gap: 2px; }
 .vdoor, .vgo { --vs: var(--vinv, 1); } .vdoor { transform: translate(-50%, -50%) scale(var(--vs)); } .vgo { transform: scale(var(--vs)); transform-origin: left top; }
 .vac { position: absolute; left: -12px; top: 50%; transform: translateY(-50%); z-index: 2; width: 24px; height: 26px; display: grid; place-items: center; pointer-events: none; }
@@ -3295,6 +3299,13 @@ function hpBar(c) {
   const tone = pct > 50 ? "ok" : pct > 25 ? "warn" : "bad";
   return `<div class="hpbar ${tone}" role="img" aria-label="${cur} of ${max} hit points${temp ? `, ${temp} temporary` : ""}"><i style="width:${pct}%"></i>${temp ? `<b style="width:${Math.min(100, (temp / (max || 1)) * 100)}%"></b>` : ""}</div>`;
 }
+// On the tabletop this character (or one of its summons) may be riding something: say so on the sheet.
+function charRidingHtml(cid) {
+  if (!S.vttTokens) return "";
+  const out = [];
+  for (const [, t] of S.vttTokens) if (t.mount && (t.ref === "c:" + cid || String(t.ref || "").startsWith("s:" + cid + ":"))) { const m = S.vttTokens.get(t.mount); if (m) out.push(String(t.ref).startsWith("s:") ? `${esc(t.name || "Summon")} is riding ${esc(m.name || "a mount")}` : `Riding: ${esc(m.name || "a mount")}`); }
+  return out.length ? `<p class="small cride">🐎 ${[...new Set(out)].join(" · ")}</p>` : "";
+}
 function charSub(c) { const cl = String(c.classes || "").trim(), lv = c.level ? (cl && !/\d/.test(cl) ? cl + " " + c.level : cl || "Level " + c.level) : cl; return [c.race, lv, c.background].filter(Boolean).join(" · "); }
 // "Fighter 8" in the class box becomes class "Fighter" and level 8. Multiclass lines ("Fighter 5 / Wizard 3") are left alone.
 function splitClassLevel(c) {
@@ -3343,7 +3354,7 @@ function viewCharacter(id) {
           <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label><label class="grow"><span>Class</span>${cField("classes", c.classes, { ph: "Fighter" })}</label><label><span>Level</span>${cField("level", c.level, { num: 1 })}</label></div>
           <div class="frow"><label><span>Background</span>${cField("background", c.background)}</label><label><span>Alignment</span>${cField("alignment", c.alignment)}</label><label><span>XP</span>${cField("xp", c.xp)}</label></div>
           ${casterEditHtml(c)}`
-        : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}`}
+        : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}${charRidingHtml(id)}`}
       </div>
       <div class="cacts">${P ? `<button class="btn ghost" data-act="crest" data-v="short" data-id="${esc(id)}">Short rest</button><button class="btn ghost" data-act="crest" data-v="long" data-id="${esc(id)}">Long rest</button><button class="btn${E ? "" : " ghost"}" data-act="cedit">${E ? "Done editing" : "Edit sheet"}</button>` : ""}${!READONLY ? `<button class="btn ghost hidebtn${c.hidden ? " on" : ""}" data-act="togglecharhide" data-id="${esc(id)}" aria-pressed="${!!c.hidden}" title="${c.hidden ? "Players can't see this character" : "Players can see this character"}">${c.hidden ? "👁 Hidden from players" : "Hide from players"}</button>` : ""}</div>
     </header>`;
@@ -8383,6 +8394,106 @@ function vShiftKey(t) { if ((t.ref || "").startsWith("s:")) { const sm = vSummon
 function vFormSz(t, k) { const f = S.entries.get(k); return f ? vSizeOf(f) : (Number(t.formSz) || t.size || 1); }
 function vTokSz(t) { const k = vShiftKey(t); if (!k) return t.size || 1; const o = t.fsz && Number(t.fsz[k]); return o > 0 ? o : vFormSz(t, k); }
 function vSizePatch(id, v) { const t = S.vttTokens.get(id); if (!t) return; const k = vShiftKey(t); if (!k) return vPatch("vtttokens/" + id, { size: v }); return vPatch("vtttokens/" + id, { fsz: Object.assign({}, t.fsz || {}, { [k]: v }) }); }
+
+// ===== Mounts: a rider token (t.mount = the mount's token id) sits on its mount and moves with it =====
+// The rider's own x/y/fly/lvl are worked out from the mount whenever tokens change (vRidersFix), so every screen
+// draws it in the right place, and the GM's screen writes the worked-out spot back so the library stays in step.
+const VSZ = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"];
+function vSizeCat(t) {
+  const ref = t.ref || "", k = vShiftKey(t), f = k && S.entries.get(k), cs = e => typeof creatureSize === "function" ? creatureSize(e) : "", sub = x => typeof sizeFromSubtitle === "function" ? sizeFromSubtitle(x) : "";
+  let name = "";
+  if (f) name = cs(f);
+  else if (ref.startsWith("s:")) { const sm = vSummonOf(ref), e = sm && sm.ref && S.entries.get(sm.ref); name = (sm && sub((sm.sb || {}).subtitle)) || (e ? cs(e) : ""); }
+  else if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); name = e ? cs(e) : sub(t.npc && t.npc.sb && t.npc.sb.subtitle); }
+  else if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)), r = String((c && c.race) || "").trim().toLowerCase();
+    const re = r && [...S.entries.values()].find(e => e.type === "race" && String(e.title || "").toLowerCase() === r), srd = r && typeof SRD_RACE_DOCS !== "undefined" && SRD_RACE_DOCS.find(d => r.includes(String(d.title).toLowerCase()));
+    name = (re && re.race && re.race.size) || (srd && srd.race && srd.race.size) || (/halfling|gnome|goblin|kobold/.test(r) ? "Small" : ""); }
+  let i = VSZ.indexOf(String(name).split(/\s/)[0]); if (i < 0) i = 2;
+  const sq = vTokSz(t); if (sq >= 2) i = Math.max(i, Math.min(5, Math.floor(sq) + 1));
+  return i;
+}
+const vCanCarry = (rider, mount) => vSizeCat(mount) > vSizeCat(rider);
+const vRidersOf = (mid, toks) => (toks || [...S.vttTokens]).filter(([, q]) => q.mount === mid).sort((a, b) => a[0] < b[0] ? -1 : 1);
+const vTokName = t => t.name || "token";
+// Where each rider sits: one in the middle; more share the mount's back in a little grid.
+function vRiderSpots(m, riders) {
+  const ms = vTokSz(m), n = riders.length, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), cw = ms / cols, ch = ms / rows;
+  return riders.map(([id, r], i) => { const rs = vTokSz(r), cx = n === 1 ? ms / 2 : (i % cols + 0.5) * cw, cy = n === 1 ? ms / 2 : (Math.floor(i / cols) + 0.5) * ch; return [id, m.x + cx - rs / 2, m.y + cy - rs / 2]; });
+}
+VTT.riderSync = VTT.riderSync || {}; VTT.unmounting = VTT.unmounting || new Set();
+function vRidersFix() {
+  if (!S.vttTokens) return;
+  const all = [...S.vttTokens], gm = vCanEdit();
+  for (const [mid, m] of all) {
+    if (m.mount) continue;
+    const riders = vRidersOf(mid, all).filter(([, r]) => r.page === m.page); if (!riders.length) continue;
+    for (const [id, x, y] of vRiderSpots(m, riders)) {
+      const r = S.vttTokens.get(id), fly = Number(m.fly) || 0, lvl = m.lvl;
+      if (r.x === x && r.y === y && (Number(r.fly) || 0) === fly && (r.lvl || 0) === (lvl || 0)) continue;
+      S.vttTokens.set(id, Object.assign({}, r, { x, y, fly, lvl }));
+      if (gm) { clearTimeout(VTT.riderSync[id]); VTT.riderSync[id] = setTimeout(() => { const q = S.vttTokens.get(id); if (q && q.mount === mid) vPatch("vtttokens/" + id, { x: q.x, y: q.y, fly: Number(q.fly) || 0, lvl: q.lvl || 0 }); }, 400); }
+    }
+  }
+  if (gm) for (const [id, r] of all) if (r.mount) vRiderCheck(id, S.vttTokens.get(id));
+}
+// The GM's screen throws riders off: the mount gone or turned too small, the mount down or prone, the rider prone.
+function vRiderCheck(id, r) {
+  if (VTT.unmounting.has(id)) return;
+  const m = S.vttTokens.get(r.mount), prone = t => vTokConds(t).some(c => c.c === "prone" || c.c === "unconscious");
+  const hp = m && vBars(m).find(b => /^hp$/i.test(b.label)), down = m && (vDead(m) || (hp && Number(hp.max) > 0 && Number(hp.cur) <= 0));
+  let why = "";
+  if (!m || m.page !== r.page || m.mount) why = " ";
+  else if (down) why = `${vTokName(m)} dropped to 0 hit points: ${vTokName(r)} falls off. They can use their reaction to land on their feet; otherwise they land prone.`;
+  else if (prone(m)) why = `${vTokName(m)} was knocked prone: ${vTokName(r)} is thrown off. They can use their reaction to land on their feet; otherwise they land prone.`;
+  else if (prone(r)) why = `${vTokName(r)} was knocked prone and falls off ${vTokName(m)}.`;
+  else if (!r.mountForce && !vCanCarry(r, m)) why = `${vTokName(m)} is now too small to carry ${vTokName(r)}: they're thrown off.`;
+  if (!why) return;
+  VTT.unmounting.add(id); setTimeout(() => VTT.unmounting.delete(id), 3000);
+  if (why.trim()) toast(why);
+  vDismount(id);
+}
+// A free square beside the mount for someone getting off it.
+function vSpotBeside(m, r, skip) {
+  const cur = vPageNow(), W = cur ? cur.p.w : 999, H = cur ? cur.p.h : 999, s = vTokSz(r), ms = m ? vTokSz(m) : 1;
+  if (!m) return [Math.max(0, Math.min(W - s, Math.round(r.x))), Math.max(0, Math.min(H - s, Math.round(r.y)))];
+  const mx = Math.round(m.x), my = Math.round(m.y), toks = vTokens(r.page).filter(([id, o]) => !skip.has(id) && o.mount !== m.id);
+  const free = (x, y) => x >= 0 && y >= 0 && x + s <= W && y + s <= H && !toks.some(([, o]) => x < o.x + vTokSz(o) && x + s > o.x && y < o.y + vTokSz(o) && y + s > o.y);
+  for (let ring = 0; ring < 4; ring++) {
+    const spots = [];
+    for (let x = mx - s - ring; x <= mx + ms + ring; x++) for (let y = my - s - ring; y <= my + ms + ring; y++) {
+      const out = x + s <= mx || x >= mx + ms || y + s <= my || y >= my + ms; if (!out) continue;
+      spots.push([x, y, Math.hypot(x + s / 2 - (m.x + ms / 2), y + s / 2 - (m.y + ms / 2))]);
+    }
+    spots.sort((a, b) => a[2] - b[2] || a[1] - b[1] || a[0] - b[0]);
+    const f = spots.find(([x, y]) => free(x, y)); if (f) return [f[0], f[1]];
+  }
+  return [Math.max(0, Math.min(W - s, mx + ms)), Math.max(0, Math.min(H - s, my))];
+}
+function vDismount(id, at) {
+  const r = S.vttTokens.get(id); if (!r) return;
+  const m = r.mount && S.vttTokens.get(r.mount);
+  const [x, y] = at || vSpotBeside(m && m.page === r.page ? Object.assign({ id: r.mount }, m) : null, r, new Set([id]));
+  S.vttTokens.set(id, Object.assign({}, r, { mount: null, mountForce: null, x, y }));
+  vPatch("vtttokens/" + id, Object.assign({ mount: null, x, y }, vCanEdit() ? { mountForce: null } : {}));
+  vDraw(); vRefresh();
+}
+function vRideOn(id, mid) {
+  const r = S.vttTokens.get(id), m = S.vttTokens.get(mid); if (!r || !m || r.mount || m.mount || id === mid) return;
+  const gm = vCanEdit(); if (!(gm || (PLAYER && vPlayerTok(r)))) return;
+  const ok = vCanCarry(r, m); if (!ok && !gm) { toast(`${vTokName(m)} is too small to carry ${vTokName(r)}.`); return; }
+  vRidersOf(id).forEach(([q]) => vDismount(q)); // nobody rides a rider
+  const f = { mount: mid }; if (gm) f.mountForce = ok ? null : true;
+  S.vttTokens.set(id, Object.assign({}, r, f)); vPatch("vtttokens/" + id, f);
+  vRidersFix(); vDraw(); vRefresh();
+}
+// Which tokens this token could climb onto: overlapping it, on the same floor, and not riding anything themselves.
+function vMountCands(id, t, toks) {
+  const s = vTokSz(t), cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t), gm = vCanEdit();
+  // Only onto something bigger, or the same size if this is the token just dropped there (so two tokens sharing a square don't both ask).
+  return toks.filter(([mid, m]) => mid !== id && !m.mount && m.page === t.page && (gm || m.layer !== "gm") && vTokFloor(m) === lv && !vRidersOf(id, toks).length &&
+    (vTokSz(m) > s || (vTokSz(m) === s && VTT.lastDrop === id)) &&
+    cx >= m.x && cx <= m.x + vTokSz(m) && cy >= m.y && cy <= m.y + vTokSz(m)).sort((a, b) => vTokSz(b[1]) - vTokSz(a[1])).slice(0, 2);
+}
 function vSave(path, doc) { return safeWrite(() => S.db.doc(path).set(doc)); }
 function vPatch(path, fields) { return safeWrite(() => S.db.doc(path).update(fields)); }
 function vDel(path) { return safeWrite(() => S.db.doc(path).delete()); }
@@ -8503,6 +8614,7 @@ function vRefresh() { const s = document.getElementById("vside"); if (s && !(doc
 function vPageNow() { const root = document.querySelector(".vtt"); if (!root) return null; const pid = vCurrentPage(root.dataset.camp); return pid ? { id: pid, p: S.vttPages.get(pid) } : null; }
 function vDraw() {
   const cur = vPageNow(), stage = document.getElementById("vstage"); if (!cur || !stage || !cur.p) return;
+  vRidersFix();
   const p = cur.p, W = p.w * VCELL, H = p.h * VCELL, gm = vCanEdit(), toks = vTokens(cur.id);
   stage.style.width = W + "px"; stage.style.height = H + "px";
   vApplyView();
@@ -8521,7 +8633,7 @@ function vDraw() {
   const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${(p.areas || []).map(a => vAreaSvg(p, a, a.id === areaSel)).join("")}
     ${(p.walls || []).map((w, i) => `<line x1="${w[0] * VCELL}" y1="${w[1] * VCELL}" x2="${w[2] * VCELL}" y2="${w[3] * VCELL}" class="${i === wallSel ? "sel" : ""}${(w[4] || 0) !== VTT.lvl ? " otherlvl" : ""}${vLvlHid(w[4]) ? " lvlhid" : ""}${w[5] ? " " + w[5].k + (w[5].open ? " open" : "") + (w[5].secret ? " secret" : "") : ""}"/>`).join("")}
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
-  const visToks = toks.filter(([, t]) => t.layer !== "gm" || gm).sort((a, b) => (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
+  const visToks = toks.filter(([, t]) => t.layer !== "gm" || gm).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
   const prevPos = new Map(); stage.querySelectorAll(".vtok").forEach(e => { if (!e.classList.contains("dragging")) { const cs = getComputedStyle(e); prevPos.set(e.dataset.tid, [parseFloat(cs.left), parseFloat(cs.top), parseFloat(e.style.left), parseFloat(e.style.top), e.dataset.slideT]); } });
   stage.innerHTML = `<div class="vbg" style="background:${esc(p.bg || "#1b1f27")}"></div>
@@ -8715,7 +8827,7 @@ function vWire(view) {
   view.addEventListener("pointerdown", ev => {
     if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors")) return;
     const dm = ev.target.closest("button.vdoor"); if (dm) { ev.preventDefault(); ev.stopPropagation(); vDoorClick(dm.dataset.door); return; }
-    const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
+    const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); if (go.dataset.mount) vRideOn(go.dataset.tok, go.dataset.mount); else if (go.dataset.dismount) vDismount(go.dataset.tok); else vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
     view.focus({ preventScroll: true });
     ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), z: VTT.zoom }; drag = null; return; }
@@ -8744,7 +8856,10 @@ function vWire(view) {
       if (t && gm && VTT.multi.size > 1 && VTT.multi.has(tokEl.dataset.tid)) { const g = [...VTT.multi].map(id => [id, S.vttTokens.get(id)]).filter(([, q]) => q); document.querySelectorAll(".vtok.sel").forEach(e => e.classList.add("dragging")); drag = { kind: "group", g, sx: x, sy: y, moved: false }; view.setPointerCapture(ev.pointerId); return; }
       if (t && (layerOk(t.layer) || mine)) {
         VTT.multi.clear();
-        VTT.sel = { kind: "tok", id: tokEl.dataset.tid }; document.querySelectorAll(".vtok.sel,.vobj.sel").forEach(e => e.classList.remove("sel")); tokEl.classList.add("sel");
+        VTT.sel = { kind: "tok", id: tokEl.dataset.tid }; document.querySelectorAll(".vtok.sel,.vobj.sel").forEach(e => e.classList.remove("sel")); tokEl.classList.add("sel"); vGoRefresh();
+        // Grabbing a rider moves its mount (and so both) when you may move the mount; otherwise it pulls the rider off.
+        const mt = t.mount && S.vttTokens.get(t.mount), mEl = mt && document.querySelector(`.vtok[data-tid="${CSS.escape(t.mount)}"]`);
+        if (mt && mEl && ((gm && layerOk(mt.layer)) || (!gm && PLAYER && vPlayerTok(mt)))) { drag = { kind: "tok", id: t.mount, el: mEl, ox: x - mt.x, oy: y - mt.y, t: mt, moved: false, wps: [] }; VTT.tdrag = drag; mEl.classList.add("dragging"); tokEl.classList.add("dragging"); view.setPointerCapture(ev.pointerId); return; }
         drag = { kind: "tok", id: tokEl.dataset.tid, el: tokEl, ox: x - t.x, oy: y - t.y, t, moved: false, wps: [] }; VTT.tdrag = drag; tokEl.classList.add("dragging"); view.setPointerCapture(ev.pointerId);
         const s = document.getElementById("vside"); if (s) s.innerHTML = vSideHtml();
         return;
@@ -8769,7 +8884,7 @@ function vWire(view) {
       if (ar) { VTT.sel = { kind: "area", id: ar.id }; vRefresh(); return; }
     }
     if (gm && ev.shiftKey && (VTT.layer === "token" || VTT.layer === "gm")) { drag = { kind: "box", sx: x, sy: y, ex: x, ey: y }; view.setPointerCapture(ev.pointerId); return; }
-    if (VTT.sel || VTT.multi.size) { VTT.sel = null; VTT.multi.clear(); vRefresh(); }
+    if (VTT.sel || VTT.multi.size) { VTT.sel = null; VTT.multi.clear(); vRefresh(); vGoRefresh(); }
     pan();
   });
   view.addEventListener("pointermove", ev => {
@@ -8792,6 +8907,7 @@ function vWire(view) {
     if (drag.kind === "box") { drag.ex = x; drag.ey = y; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = `<rect class="vboxsel" x="${Math.min(drag.sx, x) * VCELL}" y="${Math.min(drag.sy, y) * VCELL}" width="${Math.abs(x - drag.sx) * VCELL}" height="${Math.abs(y - drag.sy) * VCELL}"/>`; return; }
     if (drag.kind === "group") { drag.moved = true; drag.dx = x - drag.sx; drag.dy = y - drag.sy; drag.g.forEach(([id, q]) => { const el = document.querySelector(`.vtok[data-tid="${CSS.escape(id)}"]`); if (el) { el.style.left = (q.x + drag.dx) * VCELL + "px"; el.style.top = (q.y + drag.dy) * VCELL + "px"; } }); return; }
     if (drag.kind === "tok") { drag.moved = true; drag.nx = x - drag.ox; drag.ny = y - drag.oy; drag.el.style.left = drag.nx * VCELL + "px"; drag.el.style.top = drag.ny * VCELL + "px";
+      vRiderSpots(Object.assign({}, drag.t, { x: drag.nx, y: drag.ny }), vRidersOf(drag.id)).forEach(([rid, rx, ry]) => { const re = document.querySelector(`.vtok[data-tid="${CSS.escape(rid)}"]`); if (re) { re.style.left = rx * VCELL + "px"; re.style.top = ry * VCELL + "px"; } });
       const free = ev.altKey !== vNoSnap(), sz = vTokSz(drag.t), snapX = free ? Math.round(drag.nx * 100) / 100 : Math.round(drag.nx), snapY = free ? Math.round(drag.ny * 100) / 100 : Math.round(drag.ny);
       drag.end = [snapX + sz / 2, snapY + sz / 2];
       // Right-click while dragging (pressed alongside the left button) drops a corner in the path.
@@ -8814,7 +8930,7 @@ function vWire(view) {
     if (d.kind === "wend") { vMeasDraw(); if (d.np) vWallMoveEnd(d.pt, d.np, d.lvl); return; }
     if (d.kind === "erase") return;
     if (d.kind === "box") { vMeasDraw(); const x1 = Math.min(d.sx, d.ex), x2 = Math.max(d.sx, d.ex), y1 = Math.min(d.sy, d.ey), y2 = Math.max(d.sy, d.ey), cur = vPageNow(); VTT.multi.clear(); if (cur) vTokens(cur.id).forEach(([id, t]) => { const s = vTokSz(t) / 2, cx = t.x + s, cy = t.y + s; if (t.layer === (VTT.layer === "gm" ? "gm" : "token") && !vLvlHid(t.lvl) && cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) VTT.multi.add(id); }); VTT.sel = VTT.multi.size === 1 ? { kind: "tok", id: [...VTT.multi][0] } : null; if (VTT.multi.size === 1) VTT.multi.clear(); vRefresh(); return; }
-    if (d.kind === "group") { document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging")); if (!d.moved) return; const snap = ev.altKey === vNoSnap(), dx = snap ? Math.round(d.dx) : d.dx, dy = snap ? Math.round(d.dy) : d.dy, cur = vPageNow(); d.g.forEach(([id, q]) => { const s = vTokSz(q), nx = Math.max(0, Math.min((cur ? cur.p.w : 999) - s, q.x + dx)), ny = Math.max(0, Math.min((cur ? cur.p.h : 999) - s, q.y + dy)); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny })); vPatch("vtttokens/" + id, { x: nx, y: ny }); }); vDraw(); return; }
+    if (d.kind === "group") { document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging")); if (!d.moved) return; const snap = ev.altKey === vNoSnap(), dx = snap ? Math.round(d.dx) : d.dx, dy = snap ? Math.round(d.dy) : d.dy, cur = vPageNow(); d.g.filter(([, q]) => !(q.mount && d.g.some(([gid]) => gid === q.mount))).forEach(([id, q]) => { const s = vTokSz(q), nx = Math.max(0, Math.min((cur ? cur.p.w : 999) - s, q.x + dx)), ny = Math.max(0, Math.min((cur ? cur.p.h : 999) - s, q.y + dy)); S.vttTokens.set(id, Object.assign({}, q, { x: nx, y: ny, mount: null })); vPatch("vtttokens/" + id, q.mount ? { x: nx, y: ny, mount: null } : { x: nx, y: ny }); }); vDraw(); return; }
     if (d.kind === "pan" && d.place) { vLightPlace(d.place[0], d.place[1]); return; }
     if (d.kind === "light") { if (d.moved) vLightSet(d.l.id, { x: d.nx, y: d.ny }); return; }
     VTT.tdrag = null; document.querySelectorAll(".vtok.dragging").forEach(e => e.classList.remove("dragging"));
@@ -8825,8 +8941,15 @@ function vWire(view) {
       let nx = snap ? Math.round(d.nx) : d.nx, ny = snap ? Math.round(d.ny) : d.ny;
       nx = Math.max(0, Math.min(cur.p.w - s, nx)); ny = Math.max(0, Math.min(cur.p.h - s, ny));
       d.el.style.left = nx * VCELL + "px"; d.el.style.top = ny * VCELL + "px";
+      if (d.t.mount) { // a rider dragged off its mount gets off there; dropped back on it, it stays on
+        const m = S.vttTokens.get(d.t.mount), ms = m ? vTokSz(m) : 0, cx = nx + s / 2, cy = ny + s / 2;
+        if (m && cx >= m.x && cx <= m.x + ms && cy >= m.y && cy <= m.y + ms) { vDraw(); return; }
+        vDismount(d.id, [nx, ny]); vFog(cur.id, cur.p, vTokens(cur.id)); return;
+      }
+      VTT.lastDrop = d.id;
       S.vttTokens.set(d.id, Object.assign({}, d.t, { x: nx, y: ny }));
       vPatch("vtttokens/" + d.id, { x: nx, y: ny });
+      if (vRidersOf(d.id).length) { vRidersFix(); vDraw(); }
       vFog(cur.id, cur.p, vTokens(cur.id));
     }
     if (d.kind === "obj" && d.moved) vObjSet(d.o.id, { x: d.nx, y: d.ny });
@@ -9069,6 +9192,7 @@ async function vttAction(a, el, ev) {
   if (a === "vttexfill") { const t = S.vttTokens.get(el.dataset.id), ex = vExOf(t); if (!ex) return;
     if (!vCanEdit() && !((t.ref || "").startsWith("s:") && PLAYER && vPlayerTok(t))) return;
     const max = ex.cur ? ex.max : ex.max + ex.rise; vExSave(el.dataset.id, t, { ex: max, exMax: max }); return; }
+  if (a === "vttdismount") { const r = S.vttTokens.get(el.dataset.id); if (r && (vCanEdit() || (PLAYER && vPlayerTok(r)))) vDismount(el.dataset.id); return; }
   if (a === "vttpfloor") { VTT.pfloor = el.dataset.v === "" ? null : Number(el.dataset.v); vDraw(); return; }
   if (/^vtt(newcamp|rencamp|delcamp)$/.test(a)) return vttCampAction(a, el);
   const root = document.querySelector(".vtt"), camp = root && root.dataset.camp;
@@ -9406,6 +9530,9 @@ function vTokSideHtml(id, t) {
   const pg = (vPageNow() || {}).p || {}, lv = vTokFloor(t);
   const lvlRow = vMaxLevel(pg) > 0 || vMinLevel(pg) < 0 || lv ? `<div class="vflyrow"><span>Standing on</span>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="-1" aria-label="Down a level"${lv > vMinLevel(pg) ? "" : " disabled"}>−</button>` : ""}<strong class="vlvlname">${esc(vLevelName(pg, lv))}</strong>${canFly ? `<button class="iconbtn" data-act="vttlvlup" data-v="1" aria-label="Up a level"${lv < vMaxLevel(pg) ? "" : " disabled"}>+</button>` : ""}</div>` : "";
   const flyRow = canFly || fly ? `<div class="vflyrow"><span>Flight band</span>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="-1" aria-label="Fly lower"${fly ? "" : " disabled"}>−</button>` : ""}<strong>${fly || "Ground"}</strong>${canFly ? `<button class="iconbtn" data-act="vttfly" data-v="1" aria-label="Fly higher">+</button>` : ""}</div>` : "";
+  const mt = t.mount && S.vttTokens.get(t.mount), riders = vRidersOf(id), canOff = r => gm || (PLAYER && vPlayerTok(r));
+  const mountRow = (mt ? `<div class="vflyrow vmountrow"><span>Riding</span><strong>🐎 ${esc(vTokName(mt))}</strong>${canFly ? `<button class="btn small ghost" data-act="vttdismount" data-id="${esc(id)}">⤵ Dismount</button>` : ""}</div>` : "")
+    + (riders.length ? `<div class="vflyrow vmountrow"><span>Carrying</span><span class="vriders">${riders.map(([rid, r]) => `<span>${esc(vTokName(r))}${canOff(r) ? ` <button class="btn small ghost" data-act="vttdismount" data-id="${esc(rid)}" title="${esc(vTokName(r))} gets off">⤵</button>` : ""}</span>`).join("")}</span></div>` : "");
   const head = `<div class="vshead"><div><h2>${esc(t.name || "Token")}</h2>${c ? `<p class="muted small">${esc(charSub(c))}</p>` : sm ? `<p class="muted small">${esc(sm.kind || "Summon")} · summoned by ${esc((S.chars.get(t.owner) || {}).name || "")}</p>` : e && e.statblock && e.statblock.subtitle ? `<p class="muted small">${esc(e.statblock.subtitle)}</p>` : ""}</div>
     ${gm ? `<button class="btn ghost small" data-act="vttopts" title="Name, size, layer, who controls it, who sees its bars">⚙ Options</button>` : ""}</div>`;
   let body = "";
@@ -9434,7 +9561,7 @@ function vTokSideHtml(id, t) {
   } else if (e) body = `<p><a href="#entry-${esc(t.ref.slice(2))}" target="_blank" rel="noopener">Open the entry ↗</a></p>`;
   else body = gm ? `<p class="muted small">A token with no library link. Use Options to set its name, size and HP.</p>` : "";
   const order = gm ? `<div class="vflyrow vorder"><span>Order</span><div class="seg"><button type="button" data-act="vtttokz" data-v="back" title="Send to the back ([ key twice)">⇊ Back</button><button type="button" data-act="vtttokz" data-v="down" title="Send backward ([)">↓</button><button type="button" data-act="vtttokz" data-v="up" title="Bring forward (])">↑</button><button type="button" data-act="vtttokz" data-v="front" title="Bring to the front">⇈ Front</button></div></div>` : "";
-  return head + barHtml + dmg + lvlRow + flyRow + order + vTokLightHtml(id, t, canFly) + vCondSideHtml(id, t, canFly) + (gm ? vInitTokBtn(id, t) : "") + body;
+  return head + barHtml + dmg + mountRow + (mt ? "" : lvlRow + flyRow) + order + vTokLightHtml(id, t, canFly) + vCondSideHtml(id, t, canFly) + (gm ? vInitTokBtn(id, t) : "") + body;
 }
 // Token options: everything about the token itself, in a pop-up so the side stays for the sheet.
 function vTokOptions(id) {
@@ -10272,15 +10399,23 @@ document.addEventListener("change", ev => {
   else if (f.dataset.lkn) vLinkSet(id, l => Object.assign(l, { [f.dataset.lkn]: Math.max(1, Math.round(Number(f.value) || 1)) }));
 });
 // The buttons that appear next to a token standing on stairs or a lift.
+// Selecting a token changes which buttons float by it (a rider's Dismount): redraw just those.
+function vGoRefresh() { const cur = vPageNow(), el = document.querySelector("#vstage .vgos"); if (cur && el) el.outerHTML = vGoHtml(cur.p, vTokens(cur.id)); }
 function vGoHtml(p, toks) {
-  const links = p.links || []; if (!links.length) return "";
+  const links = p.links || [];
   const gm = vCanEdit(), C = VCELL;
   return `<div class="vgos">${toks.map(([id, t]) => {
     if (!(gm || (PLAYER && vPlayerTok(t))) || (t.layer === "gm" && !gm)) return "";
     const s = vTokSz(t), cx = t.x + s / 2, cy = t.y + s / 2, lv = vTokFloor(t);
-    const l = links.find(k => cx >= k.x && cx <= k.x + k.w && cy >= k.y && cy <= k.y + k.h && (k.levels || []).includes(lv)); if (!l) return "";
-    const to = (l.levels || []).filter(n => n !== lv); if (!to.length) return "";
-    return `<div class="vgo" style="left:${(t.x + s) * C + 6}px;top:${t.y * C}px">${to.map(n => `<button data-tok="${esc(id)}" data-lvl="${n}" title="Move ${esc(t.name || "token")} to ${esc(vLevelName(p, n))}">${l.kind === "lift" ? "🛗" : n > lv ? "⬆" : "⬇"} ${esc(vLevelName(p, n))}</button>`).join("")}</div>`; }).join("")}</div>`;
+    let btns = "";
+    if (!t.mount) { const l = links.find(k => cx >= k.x && cx <= k.x + k.w && cy >= k.y && cy <= k.y + k.h && (k.levels || []).includes(lv)), to = l ? (l.levels || []).filter(n => n !== lv) : [];
+      btns += to.map(n => `<button data-tok="${esc(id)}" data-lvl="${n}" title="Move ${esc(t.name || "token")} to ${esc(vLevelName(p, n))}">${l.kind === "lift" ? "🛗" : n > lv ? "⬆" : "⬇"} ${esc(vLevelName(p, n))}</button>`).join("");
+      btns += vMountCands(id, t, toks).map(([mid, m]) => vCanCarry(t, m) ? `<button data-tok="${esc(id)}" data-mount="${esc(mid)}" title="${esc(vTokName(t))} climbs onto ${esc(vTokName(m))}">🐎 Mount ${esc(vTokName(m))}</button>`
+        : gm ? `<button class="vgowarn" data-tok="${esc(id)}" data-mount="${esc(mid)}" title="By the rules a mount is at least one size larger than its rider; you can still put ${esc(vTokName(t))} on it">🐎 Mount ${esc(vTokName(m))} ⚠</button>`
+        : `<span class="vgonote">${esc(vTokName(m))} is too small to carry you</span>`).join("");
+    } else if (VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) btns = `<button data-tok="${esc(id)}" data-dismount="1" title="${esc(vTokName(t))} gets off">⤵ Dismount</button>`;
+    if (!btns) return "";
+    return `<div class="vgo" style="left:${(t.x + s) * C + 6}px;top:${t.y * C}px">${btns}</div>`; }).join("")}</div>`;
 }
 function vGoLevel(id, n) {
   const t = S.vttTokens.get(id); if (!t || !(vCanEdit() || (PLAYER && vPlayerTok(t)))) return;

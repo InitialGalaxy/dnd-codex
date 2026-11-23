@@ -111,7 +111,13 @@ function playerTokenMove(p, doc) {
   const old = docs[p]; if (!old || !old.owner || old.layer === "gm" || !doc) return false;
   if (!docs["characters/" + old.owner] || docs["characters/" + old.owner].hidden) return false;
   const keys = new Set([...Object.keys(old), ...Object.keys(doc)]);
-  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  for (const k of keys) if (k !== "x" && k !== "y" && k !== "fly" && k !== "lvl" && k !== "conds" && k !== "light" && k !== "mount" && JSON.stringify(old[k]) !== JSON.stringify(doc[k])) return false;
+  // Climbing onto a mount: one the player can see, on this map, not riding anything itself, and nobody riding this token.
+  if (doc.mount != null && doc.mount !== old.mount) {
+    const id = p.slice(10), mp = "vtttokens/" + doc.mount, m = typeof doc.mount === "string" && doc.mount !== id && docs[mp];
+    if (!m || m.page !== old.page || m.layer === "gm" || m.mount || !playerSees(mp, m)) return false;
+    if (Object.entries(docs).some(([k, q]) => k.startsWith("vtttokens/") && q && q.mount === id)) return false;
+  }
   if (doc.conds !== undefined && !(Array.isArray(doc.conds) && doc.conds.length <= 200 && doc.conds.every(c => c && typeof c.c === "string" && c.c.length < 60 && Number.isFinite(c.n) && Object.keys(c).length <= 2))) return false;
   if (doc.light != null && !(typeof doc.light === "object" && JSON.stringify(doc.light).length < 300 && Number.isFinite(doc.light.bright) && Number.isFinite(doc.light.dim) && doc.light.bright <= 600 && doc.light.dim <= 600)) return false;
   return typeof doc.x === "number" && typeof doc.y === "number" && isFinite(doc.x) && isFinite(doc.y) && vttVisible(old.page);
@@ -475,6 +481,8 @@ async function handle(req, res) {
         if (typeof op.path !== "string" || !/^[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+$/.test(op.path)) continue;
         // Players may only touch characters they can see, and can't hide or unhide one.
         if (role !== "gm" && op.path.startsWith("vttpages/")) { const merged = playerDoorWrite(op.path, op.doc); if (!merged) { rejected.push(op.path); continue; } docs[op.path] = merged; broadcast({ path: op.path, doc: merged, from: body.from }); continue; }
+        // What the server adds to tokens for players (a form's size, an NPC's picture) comes back with their writes: drop it.
+        if (role !== "gm" && op.doc && op.path.startsWith("vtttokens/")) { op.doc = Object.assign({}, op.doc); delete op.doc.formSz; delete op.doc.npc; }
         if (role !== "gm" && (!playerMayWrite(op.path, op.doc) || (docs[op.path] && docs[op.path].hidden))) { rejected.push(op.path); continue; }
         if (role !== "gm" && op.doc) { op.doc = Object.assign({}, op.doc); delete op.doc.hidden; }
         if (op.doc && op.path.startsWith("vttlive/")) op.doc = Object.assign({}, op.doc, { _at: Date.now() });

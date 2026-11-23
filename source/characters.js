@@ -44,6 +44,13 @@ function hpBar(c) {
   const tone = pct > 50 ? "ok" : pct > 25 ? "warn" : "bad";
   return `<div class="hpbar ${tone}" role="img" aria-label="${cur} of ${max} hit points${temp ? `, ${temp} temporary` : ""}"><i style="width:${pct}%"></i>${temp ? `<b style="width:${Math.min(100, (temp / (max || 1)) * 100)}%"></b>` : ""}</div>`;
 }
+// On the tabletop this character (or one of its summons) may be riding something: say so on the sheet.
+function charRidingHtml(cid) {
+  if (!S.vttTokens) return "";
+  const out = [];
+  for (const [, t] of S.vttTokens) if (t.mount && (t.ref === "c:" + cid || String(t.ref || "").startsWith("s:" + cid + ":"))) { const m = S.vttTokens.get(t.mount); if (m) out.push(String(t.ref).startsWith("s:") ? `${esc(t.name || "Summon")} is riding ${esc(m.name || "a mount")}` : `Riding: ${esc(m.name || "a mount")}`); }
+  return out.length ? `<p class="small cride">🐎 ${[...new Set(out)].join(" · ")}</p>` : "";
+}
 function charSub(c) { const cl = String(c.classes || "").trim(), lv = c.level ? (cl && !/\d/.test(cl) ? cl + " " + c.level : cl || "Level " + c.level) : cl; return [c.race, lv, c.background].filter(Boolean).join(" · "); }
 // "Fighter 8" in the class box becomes class "Fighter" and level 8. Multiclass lines ("Fighter 5 / Wizard 3") are left alone.
 function splitClassLevel(c) {
@@ -92,7 +99,7 @@ function viewCharacter(id) {
           <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label><label class="grow"><span>Class</span>${cField("classes", c.classes, { ph: "Fighter" })}</label><label><span>Level</span>${cField("level", c.level, { num: 1 })}</label></div>
           <div class="frow"><label><span>Background</span>${cField("background", c.background)}</label><label><span>Alignment</span>${cField("alignment", c.alignment)}</label><label><span>XP</span>${cField("xp", c.xp)}</label></div>
           ${casterEditHtml(c)}`
-        : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}`}
+        : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}${charRidingHtml(id)}`}
       </div>
       <div class="cacts">${P ? `<button class="btn ghost" data-act="crest" data-v="short" data-id="${esc(id)}">Short rest</button><button class="btn ghost" data-act="crest" data-v="long" data-id="${esc(id)}">Long rest</button><button class="btn${E ? "" : " ghost"}" data-act="cedit">${E ? "Done editing" : "Edit sheet"}</button>` : ""}${!READONLY ? `<button class="btn ghost hidebtn${c.hidden ? " on" : ""}" data-act="togglecharhide" data-id="${esc(id)}" aria-pressed="${!!c.hidden}" title="${c.hidden ? "Players can't see this character" : "Players can see this character"}">${c.hidden ? "👁 Hidden from players" : "Hide from players"}</button>` : ""}</div>
     </header>`;

@@ -1877,6 +1877,10 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vgo { position: absolute; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
 .vgo button { display: flex; align-items: center; gap: 4px; font: 700 13px var(--ui); color: #1a1205; background: #e8c27a; border: 2px solid #1a1205; border-radius: 99px; padding: 4px 10px; cursor: pointer; white-space: nowrap; box-shadow: 0 3px 10px rgba(0,0,0,.5); }
 .vgo button:hover { background: #f2d36b; }
+.vgo button.vgowarn { background: #c9a36a; border-style: dashed; }
+.vgonote { font: 600 12px var(--ui); color: #f3e3c3; background: rgba(20,16,10,.85); border: 1px solid rgba(232,194,122,.5); border-radius: 99px; padding: 4px 10px; white-space: nowrap; }
+.vriders { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: flex-end; }
+.vriders > span { display: inline-flex; align-items: center; gap: 4px; }
 .vlinklv { display: flex; flex-direction: column; gap: 2px; }
 .vdoor, .vgo { --vs: var(--vinv, 1); } .vdoor { transform: translate(-50%, -50%) scale(var(--vs)); } .vgo { transform: scale(var(--vs)); transform-origin: left top; }
 .vac { position: absolute; left: -12px; top: 50%; transform: translateY(-50%); z-index: 2; width: 24px; height: 26px; display: grid; place-items: center; pointer-events: none; }
