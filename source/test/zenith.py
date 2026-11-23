@@ -1,0 +1,23 @@
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b=p.chromium.launch(executable_path='/usr/bin/google-chrome',args=['--no-sandbox']); errs=[]
+    G=b.new_page(viewport={'width':1440,'height':950}); G.on('pageerror',lambda e:errs.append(str(e)))
+    G.goto('http://localhost:3300/#entry-imagic-armour-zenith'); G.wait_for_timeout(1500)
+    before=G.evaluate("S.entries.get('imagic-armour-zenith').body.length"); print('category before', G.evaluate("JSON.stringify(S.entries.get('imagic-armour-zenith').item && S.entries.get('imagic-armour-zenith').item.category)"))
+    G.click('[data-act=edit]'); G.wait_for_timeout(600)
+    print('abilities before switching', G.locator('#itsections .sbrow, #itsections [data-sec]').count(), G.locator('#itsections').is_visible())
+    G.select_option('#it-cat','Land vehicle'); G.wait_for_timeout(300)
+    print('after switching: abilities visible', G.locator('#itsections').is_visible(), '| vehicle fields', G.locator('#it-vehicle').is_visible(), '| properties hidden', not G.locator('#it-props').is_visible(), '| magical', G.locator('#it-magical').is_visible(), '| rarity', G.locator('#ed-rarity').is_visible())
+    G.fill('#veh-size','2'); G.fill('#veh-hull','200'); G.fill('#veh-seats','1')
+    G.locator('#veh-speeds [data-vs=move]').first.fill('45'); G.locator('#veh-speeds [data-vs=travel]').first.fill('4')
+    G.click('[data-vehact=fuel][data-v=power]'); G.select_option('#veh-use','inefficient'); G.fill('#veh-amt','10')
+    G.locator('#itsections').scroll_into_view_if_needed(); G.screenshot(path='/tmp/zenith-ed.png')
+    G.click('form[data-form=entry] button[type=submit]'); G.wait_for_timeout(1000)
+    e=G.evaluate("(e=>({cat:e.item.category, veh:e.item.vehicle, len:e.body.length, jump:/Jump/.test(e.body)}))(S.entries.get('imagic-armour-zenith'))"); print('saved', e, 'body before', before)
+    G.screenshot(path='/tmp/zenith-page.png', full_page=False)
+    G.goto('http://localhost:3300/#vtt'); G.wait_for_timeout(1000)
+    G.click('[data-act=vttnewcamp]'); G.fill('#vaskv','Mech'); G.keyboard.press('Enter'); G.wait_for_timeout(1500)
+    G.click('[data-act=vtttokpick]'); G.wait_for_timeout(500); G.locator('.vtpick[data-name="Magic Armour: Zenith"]').click(); G.wait_for_timeout(900)
+    G.click('.vvehabil summary'); G.wait_for_timeout(300); print('panel abilities', G.locator('.vvehabil summary').inner_text(), '|', G.locator('.vabil').inner_text()[:120].replace('\n',' '))
+    G.screenshot(path='/tmp/zenith-vtt.png')
+    print('ERRORS', errs); b.close()

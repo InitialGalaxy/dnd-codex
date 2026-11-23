@@ -1907,7 +1907,8 @@ function harvestMode() {
   // A vehicle is a token on the tabletop: it gets the token pictures field, and not the item-only fields.
   const tf = $("#ed-toks") && $("#ed-toks").closest(".field"); if (tf) tf.hidden = !(($("#ed-type") || {}).value === "creature" || (veh && ($("#ed-type") || {}).value === "item"));
   const sd = $("#it-saddle"); if (sd) sd.hidden = !isSaddleCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
-  const fs = sel.closest("fieldset"); if (fs) fs.classList.toggle("hvmode", on || veh);
+  // A harvested part hides every item field; a vehicle keeps its abilities, magic, rarity and holder.
+  const fs = sel.closest("fieldset"); if (fs) { fs.classList.toggle("hvmode", on); fs.classList.toggle("vehmode", veh && !on); }
 }
 // Light: an equipped item that shines on the tabletop (a torch, a glowing sword).
 function itemLightFieldsHtml(it) {

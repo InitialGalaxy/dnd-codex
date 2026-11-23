@@ -1544,6 +1544,8 @@ input.smname:hover, input.smname:focus { border-color: rgba(255,255,255,.4); out
 #it-harvest[hidden] { display: none !important; }
 .hvmode .hvhide { display: none !important; }
 .frow[hidden], .field[hidden], .vehfields[hidden] { display: none !important; }
+.vehmode label:has(#it-base), .vehmode .field:has(#it-props), .vehmode .itchecks, .vehmode .itopt, .vehmode .statpanel { display: none !important; }
+.vvehabil { margin-top: 4px; } .vvehabil summary { cursor: pointer; font-weight: 600; font-size: .85rem; } .vvehabil .vabil { max-height: 40vh; overflow: auto; font-size: .85rem; padding-top: 4px; }
 .vehfields { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .vehspd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .vehspd label { display: inline-flex; align-items: center; gap: 6px; }
@@ -8624,7 +8626,15 @@ function vVehSideHtml(id, t, v, riders, gm) {
   const fuelLine = F.uses ? `${F.name}: ${f.amt} ${F.res ? esc(f.res.toLowerCase()) : "fuel"} ${f.use === "inefficient" ? "a round, on the pilot's turn" : "a square or hex"}` : `${F.name}: no fuel`;
   return `<div class="vvehinfo"><p class="small"><span class="muted">Speed</span> ${esc(vehSpeedText(v))}</p><p class="small"><span class="muted">Fuel</span> ${fuelLine}</p>
     ${riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
-    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}</div>`;
+    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}${vVehAbilHtml(t)}</div>`;
+}
+// The vehicle's abilities, from its item entry (players see them only if they can see the item).
+function vVehAbilHtml(t) {
+  const e = S.entries.get((t.ref || "").slice(2)); if (!e || e.type !== "item") return "";
+  const body = String(e.body || "").split(/\n\s*\n/).filter(p => !/^\*[^*][\s\S]*\*$/.test(p.trim()) || /^\*[^*]+?\.\*\s/.test(p.trim())).join("\n\n").trim();
+  if (!body) return "";
+  const n = (body.match(/\*\*\*[^*]+\.\*\*\*/g) || []).length;
+  return `<details class="vvehabil"><summary>Abilities${n ? ` (${n})` : ""}</summary><div class="vabil">${md(body, { entryId: t.ref.slice(2) })}</div></details>`;
 }
 document.addEventListener("change", ev => {
   const s = ev.target.matches && ev.target.matches(".vpilotsel") && ev.target; if (!s) return;
@@ -13127,7 +13137,8 @@ function harvestMode() {
   // A vehicle is a token on the tabletop: it gets the token pictures field, and not the item-only fields.
   const tf = $("#ed-toks") && $("#ed-toks").closest(".field"); if (tf) tf.hidden = !(($("#ed-type") || {}).value === "creature" || (veh && ($("#ed-type") || {}).value === "item"));
   const sd = $("#it-saddle"); if (sd) sd.hidden = !isSaddleCat(sel.value === "__other" ? ($("#it-catother") || {}).value : sel.value);
-  const fs = sel.closest("fieldset"); if (fs) fs.classList.toggle("hvmode", on || veh);
+  // A harvested part hides every item field; a vehicle keeps its abilities, magic, rarity and holder.
+  const fs = sel.closest("fieldset"); if (fs) { fs.classList.toggle("hvmode", on); fs.classList.toggle("vehmode", veh && !on); }
 }
 // Light: an equipped item that shines on the tabletop (a torch, a glowing sword).
 function itemLightFieldsHtml(it) {

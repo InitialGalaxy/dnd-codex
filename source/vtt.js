@@ -124,7 +124,15 @@ function vVehSideHtml(id, t, v, riders, gm) {
   const fuelLine = F.uses ? `${F.name}: ${f.amt} ${F.res ? esc(f.res.toLowerCase()) : "fuel"} ${f.use === "inefficient" ? "a round, on the pilot's turn" : "a square or hex"}` : `${F.name}: no fuel`;
   return `<div class="vvehinfo"><p class="small"><span class="muted">Speed</span> ${esc(vehSpeedText(v))}</p><p class="small"><span class="muted">Fuel</span> ${fuelLine}</p>
     ${riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
-    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}</div>`;
+    ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}${vVehAbilHtml(t)}</div>`;
+}
+// The vehicle's abilities, from its item entry (players see them only if they can see the item).
+function vVehAbilHtml(t) {
+  const e = S.entries.get((t.ref || "").slice(2)); if (!e || e.type !== "item") return "";
+  const body = String(e.body || "").split(/\n\s*\n/).filter(p => !/^\*[^*][\s\S]*\*$/.test(p.trim()) || /^\*[^*]+?\.\*\s/.test(p.trim())).join("\n\n").trim();
+  if (!body) return "";
+  const n = (body.match(/\*\*\*[^*]+\.\*\*\*/g) || []).length;
+  return `<details class="vvehabil"><summary>Abilities${n ? ` (${n})` : ""}</summary><div class="vabil">${md(body, { entryId: t.ref.slice(2) })}</div></details>`;
 }
 document.addEventListener("change", ev => {
   const s = ev.target.matches && ev.target.matches(".vpilotsel") && ev.target; if (!s) return;
