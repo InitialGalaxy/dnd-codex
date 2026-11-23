@@ -1558,6 +1558,15 @@ input.smname:hover, input.smname:focus { border-color: rgba(255,255,255,.4); out
 .vehfields input[type=number], .vehfields input[type=text], .vehfields select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font: inherit; }
 .vehspd label span { color: var(--muted); font-size: .82rem; }
 .vehfuel { margin-bottom: 4px; }
+.vehturnviz svg { display: block; max-width: 100%; height: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.vehturnviz .grid line { stroke: rgba(255,255,255,.08); stroke-width: 1; }
+.vehturnviz .ring { fill: none; stroke: rgba(242,211,107,.35); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.vehturnviz .path { fill: none; stroke: #5fd38a; stroke-width: 3; }
+.vehturnviz .hub { fill: #f2d36b; }
+.vehturnviz .veh { fill: rgba(201,162,74,.28); stroke: #c9a24a; stroke-width: 2; }
+.vehturnviz .veh.mid { fill: rgba(201,162,74,.1); stroke-dasharray: 4 4; }
+.vehturnviz .veh.end { fill: rgba(95,211,138,.22); stroke: #5fd38a; }
+.vehturnviz .veh.nose { stroke-width: 1; }
 .gargpick { min-width: 220px; } .gargpick[hidden] { display: none; }
 .gargslide { display: flex; align-items: center; gap: 8px; } .gargslide input { flex: 1; accent-color: var(--brass); }
 .gargcfg { margin-top: 10px; max-width: 420px; }

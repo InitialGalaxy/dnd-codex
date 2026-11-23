@@ -75,6 +75,7 @@ function vehFieldsHtml(e, cat) {
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Seats <small class="muted">riders, pilot included</small></span><input id="veh-seats" type="number" min="1" max="200" step="1" value="${v.seats}" style="width:110px"></label>
       <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"></label>
     </div>
+    <div class="vehcomplex vehturnviz" id="veh-turnviz"${v.cx === "complex" ? "" : ` style="display:none"`}>${vehTurnSvg(v.turn)}</div>
     <div class="field"><span class="flabel">Speeds <small class="muted">movement on the battle map, and travel speed for the 🧭 travel tool</small></span>
       <div id="veh-speeds">${v.speeds.map(vehSpeedRow).join("")}</div>
       <button type="button" class="btn ghost small" data-vehact="addspeed">+ Another way it moves</button></div>
@@ -90,6 +91,22 @@ function vehFieldsHtml(e, cat) {
       </div></div>
   </div>`;
 }
+// A picture of a 3 × 3 square vehicle making a quarter turn to the right with this turning circle (feet across), on a 5 ft grid.
+function vehTurnSvg(ft) {
+  ft = Math.max(0, Number(ft) || 0);
+  const R = ft / 10, W = 300, H = 220; // radius in squares
+  const x0 = -2.4, x1 = R + 2.4, y0 = -R - 2.4, y1 = 2.4, k = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
+  const X = x => (ox + x * k).toFixed(1), Y = y => (oy + y * k).toFixed(1);
+  let grid = ""; for (let gx = Math.ceil(x0); gx <= x1; gx++) grid += `<line x1="${X(gx)}" y1="${Y(y0)}" x2="${X(gx)}" y2="${Y(y1)}"/>`; for (let gy = Math.ceil(y0); gy <= y1; gy++) grid += `<line x1="${X(x0)}" y1="${Y(gy)}" x2="${X(x1)}" y2="${Y(gy)}"/>`;
+  // The vehicle at turned angle a (radians): its centre on the circle, its front turning from up to right.
+  const box = (a, cls) => { const cx = R ? R - R * Math.cos(a) : 0, cy = R ? -R * Math.sin(a) : 0, c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`;
+    return `<polygon class="${cls}" points="${[[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -2.3)} ${pt(-0.7, -1.5)} ${pt(0.7, -1.5)}"/>`; };
+  const arc = R ? `<circle class="ring" cx="${X(R)}" cy="${Y(0)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(0)},${Y(0)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(R)},${Y(-R)}"/><circle class="hub" cx="${X(R)}" cy="${Y(0)}" r="3"/>` : "";
+  const dist = Math.round(Math.PI * R / 2 * 5);
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="A 3 by 3 square vehicle turning right with a ${ft} foot turning circle"><g class="grid">${grid}</g>${arc}${box(0, "veh")}${box(Math.PI / 4, "veh mid")}${box(Math.PI / 2, "veh end")}</svg>
+    <p class="muted small">${R ? `A 3 × 3 vehicle turns a quarter circle in about ${dist} ft (grid squares are 5 ft).` : "It turns on the spot."}</p>`;
+}
+document.addEventListener("input", ev => { if (ev.target && ev.target.id === "veh-turn") { const box = document.getElementById("veh-turnviz"); if (box) box.innerHTML = vehTurnSvg(ev.target.value); } });
 function vehRead() {
   const val = id => (document.getElementById(id) || {}).value;
   const speeds = [...document.querySelectorAll("#veh-speeds .vehspd")].map(r => ({ mode: r.querySelector("[data-vs=mode]").value, move: Number(r.querySelector("[data-vs=move]").value) || 0, travel: Number(r.querySelector("[data-vs=travel]").value) || 0, omni: r.querySelector("[data-vs=omni]").checked, rev: r.querySelector("[data-vs=rev]").checked }));
