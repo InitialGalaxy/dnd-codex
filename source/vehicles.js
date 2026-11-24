@@ -95,7 +95,6 @@ function vehStatHtml(e) {
   return `<div class="istats vehstats">${stats.map(([l, x]) => `<div><span>${l}</span><strong>${x}</strong></div>`).join("")}</div>
     <div class="vehsect"><h3>The vehicle</h3><p class="vehsize">${esc(vehFt(sh.l))} long, ${esc(vehFt(sh.w))} wide${sh.decks && sh.decks.length > 1 ? ` · ${sh.decks.length} decks` : ""}</p>
       <div class="vehdecks">${decks}</div>
-      ${cx && id && !READONLY && !PLAYER ? `<p><button class="btn" data-act="vttvehmap" data-id="${esc(id)}">⛵ ${sh.decks && sh.decks.length || !sh.box ? "Edit the vehicle's map" : "Build the vehicle's map"}</button> <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></p>` : ""}</div>
     <div class="vehsect">${vehFuelHtml(v)}</div>
     ${cx ? `<div class="vehsect"><h3>Turning circle</h3><p>${v.turn ? `${v.turn} ft across.` : "It turns on the spot."}</p><div class="vehturnviz">${vehTurnSvg(v.turn, sh.w, sh.l, top ? { sh, pics: top.pics } : null)}</div></div>` : ""}`;
 }
@@ -120,6 +119,8 @@ function vehFieldsHtml(e, cat) {
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Seats <small class="muted">riders, pilot included</small></span><input id="veh-seats" type="number" min="1" max="200" step="1" value="${v.seats}" style="width:110px"></label>
       <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><span class="vehturnrow"><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"><button class="btn ghost small" type="button" data-vehact="autoturn" title="Pick a turning circle that suits the shape below: about as wide as the vehicle is long, ending squarely on the grid">Auto</button></span></label>
     </div>
+    <div class="vehcomplex vehmapbtn"${v.cx === "complex" ? "" : ` style="display:none"`}><button type="button" class="btn" data-vehact="map">⛵ ${v.page ? "Save, then edit the vehicle's map" : "Save, then build the vehicle's map"}</button>
+      <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></div>
     <div class="vehcomplex vehturnbox"${v.cx === "complex" ? "" : ` style="display:none"`}>
       <div class="vehturnsize"><span class="small muted">Shape in the diagram</span><label><span class="small">Width</span><input id="veh-tw" type="number" min="1" max="20" step="1" value="${v.tw}"></label><span class="muted">×</span><label><span class="small">Length</span><input id="veh-tl" type="number" min="1" max="20" step="1" value="${v.tl}"></label><span class="small muted">squares, front to back</span></div>
       <div class="vehturnviz" id="veh-turnviz">${vehTurnSvg(v.turn, v.tw, v.tl)}</div></div>
@@ -185,6 +186,11 @@ document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("[data-vehact]"); if (!b) return;
   const a = b.dataset.vehact;
   if (a === "addspeed") { const box = document.getElementById("veh-speeds"), used = [...box.querySelectorAll("[data-vs=mode]")].map(s => s.value), mode = Object.keys(VEH_MODES).find(m => !used.includes(m)) || "ground"; box.insertAdjacentHTML("beforeend", vehSpeedRow({ mode, move: 30, travel: 3 })); }
+  else if (a === "map") { // save the entry, then open its map in the vehicle workshop
+    const form = b.closest("form[data-form=entry]"); if (!form || typeof saveEntry !== "function") return;
+    if (!form.dataset.id) form.dataset.id = newId(); const id = form.dataset.id;
+    b.disabled = true; Promise.resolve(saveEntry(form)).then(() => { b.disabled = false; if (S.entries.get(id) && !document.querySelector("form[data-form=entry]")) vOpenWorkshop(id); }).catch(() => { b.disabled = false; });
+  }
   else if (a === "autoturn") { const v = id => (document.getElementById(id) || {}).value, t = document.getElementById("veh-turn"); if (t) { t.value = vehAutoTurn(v("veh-tw"), v("veh-tl")); t.dispatchEvent(new Event("input", { bubbles: true })); } }
   else if (a === "rmspeed") { const box = document.getElementById("veh-speeds"); if (box.querySelectorAll(".vehspd").length > 1) b.closest(".vehspd").remove(); else toast("A vehicle needs at least one way to move."); }
   else if (a === "cx") {

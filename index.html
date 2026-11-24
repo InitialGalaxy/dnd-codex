@@ -2232,6 +2232,12 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vehturnviz .veh.art { fill: none; } .vehturnviz .vehpic.mid { opacity: .35; } .vehturnviz .vehpic.end { opacity: .9; }
 .itempage .vehturnviz svg { background: #f6efdc; border-color: #c9b88f; } .itempage .vehturnviz .grid line { stroke: rgba(0,0,0,.12); }
 .itempage .vehturnviz .ring { stroke: rgba(138,42,28,.45); } .itempage .vehturnviz .hub { fill: #8a2a1c; }
+.vwsedge { position:absolute; display:flex; gap:4px; pointer-events:auto; z-index:45; transform:translate(-50%, -50%) scale(var(--vinv, 1)); }
+.vwsedge.top { transform:translate(-50%, -130%) scale(var(--vinv, 1)); transform-origin:50% 100%; } .vwsedge.bottom { transform:translate(-50%, 30%) scale(var(--vinv, 1)); transform-origin:50% 0; }
+.vwsedge.left { flex-direction:column; transform:translate(-130%, -50%) scale(var(--vinv, 1)); transform-origin:100% 50%; } .vwsedge.right { flex-direction:column; transform:translate(30%, -50%) scale(var(--vinv, 1)); transform-origin:0 50%; }
+.vwsedge button { width:30px; height:30px; border-radius:50%; border:2px solid var(--brass); background:var(--panel); color:var(--brass); font:700 1.1rem/1 var(--ui); cursor:pointer; padding:0; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+.vwsedge button:hover:not(:disabled) { background:var(--brass); color:#1a1408; } .vwsedge button:disabled { opacity:.35; cursor:default; }
+.vehmapbtn { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px 0 10px; }
 </style>
 </head>
 <body>
@@ -8605,7 +8611,6 @@ function vehStatHtml(e) {
   return `<div class="istats vehstats">${stats.map(([l, x]) => `<div><span>${l}</span><strong>${x}</strong></div>`).join("")}</div>
     <div class="vehsect"><h3>The vehicle</h3><p class="vehsize">${esc(vehFt(sh.l))} long, ${esc(vehFt(sh.w))} wide${sh.decks && sh.decks.length > 1 ? ` · ${sh.decks.length} decks` : ""}</p>
       <div class="vehdecks">${decks}</div>
-      ${cx && id && !READONLY && !PLAYER ? `<p><button class="btn" data-act="vttvehmap" data-id="${esc(id)}">⛵ ${sh.decks && sh.decks.length || !sh.box ? "Edit the vehicle's map" : "Build the vehicle's map"}</button> <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></p>` : ""}</div>
     <div class="vehsect">${vehFuelHtml(v)}</div>
     ${cx ? `<div class="vehsect"><h3>Turning circle</h3><p>${v.turn ? `${v.turn} ft across.` : "It turns on the spot."}</p><div class="vehturnviz">${vehTurnSvg(v.turn, sh.w, sh.l, top ? { sh, pics: top.pics } : null)}</div></div>` : ""}`;
 }
@@ -8630,6 +8635,8 @@ function vehFieldsHtml(e, cat) {
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Seats <small class="muted">riders, pilot included</small></span><input id="veh-seats" type="number" min="1" max="200" step="1" value="${v.seats}" style="width:110px"></label>
       <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><span class="vehturnrow"><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"><button class="btn ghost small" type="button" data-vehact="autoturn" title="Pick a turning circle that suits the shape below: about as wide as the vehicle is long, ending squarely on the grid">Auto</button></span></label>
     </div>
+    <div class="vehcomplex vehmapbtn"${v.cx === "complex" ? "" : ` style="display:none"`}><button type="button" class="btn" data-vehact="map">⛵ ${v.page ? "Save, then edit the vehicle's map" : "Save, then build the vehicle's map"}</button>
+      <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></div>
     <div class="vehcomplex vehturnbox"${v.cx === "complex" ? "" : ` style="display:none"`}>
       <div class="vehturnsize"><span class="small muted">Shape in the diagram</span><label><span class="small">Width</span><input id="veh-tw" type="number" min="1" max="20" step="1" value="${v.tw}"></label><span class="muted">×</span><label><span class="small">Length</span><input id="veh-tl" type="number" min="1" max="20" step="1" value="${v.tl}"></label><span class="small muted">squares, front to back</span></div>
       <div class="vehturnviz" id="veh-turnviz">${vehTurnSvg(v.turn, v.tw, v.tl)}</div></div>
@@ -8695,6 +8702,11 @@ document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("[data-vehact]"); if (!b) return;
   const a = b.dataset.vehact;
   if (a === "addspeed") { const box = document.getElementById("veh-speeds"), used = [...box.querySelectorAll("[data-vs=mode]")].map(s => s.value), mode = Object.keys(VEH_MODES).find(m => !used.includes(m)) || "ground"; box.insertAdjacentHTML("beforeend", vehSpeedRow({ mode, move: 30, travel: 3 })); }
+  else if (a === "map") { // save the entry, then open its map in the vehicle workshop
+    const form = b.closest("form[data-form=entry]"); if (!form || typeof saveEntry !== "function") return;
+    if (!form.dataset.id) form.dataset.id = newId(); const id = form.dataset.id;
+    b.disabled = true; Promise.resolve(saveEntry(form)).then(() => { b.disabled = false; if (S.entries.get(id) && !document.querySelector("form[data-form=entry]")) vOpenWorkshop(id); }).catch(() => { b.disabled = false; });
+  }
   else if (a === "autoturn") { const v = id => (document.getElementById(id) || {}).value, t = document.getElementById("veh-turn"); if (t) { t.value = vehAutoTurn(v("veh-tw"), v("veh-tl")); t.dispatchEvent(new Event("input", { bubbles: true })); } }
   else if (a === "rmspeed") { const box = document.getElementById("veh-speeds"); if (box.querySelectorAll(".vehspd").length > 1) b.closest(".vehspd").remove(); else toast("A vehicle needs at least one way to move."); }
   else if (a === "cx") {
@@ -9268,7 +9280,8 @@ function vApplyView() { const st = document.getElementById("vstage"); if (st) { 
 function vFit() {
   const cur = vPageNow(), view = document.getElementById("vview"); if (!cur || !view) return;
   const W = cur.p.w * VCELL, H = cur.p.h * VCELL, r = view.getBoundingClientRect();
-  VTT.zoom = Math.max(0.1, Math.min(2, Math.min((r.width - 40) / W, (r.height - 40) / H)));
+  const m = cur.p.vehicle && vCanEdit() ? 180 : 40; // a vehicle's map leaves room round it for the +/− on each side
+  VTT.zoom = Math.max(0.1, Math.min(2, Math.min((r.width - m) / W, (r.height - m) / H)));
   VTT.panX = (r.width - W * VTT.zoom) / 2; VTT.panY = (r.height - H * VTT.zoom) / 2; vApplyView();
 }
 function vZoomAt(f, cx, cy) {
@@ -9443,7 +9456,7 @@ function vWire(view) {
   const ptrs = new Map(); let drag = null, pinch = null;
   view.addEventListener("wheel", ev => { ev.preventDefault(); const r = view.getBoundingClientRect(); vZoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
   view.addEventListener("pointerdown", ev => {
-    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors,.vdecktabs")) return;
+    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors,.vdecktabs,.vwsedge")) return;
     const dm = ev.target.closest("button.vdoor"); if (dm) { ev.preventDefault(); ev.stopPropagation(); vDoorClick(dm.dataset.door); return; }
     const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); if (go.dataset.deck != null) vShipGoDeck(go.dataset.tok, Number(go.dataset.deck)); else if (go.dataset.mount) vRideOn(go.dataset.tok, go.dataset.mount); else if (go.dataset.dismount) vDismount(go.dataset.tok); else vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
     view.focus({ preventScroll: true });
@@ -12107,6 +12120,16 @@ function vWorkshopClick(cur, x, y, ev) {
   vPatch("vttpages/" + cur.id, { com });
 }
 // In the workshop: the helm squares, the centre of mass and an arrow for which way is the front.
+// ----- The workshop's +/− on each edge: grow or shrink the vehicle's map a row of squares at a time on that side -----
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest && ev.target.closest("[data-act=vttwsedge]"); if (!b || !vCanEdit()) return;
+  ev.preventDefault(); const cur = vPageNow(); if (!cur || !cur.p.vehicle) return;
+  const p = cur.p, d = Number(b.dataset.d), side = b.dataset.side; let dx = 0, dy = 0, W = p.w, H = p.h;
+  if (side === "left") { dx = d; W += d; } else if (side === "right") W += d; else if (side === "top") { dy = d; H += d; } else H += d;
+  if (W < 1 || H < 1 || W > 200 || H > 200) return;
+  await vUndoStep(() => vTransformPage(cur.id, 1, dx, dy, W, H), "resizing the vehicle's map");
+  if (dx || dy) { VTT.panX -= dx * VCELL * VTT.zoom; VTT.panY -= dy * VCELL * VTT.zoom; vApplyView(); } // the pictures stay put on screen; the edge moves
+});
 // ----- Deck squares: which squares of each deck are really the vehicle (the rest, like a picture's empty corners, aren't) -----
 const vDeckSqDecks = (p) => VTT.decksqAll !== false ? vLevelList(p) : [VTT.lvl || 0];
 function vDeckSqStart(ev, cur, x, y) {
@@ -12151,7 +12174,9 @@ function vWorkshopHtml(p) {
   if (!p.vehicle) return "";
   const C = VCELL, com = Array.isArray(p.com) ? p.com : [p.w / 2, p.h / 2], f = (Number(p.front) || 0) * Math.PI / 180, L = Math.max(1.5, Math.min(p.w, p.h) / 3);
   const offD = ((p.off || {})[VTT.lvl || 0] || []).map(k => k.split(",").map(Number)).map(([a, b]) => `M${a * C} ${b * C}h${C}v${C}h${-C}z`).join("");
-  return `<div class="vlayer vworkshop">${offD ? `<svg class="vwsoff" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><pattern id="vwsoffp" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="rgba(10,12,18,.55)"/><line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,90,90,.6)" stroke-width="3"/></pattern></defs><path d="${offD}" fill="url(#vwsoffp)" stroke="rgba(255,90,90,.7)" stroke-width="1"/></svg>` : ""}${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
+  const edge = (side, x, y) => `<div class="vwsedge ${side}" style="left:${x}px;top:${y}px"><button data-act="vttwsedge" data-side="${side}" data-d="1" title="Add a row of squares on this side">+</button><button data-act="vttwsedge" data-side="${side}" data-d="-1" title="Take a row of squares off this side"${(side === "left" || side === "right" ? p.w : p.h) <= 1 ? " disabled" : ""}>−</button></div>`;
+  const edges = vCanEdit() && !VTT.preview ? edge("top", p.w * C / 2, 0) + edge("bottom", p.w * C / 2, p.h * C) + edge("left", 0, p.h * C / 2) + edge("right", p.w * C, p.h * C / 2) : "";
+  return `<div class="vlayer vworkshop">${edges}${offD ? `<svg class="vwsoff" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><pattern id="vwsoffp" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="rgba(10,12,18,.55)"/><line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,90,90,.6)" stroke-width="3"/></pattern></defs><path d="${offD}" fill="url(#vwsoffp)" stroke="rgba(255,90,90,.7)" stroke-width="1"/></svg>` : ""}${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
     <svg class="vwsfront" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><marker id="vwsarrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#f2d36b"/></marker></defs>
       <line x1="${com[0] * C}" y1="${com[1] * C}" x2="${(com[0] + Math.cos(f) * L) * C}" y2="${(com[1] + Math.sin(f) * L) * C}" stroke="#f2d36b" stroke-width="3" marker-end="url(#vwsarrow)"/></svg>
     <div class="vscom ws" style="left:${com[0] * C}px;top:${com[1] * C}px" title="Centre of mass: the vehicle turns around this"></div></div>`;

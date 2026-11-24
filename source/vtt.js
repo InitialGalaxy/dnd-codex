@@ -545,7 +545,8 @@ function vApplyView() { const st = document.getElementById("vstage"); if (st) { 
 function vFit() {
   const cur = vPageNow(), view = document.getElementById("vview"); if (!cur || !view) return;
   const W = cur.p.w * VCELL, H = cur.p.h * VCELL, r = view.getBoundingClientRect();
-  VTT.zoom = Math.max(0.1, Math.min(2, Math.min((r.width - 40) / W, (r.height - 40) / H)));
+  const m = cur.p.vehicle && vCanEdit() ? 180 : 40; // a vehicle's map leaves room round it for the +/− on each side
+  VTT.zoom = Math.max(0.1, Math.min(2, Math.min((r.width - m) / W, (r.height - m) / H)));
   VTT.panX = (r.width - W * VTT.zoom) / 2; VTT.panY = (r.height - H * VTT.zoom) / 2; vApplyView();
 }
 function vZoomAt(f, cx, cy) {
@@ -720,7 +721,7 @@ function vWire(view) {
   const ptrs = new Map(); let drag = null, pinch = null;
   view.addEventListener("wheel", ev => { ev.preventDefault(); const r = view.getBoundingClientRect(); vZoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
   view.addEventListener("pointerdown", ev => {
-    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors,.vdecktabs")) return;
+    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors,.vdecktabs,.vwsedge")) return;
     const dm = ev.target.closest("button.vdoor"); if (dm) { ev.preventDefault(); ev.stopPropagation(); vDoorClick(dm.dataset.door); return; }
     const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); if (go.dataset.deck != null) vShipGoDeck(go.dataset.tok, Number(go.dataset.deck)); else if (go.dataset.mount) vRideOn(go.dataset.tok, go.dataset.mount); else if (go.dataset.dismount) vDismount(go.dataset.tok); else vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
     view.focus({ preventScroll: true });

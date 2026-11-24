@@ -413,6 +413,16 @@ function vWorkshopClick(cur, x, y, ev) {
   vPatch("vttpages/" + cur.id, { com });
 }
 // In the workshop: the helm squares, the centre of mass and an arrow for which way is the front.
+// ----- The workshop's +/− on each edge: grow or shrink the vehicle's map a row of squares at a time on that side -----
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest && ev.target.closest("[data-act=vttwsedge]"); if (!b || !vCanEdit()) return;
+  ev.preventDefault(); const cur = vPageNow(); if (!cur || !cur.p.vehicle) return;
+  const p = cur.p, d = Number(b.dataset.d), side = b.dataset.side; let dx = 0, dy = 0, W = p.w, H = p.h;
+  if (side === "left") { dx = d; W += d; } else if (side === "right") W += d; else if (side === "top") { dy = d; H += d; } else H += d;
+  if (W < 1 || H < 1 || W > 200 || H > 200) return;
+  await vUndoStep(() => vTransformPage(cur.id, 1, dx, dy, W, H), "resizing the vehicle's map");
+  if (dx || dy) { VTT.panX -= dx * VCELL * VTT.zoom; VTT.panY -= dy * VCELL * VTT.zoom; vApplyView(); } // the pictures stay put on screen; the edge moves
+});
 // ----- Deck squares: which squares of each deck are really the vehicle (the rest, like a picture's empty corners, aren't) -----
 const vDeckSqDecks = (p) => VTT.decksqAll !== false ? vLevelList(p) : [VTT.lvl || 0];
 function vDeckSqStart(ev, cur, x, y) {
@@ -457,7 +467,9 @@ function vWorkshopHtml(p) {
   if (!p.vehicle) return "";
   const C = VCELL, com = Array.isArray(p.com) ? p.com : [p.w / 2, p.h / 2], f = (Number(p.front) || 0) * Math.PI / 180, L = Math.max(1.5, Math.min(p.w, p.h) / 3);
   const offD = ((p.off || {})[VTT.lvl || 0] || []).map(k => k.split(",").map(Number)).map(([a, b]) => `M${a * C} ${b * C}h${C}v${C}h${-C}z`).join("");
-  return `<div class="vlayer vworkshop">${offD ? `<svg class="vwsoff" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><pattern id="vwsoffp" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="rgba(10,12,18,.55)"/><line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,90,90,.6)" stroke-width="3"/></pattern></defs><path d="${offD}" fill="url(#vwsoffp)" stroke="rgba(255,90,90,.7)" stroke-width="1"/></svg>` : ""}${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
+  const edge = (side, x, y) => `<div class="vwsedge ${side}" style="left:${x}px;top:${y}px"><button data-act="vttwsedge" data-side="${side}" data-d="1" title="Add a row of squares on this side">+</button><button data-act="vttwsedge" data-side="${side}" data-d="-1" title="Take a row of squares off this side"${(side === "left" || side === "right" ? p.w : p.h) <= 1 ? " disabled" : ""}>−</button></div>`;
+  const edges = vCanEdit() && !VTT.preview ? edge("top", p.w * C / 2, 0) + edge("bottom", p.w * C / 2, p.h * C) + edge("left", 0, p.h * C / 2) + edge("right", p.w * C, p.h * C / 2) : "";
+  return `<div class="vlayer vworkshop">${edges}${offD ? `<svg class="vwsoff" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><pattern id="vwsoffp" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="rgba(10,12,18,.55)"/><line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,90,90,.6)" stroke-width="3"/></pattern></defs><path d="${offD}" fill="url(#vwsoffp)" stroke="rgba(255,90,90,.7)" stroke-width="1"/></svg>` : ""}${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
     <svg class="vwsfront" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><marker id="vwsarrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#f2d36b"/></marker></defs>
       <line x1="${com[0] * C}" y1="${com[1] * C}" x2="${(com[0] + Math.cos(f) * L) * C}" y2="${(com[1] + Math.sin(f) * L) * C}" stroke="#f2d36b" stroke-width="3" marker-end="url(#vwsarrow)"/></svg>
     <div class="vscom ws" style="left:${com[0] * C}px;top:${com[1] * C}px" title="Centre of mass: the vehicle turns around this"></div></div>`;
