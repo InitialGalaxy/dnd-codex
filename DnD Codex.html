@@ -2178,6 +2178,8 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vtacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .vtempty { padding: 6px !important; }
 .vlvlname { min-width: 6em !important; color: #e8c27a !important; font-size: .82rem; }
+.vscale { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px 10px; padding:8px 10px; border:1px solid var(--line, #333); border-radius:8px; margin:6px 0 }
+.vscale label { display:flex; flex-direction:column; } .vscale label input { width:6em } .vscale small { flex-basis:100% }
 </style>
 </head>
 <body>
@@ -9659,6 +9661,28 @@ function vPlaceToken(ref, name, img) {
   vSave("vtttokens/" + id, { page: cur.id, layer: VTT.layer === "gm" ? "gm" : "token", x, y, size, img: img || "", name, ref, owner, hp: hpMax, hpMax, created: new Date().toISOString(), ...extra });
 }
 
+// Scale a whole page by k: everything on it, plus tokens standing on it (and, for a vehicle's map, tokens aboard that vehicle).
+async function vScalePage(pid, k) {
+  const p = S.vttPages.get(pid); if (!p) return;
+  const r = v => Math.round(v * k * 1000) / 1000, cell = v => Math.floor(v * k + 1e-6);
+  const cells = list => { const out = new Map(); (list || []).forEach(([x, y]) => { const x0 = cell(x), y0 = cell(y), x1 = Math.max(x0, Math.ceil((x + 1) * k - 1e-6) - 1), y1 = Math.max(y0, Math.ceil((y + 1) * k - 1e-6) - 1); for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) out.set(a + "," + b, [a, b]); }); return [...out.values()]; };
+  const f = { w: Math.max(1, Math.ceil(p.w * k - 1e-6)), h: Math.max(1, Math.ceil(p.h * k - 1e-6)),
+    objs: (p.objs || []).map(o => Object.assign({}, o, { x: r(o.x), y: r(o.y), w: r(o.w), h: r(o.h) })),
+    walls: (p.walls || []).map(w => [r(w[0]), r(w[1]), r(w[2]), r(w[3])].concat(w.slice(4))),
+    areas: (p.areas || []).map(a => Object.assign({}, a, a.cells ? { cells: cells(a.cells) } : {}, a.pts ? { pts: a.pts.map(q => [r(q[0]), r(q[1])]) } : {})),
+    links: (p.links || []).map(l => { const x = cell(l.x), y = cell(l.y); return Object.assign({}, l, { x, y, w: Math.max(1, Math.round((l.x + l.w) * k) - x), h: Math.max(1, Math.round((l.y + l.h) * k) - y) }); }),
+    lights: (p.lights || []).map(l => Object.assign({}, l, { x: r(l.x), y: r(l.y) })) };
+  if (p.vehicle) { const hm = new Map(); (p.helm || []).forEach(h => { const x = cell(h[0]), y = cell(h[1]), d = h[2] || 0; hm.set(x + "," + y + "," + d, [x, y, d]); }); f.helm = [...hm.values()];
+    f.com = Array.isArray(p.com) ? [r(p.com[0]), r(p.com[1])] : [f.w / 2, f.h / 2]; }
+  await vPatch("vttpages/" + pid, f);
+  const sz = t => vTokSz(t), hex = !!vHexOf(p), snap = (v, h) => h ? v : Math.round(v); // tokens land back on a square
+  for (const [id, t] of [...S.vttTokens]) {
+    if (t.page === pid && !t.ship && !vIsShip(t)) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { x: snap(r(t.x + s) - s, hex), y: snap(r(t.y + s) - s, hex) }); }
+    if (p.vehicle && t.ship) { const sh = S.vttTokens.get(t.ship); if (vIsShip(sh) && sh.ref === "e:" + p.vehicle && t.sx != null) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { sx: snap(r(t.sx + s) - s), sy: snap(r(t.sy + s) - s) }); } }
+  }
+  for (const [id, d] of [...(S.vttDraw || new Map())]) if (d.page === pid && Array.isArray(d.pts)) await vPatch("vttdraw/" + id, { pts: d.pts.map(q => [r(q[0]), r(q[1])]) }).catch(() => {});
+  if (p.fogMem !== false && !p.vehicle) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + pid).catch(() => {}); }
+}
 // ----- Page settings -----
 function vSettings() {
   const cur = vPageNow(); if (!cur) return;
@@ -9666,6 +9690,8 @@ function vSettings() {
   openModal(`<h2>Page settings</h2><form class="vset">
     <label><span>Name</span><input id="vs-name" type="text" value="${esc(p.name || "")}"></label>
     <div class="frow tight"><label><span>Width (squares)</span><input id="vs-w" type="number" min="1" max="200" value="${p.w}"></label><label><span>Height (squares)</span><input id="vs-h" type="number" min="1" max="200" value="${p.h}"></label><label><span>Background</span><input id="vs-bg" type="color" value="${esc(p.bg || "#1b1f27")}"></label></div>
+    <div class="vscale"><label><span>Scale everything</span><input id="vs-k" type="number" min="10" max="400" step="5" value="100"> %</label><span class="muted small" id="vs-kout"></span><button class="btn ghost small" type="button" id="vs-kgo">Scale</button>
+      <small class="muted">Shrinks or grows the whole map: pictures, walls, doors, raised squares, stairs, lights${p.vehicle ? ", the helm and centre of mass" : ""} and where tokens stand. Tokens keep their own size.</small></div>
     <label><span>Folder</span><select id="vs-folder"><option value="">(top level)</option>${vFolders(S.vttCamps.get(p.camp)).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(S.vttCamps.get(p.camp), f.parent) + f.name)}</option>`).join("")}</select></label>
     <label class="check"><input id="vs-open" type="checkbox"${p.open ? " checked" : ""}> Players can switch to this map themselves <small class="muted">it appears in their map list, like a base they can teleport to</small></label>
     <label class="check"><input id="vs-grid" type="checkbox"${p.grid !== false ? " checked" : ""}> Show the grid</label>
@@ -9678,6 +9704,9 @@ function vSettings() {
       vPatch("vttpages/" + cur.id, { name: m.querySelector("#vs-name").value.trim() || "Page", w: n("#vs-w", 1, 200, 15), h: n("#vs-h", 1, 200, 15), bg: m.querySelector("#vs-bg").value, grid: m.querySelector("#vs-grid").checked, light: m.querySelector("#vs-light").checked, fogMem: m.querySelector("#vs-mem").checked, folder: m.querySelector("#vs-folder").value, open: m.querySelector("#vs-open").checked });
       VTT.fitDone = ""; closeModal();
     };
+    const kIn = m.querySelector("#vs-k"), kOut = m.querySelector("#vs-kout"), kVal = () => Math.max(0.1, Math.min(4, (Number(kIn.value) || 100) / 100));
+    const kShow = () => { const k = kVal(); kOut.textContent = `${p.w} × ${p.h} → ${Math.max(1, Math.ceil(p.w * k - 1e-6))} × ${Math.max(1, Math.ceil(p.h * k - 1e-6))} squares`; }; kIn.oninput = kShow; kShow();
+    m.querySelector("#vs-kgo").onclick = async () => { const k = kVal(); if (Math.abs(k - 1) < 1e-6) return; closeModal(); await vUndoStep(() => vScalePage(cur.id, k), "scaling the map"); VTT.fitDone = ""; toast(`Scaled to ${Math.round(k * 100)}%. Undo puts it back.`); };
     m.querySelector("#vs-fog").onclick = async () => { closeModal(); if (await confirmBox("Forget everything the players' tokens have explored on this page?", "Reset")) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + cur.id).catch(() => {}); vDraw(); } };
     m.querySelector("#vs-walls").onclick = async () => { closeModal(); if (await confirmBox(`Remove all ${(p.walls || []).length} walls from this page?`, "Remove walls")) vPatch("vttpages/" + cur.id, { walls: [] }); };
     m.querySelector("#vs-del").onclick = async () => {
