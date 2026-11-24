@@ -509,7 +509,7 @@ function vDraw() {
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
   const pt = document.getElementById("vptools"); if (pt) pt.innerHTML = vMeasToolsHtml(false);
-  vInitDraw();
+  vInitDraw(); vTurnFollow(cur, p, toks);
   const hint = document.getElementById("vhint");
   if (hint) hint.textContent = VTT.tool === "measure" ? "Drag to measure · Esc to clear" : gm ? (VTT.tool === "wall" ? (VTT.draft ? "Click to add points · double-click or Enter to finish · Esc to cancel" : "Click to start a wall") : VTT.tool === "area" ? `Drag over squares that are up on ${vLevelName(p, VTT.lvl || 1)} · hold Alt to remove squares` : VTT.tool === "link" ? "Drag over the squares for stairs or a lift" : VTT.layer === "walls" ? "Select a wall to delete it, or pick the wall tool to draw" : "") : (p.light ? "" : "");
 }
@@ -1857,6 +1857,24 @@ function vInitDraw(force) {
     ${gm ? `<div class="vtacts"><button class="btn ghost small" data-act="vttinitparty" title="Roll for every player-controlled token on this map">+ Party</button><button class="btn ghost small" data-act="vttinitgm" title="One turn for all the monsters you run together">+ GM turn</button>${I.round ? `<button class="btn ghost small" data-act="vttinitend">End combat</button>` : ""}<button class="btn ghost small danger" data-act="vttinitclear">Clear</button></div>` : ""}`}`;
 }
 
+
+// When the turn passes to a token, this screen flips to where it stands: its deck if it's aboard a ship (only that ship's
+// picker changes), otherwise its floor of the building. Players only flip to a deck or floor one of the party is on.
+function vTurnFollow(cur, p, toks) {
+  const camp = vCampId(); if (!camp || !S.vttCamps.get(camp)) return;
+  const I = vInitOf(camp), key = camp + "|" + I.round + "|" + I.cur; if (VTT.turnKey === key) return; VTT.turnKey = key;
+  const e = I.round && I.list.find(x => x.id === I.cur), id = e && e.tok, t = id && S.vttTokens.get(id); if (!t || t.page !== cur.id) return;
+  const gm = vCanEdit() && !VTT.preview;
+  if (t.ship && vIsShip(S.vttTokens.get(t.ship))) {
+    const d = Number(t.deck) || 0; if (!gm && !vShipPlayerDecks(t.ship).has(d)) return;
+    VTT.shipView = VTT.shipView || {}; if (VTT.shipView[t.ship] === d) return; VTT.shipView[t.ship] = d;
+  } else {
+    const n = vTokFloor(t);
+    if (gm) { if (vMinLevel(p) === vMaxLevel(p) || (VTT.lvl === n && (!VTT.lvlShow || (VTT.lvlShow.size === 1 && VTT.lvlShow.has(n))))) return; VTT.lvl = n; if (VTT.lvlShow) VTT.lvlShow = new Set([n]); const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); }
+    else { if (VTT.pfloor === n || !toks.some(([, q]) => vPlayerTok(q) && !q.ship && vTokFloor(q) === n)) return; VTT.pfloor = n; }
+  }
+  setTimeout(() => { vDraw(); const s = document.getElementById("vside"); if (s) s.innerHTML = vSideHtml(); }, 0);
+}
 
 // ===== Shared measurements and pings =====
 // Each device keeps one doc, vttlive/<device id>: { page, who, col, gm, meas, ping: { x, y, t, pull } }.

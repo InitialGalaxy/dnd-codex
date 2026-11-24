@@ -112,8 +112,9 @@ function vShipVis(id) {
   let pick = VTT.shipView && VTT.shipView[id] != null ? VTT.shipView[id] : null;
   if (pick != null && (!decks.includes(pick) || (!gm && !party.has(pick)))) { delete VTT.shipView[id]; pick = null; }
   if (pick != null) return { draw: decks.filter(d => L(d) <= L(pick)), toks: new Set([pick]), pick, below: L(pick) < 0 };
+  // Auto follows the highest deck one of the party's tokens is on, and shows only the tokens on that deck.
+  if (party.size) { const top = [...party.keys()].reduce((a, d) => L(d) > L(a) ? d : a); return { draw: decks.filter(d => L(d) <= L(top) && !(gm && vLvlHid(L(d)) && d !== top)), toks: new Set([top]), pick: null, auto: top, below: L(top) < 0 }; }
   if (gm) return { draw: decks.filter(d => !vLvlHid(L(d))), toks: new Set(decks), pick: null, below: false };
-  if (party.size) { const top = Math.max(...[...party.keys()].map(L)); return { draw: decks.filter(d => L(d) <= top), toks: new Set(party.keys()), pick: null, below: top < 0 }; }
   const open = decks.filter(d => L(d) >= 0), draw = open.length ? open : [decks[decks.length - 1]];
   return { draw, toks: new Set(draw), pick: null, below: false };
 }
@@ -127,7 +128,7 @@ const vDeckTabsOn = () => { if (VTT.deckTabs != null) return VTT.deckTabs; try {
 function vShipPickHtml(id) {
   const opts = vShipPickOpts(id), vis = vShipVis(id); if (!opts.length) return "";
   const b = (v, label, small, on) => `<button class="${on ? "on" : ""}" data-act="vttshipview" data-id="${esc(id)}" data-v="${v}" aria-pressed="${on}">${esc(label)}${small ? `<small>${esc(small)}</small>` : ""}</button>`;
-  return `<div class="vshippick"><span class="muted small">Decks</span><div class="vdeckbtns">${b("", "Auto", vCanEdit() && !VTT.preview ? "the levels picked on the left" : "follows the party", vis.pick == null)}${opts.map(o => b(o.d, o.name, o.who.join(", "), vis.pick === o.d)).join("")}</div>
+  return `<div class="vshippick"><span class="muted small">Decks</span><div class="vdeckbtns">${b("", "Auto", vis.auto != null ? "follows the party: " + vShipDeckName(S.vttTokens.get(id), vis.auto) : vCanEdit() && !VTT.preview ? "the levels picked on the left" : "follows the party", vis.pick == null)}${opts.map(o => b(o.d, o.name, o.who.join(", "), vis.pick === o.d)).join("")}</div>
     <label class="check small"><input type="checkbox" data-act="vttdecktabs"${vDeckTabsOn() ? " checked" : ""}> Deck tabs by the ship</label></div>`;
 }
 // Which decks to draw for the screen looking at it.

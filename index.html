@@ -9118,7 +9118,7 @@ function vDraw() {
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
   const pt = document.getElementById("vptools"); if (pt) pt.innerHTML = vMeasToolsHtml(false);
-  vInitDraw();
+  vInitDraw(); vTurnFollow(cur, p, toks);
   const hint = document.getElementById("vhint");
   if (hint) hint.textContent = VTT.tool === "measure" ? "Drag to measure · Esc to clear" : gm ? (VTT.tool === "wall" ? (VTT.draft ? "Click to add points · double-click or Enter to finish · Esc to cancel" : "Click to start a wall") : VTT.tool === "area" ? `Drag over squares that are up on ${vLevelName(p, VTT.lvl || 1)} · hold Alt to remove squares` : VTT.tool === "link" ? "Drag over the squares for stairs or a lift" : VTT.layer === "walls" ? "Select a wall to delete it, or pick the wall tool to draw" : "") : (p.light ? "" : "");
 }
@@ -10467,6 +10467,24 @@ function vInitDraw(force) {
 }
 
 
+// When the turn passes to a token, this screen flips to where it stands: its deck if it's aboard a ship (only that ship's
+// picker changes), otherwise its floor of the building. Players only flip to a deck or floor one of the party is on.
+function vTurnFollow(cur, p, toks) {
+  const camp = vCampId(); if (!camp || !S.vttCamps.get(camp)) return;
+  const I = vInitOf(camp), key = camp + "|" + I.round + "|" + I.cur; if (VTT.turnKey === key) return; VTT.turnKey = key;
+  const e = I.round && I.list.find(x => x.id === I.cur), id = e && e.tok, t = id && S.vttTokens.get(id); if (!t || t.page !== cur.id) return;
+  const gm = vCanEdit() && !VTT.preview;
+  if (t.ship && vIsShip(S.vttTokens.get(t.ship))) {
+    const d = Number(t.deck) || 0; if (!gm && !vShipPlayerDecks(t.ship).has(d)) return;
+    VTT.shipView = VTT.shipView || {}; if (VTT.shipView[t.ship] === d) return; VTT.shipView[t.ship] = d;
+  } else {
+    const n = vTokFloor(t);
+    if (gm) { if (vMinLevel(p) === vMaxLevel(p) || (VTT.lvl === n && (!VTT.lvlShow || (VTT.lvlShow.size === 1 && VTT.lvlShow.has(n))))) return; VTT.lvl = n; if (VTT.lvlShow) VTT.lvlShow = new Set([n]); const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); }
+    else { if (VTT.pfloor === n || !toks.some(([, q]) => vPlayerTok(q) && !q.ship && vTokFloor(q) === n)) return; VTT.pfloor = n; }
+  }
+  setTimeout(() => { vDraw(); const s = document.getElementById("vside"); if (s) s.innerHTML = vSideHtml(); }, 0);
+}
+
 // ===== Shared measurements and pings =====
 // Each device keeps one doc, vttlive/<device id>: { page, who, col, gm, meas, ping: { x, y, t, pull } }.
 // Only used when running from the PC (the server passes these on and forgets them; they aren't saved to the library).
@@ -11502,8 +11520,9 @@ function vShipVis(id) {
   let pick = VTT.shipView && VTT.shipView[id] != null ? VTT.shipView[id] : null;
   if (pick != null && (!decks.includes(pick) || (!gm && !party.has(pick)))) { delete VTT.shipView[id]; pick = null; }
   if (pick != null) return { draw: decks.filter(d => L(d) <= L(pick)), toks: new Set([pick]), pick, below: L(pick) < 0 };
+  // Auto follows the highest deck one of the party's tokens is on, and shows only the tokens on that deck.
+  if (party.size) { const top = [...party.keys()].reduce((a, d) => L(d) > L(a) ? d : a); return { draw: decks.filter(d => L(d) <= L(top) && !(gm && vLvlHid(L(d)) && d !== top)), toks: new Set([top]), pick: null, auto: top, below: L(top) < 0 }; }
   if (gm) return { draw: decks.filter(d => !vLvlHid(L(d))), toks: new Set(decks), pick: null, below: false };
-  if (party.size) { const top = Math.max(...[...party.keys()].map(L)); return { draw: decks.filter(d => L(d) <= top), toks: new Set(party.keys()), pick: null, below: top < 0 }; }
   const open = decks.filter(d => L(d) >= 0), draw = open.length ? open : [decks[decks.length - 1]];
   return { draw, toks: new Set(draw), pick: null, below: false };
 }
@@ -11517,7 +11536,7 @@ const vDeckTabsOn = () => { if (VTT.deckTabs != null) return VTT.deckTabs; try {
 function vShipPickHtml(id) {
   const opts = vShipPickOpts(id), vis = vShipVis(id); if (!opts.length) return "";
   const b = (v, label, small, on) => `<button class="${on ? "on" : ""}" data-act="vttshipview" data-id="${esc(id)}" data-v="${v}" aria-pressed="${on}">${esc(label)}${small ? `<small>${esc(small)}</small>` : ""}</button>`;
-  return `<div class="vshippick"><span class="muted small">Decks</span><div class="vdeckbtns">${b("", "Auto", vCanEdit() && !VTT.preview ? "the levels picked on the left" : "follows the party", vis.pick == null)}${opts.map(o => b(o.d, o.name, o.who.join(", "), vis.pick === o.d)).join("")}</div>
+  return `<div class="vshippick"><span class="muted small">Decks</span><div class="vdeckbtns">${b("", "Auto", vis.auto != null ? "follows the party: " + vShipDeckName(S.vttTokens.get(id), vis.auto) : vCanEdit() && !VTT.preview ? "the levels picked on the left" : "follows the party", vis.pick == null)}${opts.map(o => b(o.d, o.name, o.who.join(", "), vis.pick === o.d)).join("")}</div>
     <label class="check small"><input type="checkbox" data-act="vttdecktabs"${vDeckTabsOn() ? " checked" : ""}> Deck tabs by the ship</label></div>`;
 }
 // Which decks to draw for the screen looking at it.
