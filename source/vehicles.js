@@ -31,7 +31,7 @@ function vehSpec(v, cat) {
   let speeds = (Array.isArray(v.speeds) ? v.speeds : []).filter(s => s && VEH_MODES[s.mode]).map(s => ({ mode: s.mode, move: vehNum(s.move, 0, 0, 9999), travel: vehNum(s.travel, 0, 0, 999), omni: !!s.omni, rev: !!s.rev }));
   if (!speeds.length) speeds = [{ mode: def, move: 30, travel: 3 }];
   return {
-    cx: v.cx === "complex" ? "complex" : "simple", page: v.cx === "complex" && typeof v.page === "string" ? v.page : "", turn: vehNum(v.turn, 30, 0, 9999), size: vehNum(v.size, 2, 0.5, 40), hull: vehNum(v.hull, 20, 1, 99999), seats: Math.round(vehNum(v.seats, 2, 1, 200)), speeds,
+    cx: v.cx === "complex" ? "complex" : "simple", page: v.cx === "complex" && typeof v.page === "string" ? v.page : "", turn: vehNum(v.turn, 30, 0, 9999), tw: Math.round(vehNum(v.tw, 3, 1, 20)), tl: Math.round(vehNum(v.tl, 3, 1, 20)), size: vehNum(v.size, 2, 0.5, 40), hull: vehNum(v.hull, 20, 1, 99999), seats: Math.round(vehNum(v.seats, 2, 1, 200)), speeds,
     fuel: { type, use: f.use === "inefficient" ? "inefficient" : "efficient", amt: vehNum(f.amt, 1, 0, 9999), cap: vehNum(f.cap, 20, 1, 99999), res: String(f.res || "").trim() || "Spell points" },
   };
 }
@@ -75,7 +75,9 @@ function vehFieldsHtml(e, cat) {
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Seats <small class="muted">riders, pilot included</small></span><input id="veh-seats" type="number" min="1" max="200" step="1" value="${v.seats}" style="width:110px"></label>
       <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"></label>
     </div>
-    <div class="vehcomplex vehturnviz" id="veh-turnviz"${v.cx === "complex" ? "" : ` style="display:none"`}>${vehTurnSvg(v.turn)}</div>
+    <div class="vehcomplex vehturnbox"${v.cx === "complex" ? "" : ` style="display:none"`}>
+      <div class="vehturnsize"><span class="small muted">Shape in the diagram</span><label><span class="small">Width</span><input id="veh-tw" type="number" min="1" max="20" step="1" value="${v.tw}"></label><span class="muted">×</span><label><span class="small">Length</span><input id="veh-tl" type="number" min="1" max="20" step="1" value="${v.tl}"></label><span class="small muted">squares, front to back</span></div>
+      <div class="vehturnviz" id="veh-turnviz">${vehTurnSvg(v.turn, v.tw, v.tl)}</div></div>
     <div class="field"><span class="flabel">Speeds <small class="muted">movement on the battle map, and travel speed for the 🧭 travel tool</small></span>
       <div id="veh-speeds">${v.speeds.map(vehSpeedRow).join("")}</div>
       <button type="button" class="btn ghost small" data-vehact="addspeed">+ Another way it moves</button></div>
@@ -94,23 +96,27 @@ function vehFieldsHtml(e, cat) {
 // A picture of a 3 × 3 square vehicle making a quarter turn to the right with this turning circle (feet across), on a 5 ft grid.
 // Its centre of mass is the middle of its middle square; like a ship on the tabletop, it comes to rest with that centre on the
 // middle of a square (so here the squares' middles are at whole numbers, and grid lines at the halves).
-function vehTurnSvg(ft) {
-  ft = Math.max(0, Number(ft) || 0);
-  const R = ft / 10, W = 300, H = 220; // radius in squares
-  const ex = Math.round(R), ey = -Math.round(R); // where it comes to rest: a square's middle
-  const x0 = -2.5, x1 = Math.max(R, ex) + 2.5, y0 = Math.min(-R, ey) - 2.5, y1 = 2.5, k = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
+// The turning circle drawn for a W × L vehicle (W squares wide, L long, front to back), its centre of mass in its middle.
+// It starts facing up, turns right through a quarter circle and comes to rest lined up with the grid.
+function vehTurnSvg(ft, tw, tl) {
+  ft = Math.max(0, Number(ft) || 0); const Wd = Math.max(1, Math.min(20, Math.round(Number(tw) || 3))), Ln = Math.max(1, Math.min(20, Math.round(Number(tl) || 3)));
+  const R = ft / 10, W = 300, H = 230; // radius in squares
+  // Squares have their middles on whole numbers. An even side puts the centre on a grid line, an odd one on a square's middle.
+  const off = n => n % 2 ? 0 : 0.5, snap = (v, n) => Math.round(v - off(n)) + off(n);
+  const sx = off(Wd), sy = off(Ln), ex = snap(sx + R, Ln), ey = snap(sy - R, Wd), big = Math.max(Wd, Ln) / 2 + 1.2;
+  const x0 = sx - big, x1 = Math.max(sx + R, ex) + big, y0 = Math.min(sy - R, ey) - big, y1 = sy + big, k = Math.min(W / (x1 - x0), H / (y1 - y0)), ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
   const X = x => (ox + x * k).toFixed(1), Y = y => (oy + y * k).toFixed(1);
   let grid = ""; for (let gx = Math.ceil(x0 - 0.5) + 0.5; gx <= x1; gx++) grid += `<line x1="${X(gx)}" y1="${Y(y0)}" x2="${X(gx)}" y2="${Y(y1)}"/>`; for (let gy = Math.ceil(y0 - 0.5) + 0.5; gy <= y1; gy++) grid += `<line x1="${X(x0)}" y1="${Y(gy)}" x2="${X(x1)}" y2="${Y(gy)}"/>`;
-  // The vehicle with its centre at (cx, cy), turned a (radians) from facing up to facing right; a dot marks its centre of mass.
-  const box = (cx, cy, a, cls) => { const c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`;
-    return `<polygon class="${cls}" points="${[[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -2.3)} ${pt(-0.7, -1.5)} ${pt(0.7, -1.5)}"/><circle class="com" cx="${X(cx)}" cy="${Y(cy)}" r="3.5"/>`; };
-  const onArc = a => R ? [R - R * Math.cos(a), -R * Math.sin(a)] : [0, 0];
-  const arc = R ? `<circle class="ring" cx="${X(R)}" cy="${Y(0)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(0)},${Y(0)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(R)},${Y(-R)}${ex !== R ? ` L${X(ex)},${Y(ey)}` : ""}"/><circle class="hub" cx="${X(R)}" cy="${Y(0)}" r="3"/>` : "";
+  // The vehicle with its centre at (cx, cy), turned a (radians) from facing up towards facing right; the dot is its centre of mass.
+  const box = (cx, cy, a, cls) => { const c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`, hw = Wd / 2, hl = Ln / 2, nose = Math.min(0.8, Ln * 0.3), nw = Math.min(0.7, hw * 0.6);
+    return `<polygon class="${cls}" points="${[[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -hl - nose)} ${pt(-nw, -hl)} ${pt(nw, -hl)}"/><circle class="com" cx="${X(cx)}" cy="${Y(cy)}" r="${Math.max(2.5, 0.18 * k).toFixed(1)}"/>`; };
+  const onArc = a => R ? [sx + R - R * Math.cos(a), sy - R * Math.sin(a)] : [sx, sy];
+  const arc = R ? `<circle class="ring" cx="${X(sx + R)}" cy="${Y(sy)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(sx)},${Y(sy)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(sx + R)},${Y(sy - R)}${ex !== sx + R || ey !== sy - R ? ` L${X(ex)},${Y(ey)}` : ""}"/><circle class="hub" cx="${X(sx + R)}" cy="${Y(sy)}" r="2.5"/>` : "";
   const mid = onArc(Math.PI / 4), dist = Math.round(Math.PI * R / 2 * 5);
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="A 3 by 3 square vehicle turning right with a ${ft} foot turning circle"><g class="grid">${grid}</g>${arc}${box(0, 0, 0, "veh")}${R ? box(mid[0], mid[1], Math.PI / 4, "veh mid") : box(0, 0, Math.PI / 4, "veh mid")}${box(ex, ey, Math.PI / 2, "veh end")}</svg>
-    <p class="muted small">${R ? `A 3 × 3 vehicle turns a quarter circle in about ${dist} ft (grid squares are 5 ft), coming to rest with its centre of mass (the dot) on the middle of a square.` : "It turns on the spot."}</p>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="A ${Wd} by ${Ln} square vehicle turning right with a ${ft} foot turning circle"><g class="grid">${grid}</g>${arc}${box(sx, sy, 0, "veh")}${R ? box(mid[0], mid[1], Math.PI / 4, "veh mid") : box(sx, sy, Math.PI / 4, "veh mid")}${box(ex, ey, Math.PI / 2, "veh end")}</svg>
+    <p class="muted small">${R ? `A ${Wd} × ${Ln} vehicle turns a quarter circle in about ${dist} ft (grid squares are 5 ft), coming to rest lined up with the grid. The dot is its centre of mass, always in its middle.` : "It turns on the spot."}</p>`;
 }
-document.addEventListener("input", ev => { if (ev.target && ev.target.id === "veh-turn") { const box = document.getElementById("veh-turnviz"); if (box) box.innerHTML = vehTurnSvg(ev.target.value); } });
+document.addEventListener("input", ev => { if (ev.target && ["veh-turn", "veh-tw", "veh-tl"].includes(ev.target.id)) { const box = document.getElementById("veh-turnviz"), v = id => (document.getElementById(id) || {}).value; if (box) box.innerHTML = vehTurnSvg(v("veh-turn"), v("veh-tw"), v("veh-tl")); } });
 function vehRead() {
   const val = id => (document.getElementById(id) || {}).value;
   const speeds = [...document.querySelectorAll("#veh-speeds .vehspd")].map(r => ({ mode: r.querySelector("[data-vs=mode]").value, move: Number(r.querySelector("[data-vs=move]").value) || 0, travel: Number(r.querySelector("[data-vs=travel]").value) || 0, omni: r.querySelector("[data-vs=omni]").checked, rev: r.querySelector("[data-vs=rev]").checked }));
@@ -120,7 +126,7 @@ function vehRead() {
   if (F.tank) fuel.cap = Math.max(1, Number(val("veh-cap")) || 1);
   if (F.res) fuel.res = String(val("veh-res") || "").trim() || "Spell points";
   const cx = val("veh-cx") === "complex" ? "complex" : "simple";
-  return { cx, page: cx === "complex" ? (val("veh-page") || "") : "", turn: Math.max(0, Number(val("veh-turn")) || 0), size: Math.max(0.5, Math.min(40, Number(val("veh-size")) || 2)), hull: Math.max(1, Math.round(Number(val("veh-hull")) || 1)), seats: Math.max(1, Math.round(Number(val("veh-seats")) || 1)), speeds, fuel };
+  return { cx, page: cx === "complex" ? (val("veh-page") || "") : "", turn: Math.max(0, Number(val("veh-turn")) || 0), tw: Math.max(1, Math.min(20, Math.round(Number(val("veh-tw")) || 3))), tl: Math.max(1, Math.min(20, Math.round(Number(val("veh-tl")) || 3))), size: Math.max(0.5, Math.min(40, Number(val("veh-size")) || 2)), hull: Math.max(1, Math.round(Number(val("veh-hull")) || 1)), seats: Math.max(1, Math.round(Number(val("veh-seats")) || 1)), speeds, fuel };
 }
 document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("[data-vehact]"); if (!b) return;
