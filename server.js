@@ -174,7 +174,8 @@ function playerJourney(old, j) {
   if (o.started || !j || typeof j !== "object" || Array.isArray(j) || j.started || j.day || j.path || j.hrs || JSON.stringify(j).length > 40000) return null;
   if (j.stops != null && !(Array.isArray(j.stops) && j.stops.length <= 200 && j.stops.every(s => Array.isArray(s) && s.length === 2 && s.every(Number.isInteger)))) return null;
   return { stops: j.stops || [], pace: ["slow", "normal", "fast"].includes(j.pace) ? j.pace : "normal", veh: typeof j.veh === "string" ? j.veh.slice(0, 80) : "",
-    party: j.party && typeof j.party === "object" ? j.party : {}, mph: j.mph && typeof j.mph === "object" ? j.mph : {} };
+    party: j.party && typeof j.party === "object" ? j.party : {}, mph: j.mph && typeof j.mph === "object" ? j.mph : {},
+    ...(Array.isArray(j.who) ? { who: j.who.filter(x => typeof x === "string").slice(0, 60) } : {}) };
 }
 function playerDoorWrite(p, doc) {
   if (!/^vttpages\/[A-Za-z0-9_.-]+$/.test(p) || !doc) return null;

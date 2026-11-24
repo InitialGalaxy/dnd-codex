@@ -2215,6 +2215,10 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vtrmem .vtrname { min-width:5em; font-weight:600 } .vtrmem select { flex:1; min-width:8em } .vtrpanel .vtrmph { flex-direction:row; align-items:center; margin:0 } .vtrmph input { width:4.5em }
 .vtrtools { flex-direction:column; align-items:stretch; gap:6px } .vtrtools .seg { flex-wrap:wrap }
 .vtrwarn { color:#ffb36b; margin:.3em 0 } .vtrpaint { border-top:1px solid var(--line, #333); margin-top:12px; padding-top:8px } .vtrpanel .acts { display:flex; flex-wrap:wrap; gap:6px; margin:.6em 0 }
+.vtrwho { margin:.6em 0 } .vtrwholist { display:flex; flex-direction:column; gap:4px; margin:4px 0 6px }
+.vtrpc { display:flex !important; flex-direction:row !important; align-items:center; gap:8px; margin:0 !important; padding:5px 8px; border:1px solid var(--line); border-radius:8px; cursor:pointer; background:var(--bg) }
+.vtrpc.on { border-color:var(--brass); background:color-mix(in srgb, var(--brass) 14%, var(--bg)) } .vtrpc img, .vtrpcinit { width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none }
+.vtrpcinit { display:grid; place-items:center; background:var(--panel-2); font-weight:700; font-size:.8rem } .vtrwhoacts { display:flex; flex-wrap:wrap; gap:6px }
 </style>
 </head>
 <body>
@@ -12173,7 +12177,11 @@ function vTrVeh(ref) {
   if (!v) return null; const sp = (v.speeds || []).find(x => x.mode === "ground" && x.travel > 0); return sp ? { v, mph: sp.travel, seats: Number(v.seats) || 0, complex: v.cx === "complex" } : null;
 }
 // The party: players' tokens on this map that aren't aboard a vehicle's deck.
-const vTrMembers = cur => vTokens(cur.id).filter(([, t]) => vPlayerTok(t) && !t.ship && !vIsShip(t));
+// The party: the player characters picked in the planner (journey.who), or, until anyone's picked, those with a token on this map.
+const vTrPCs = () => [...S.chars].filter(([, c]) => c && !c.hidden).sort((a, b) => byName(a[1].name || "", b[1].name || ""));
+const vTrOnMap = cur => [...new Set(vTokens(cur.id).filter(([, t]) => vPlayerTok(t) && !t.ship && !vIsShip(t)).map(([, t]) => t.owner))];
+function vTrWho(cur) { const j = vTrJ(cur.p); return Array.isArray(j.who) ? j.who.filter(id => S.chars.has(id) && !S.chars.get(id).hidden) : vTrOnMap(cur); }
+const vTrMembers = cur => vTrWho(cur).map(id => [id, { name: S.chars.get(id).name || "?", owner: id }]);
 function vTrOptions(cur) {
   const mounts = [], simple = [], complex = [], seenE = new Set();
   for (const [id, t] of vTokens(cur.id)) {
@@ -12200,7 +12208,7 @@ function vTrSpeed(cur) {
   for (const [ref, n] of Object.entries(seats)) { const v = vTrVeh(ref); if (v && v.seats && n > v.seats) notes.push(`${vTrRefName(ref)} has ${v.seats} seat${v.seats === 1 ? "" : "s"} but ${n} are riding in it.`); }
   if (mem.some(([id]) => ((j.party || {})[id] || "").startsWith("m:")) && rows.some(r => r.need)) notes.push("Give each mount without a speed its mph.");
   const sameMount = {}; rows.forEach(r => { if (r.how.startsWith("m:")) (sameMount[r.how] = sameMount[r.how] || []).push(r.name); }); Object.entries(sameMount).forEach(([k, n]) => { if (n.length > 1) notes.push(`${n.join(" and ")} are both riding ${vTrRefName(k.slice(2))}.`); });
-  if (!rows.length) return { mph: 3 * pf, by: "on foot (no party tokens on this map)", notes, members: rows };
+  if (!rows.length) return { mph: 3 * pf, by: "on foot (nobody picked yet)", notes, members: rows };
   return { mph: slow.mph, by: rows.length > 1 ? `the slowest is ${slow.name}, ${slow.label}` : `${slow.name}, ${slow.label}`, notes, members: rows };
 }
 
@@ -12315,6 +12323,12 @@ function vTrPointer(ev, cur, x, y) {
 }
 
 // ----- The planner, in the side panel while the travel tool is on -----
+function vTrWhoHtml(cur, lock) {
+  const who = new Set(vTrWho(cur)), pcs = vTrPCs(), onMap = new Set(vTrOnMap(cur));
+  if (!pcs.length) return "";
+  return `<div class="vtrwho"><span class="small muted">Who's travelling</span><div class="vtrwholist">${pcs.map(([id, c]) => `<label class="vtrpc${who.has(id) ? " on" : ""}" title="${onMap.has(id) ? "Has a token on this map" : "Not on this map"}"><input type="checkbox" data-trwho="${esc(id)}"${who.has(id) ? " checked" : ""}${lock}>${c.img || c.image ? `<img src="${esc(c.img || c.image)}" alt="">` : `<span class="vtrpcinit">${esc((c.name || "?")[0])}</span>`}<span>${esc(c.name || "?")}</span></label>`).join("")}</div>
+    <div class="vtrwhoacts"><button class="btn ghost small" type="button" data-act="vtrwhoall"${lock}>Everyone</button><button class="btn ghost small" type="button" data-act="vtrwhomap"${lock}>Those on this map</button></div></div>`;
+}
 function vTrPanelRefresh() { if (VTT.tool !== "travel") return; const s = document.getElementById("vside"); if (s) s.innerHTML = vSideHtml(); }
 function vTrPanelHtml(cur) {
   const p = cur.p, j = vTrJ(p), gm = vCanEdit() && !VTT.preview;
@@ -12336,6 +12350,7 @@ function vTrPanelHtml(cur) {
     <p class="muted small">Click hexes on the map: the first is where you start, each next one is a stop on the way, the last is where you're going.</p>
     <div class="seg vpace" role="group" aria-label="Pace">${Object.entries(VTR_PACE).map(([k, [, l]]) => `<button class="${(j.pace || "normal") === k ? "on" : ""}" data-act="vtrpace" data-v="${k}" aria-pressed="${(j.pace || "normal") === k}">${l}</button>`).join("")}</div>
     <p class="muted small">Slow is 25% slower and fast 25% quicker, on foot and riding. Vehicles go at their own speed.</p>
+    ${vTrWhoHtml(cur, lock)}
     <label><span>Travelling by</span><select data-trveh><option value="">Each their own way</option>${o.complex.map(r => `<option value="${esc(r)}"${j.veh === r ? " selected" : ""}>${esc(vTrRefName(r))} (${vTrVeh(r).mph} mph, carries everyone)</option>`).join("")}</select></label>
     ${members}
     <p class="small"><strong>${Math.round(sp.mph * 100) / 100} mph</strong> <span class="muted">· ${esc(sp.by)}</span></p>
@@ -12350,6 +12365,8 @@ document.addEventListener("click", ev => {
   const cur = vPageNow(); if (!cur) return; const a = b.dataset.act, j = vTrJ(cur.p), gm = vCanEdit();
   if (a === "vtrbrush" && gm) { VTT.trBrush = b.dataset.v; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); return; }
   if (a === "vtrpace" && !j.started) return vTrSave(cur, { pace: b.dataset.v });
+  if (a === "vtrwhoall" && !j.started) return vTrSave(cur, { who: vTrPCs().map(([id]) => id) });
+  if (a === "vtrwhomap" && !j.started) return vTrSave(cur, { who: vTrOnMap(cur) });
   if (a === "vtrundo" && !j.started) return vTrSave(cur, { stops: (j.stops || []).slice(0, -1) });
   if (a === "vtrclear" && !j.started) return vTrSave(cur, { stops: [] });
   if (a === "vtrstart" && gm) { const plan = vTrPlan(cur); if (!plan.ok || plan.path.length < 2) return; return vTrSave(cur, { started: true, day: 0, path: plan.path, hrs: plan.hrs.map(h => Math.round(h * 10000) / 10000) }); }
@@ -12359,6 +12376,7 @@ document.addEventListener("click", ev => {
 document.addEventListener("change", ev => {
   if (ev.target && ev.target.matches && ev.target.matches("[data-act=vtrshade]") && vCanEdit()) { const cur = vPageNow(); if (cur) vPatch("vttpages/" + cur.id, { terrainHide: !ev.target.checked }); return; }
   const el = ev.target; if (!el || !el.closest || !el.closest(".vtrpanel")) return; const cur = vPageNow(); if (!cur) return; const j = vTrJ(cur.p); if (j.started) return;
+  if (el.matches("[data-trwho]")) { const who = new Set(vTrWho(cur)); if (el.checked) who.add(el.dataset.trwho); else who.delete(el.dataset.trwho); return vTrSave(cur, { who: vTrPCs().map(([id]) => id).filter(id => who.has(id)) }); }
   if (el.matches("[data-trhow]")) return vTrSave(cur, { party: Object.assign({}, j.party || {}, { [el.dataset.trhow]: el.value }) });
   if (el.matches("[data-trveh]")) return vTrSave(cur, { veh: el.value });
   if (el.matches("[data-trmph]")) { const v = Number(el.value), m = Object.assign({}, j.mph || {}); if (v > 0) m[el.dataset.trmph] = Math.min(200, v); else delete m[el.dataset.trmph]; return vTrSave(cur, { mph: m }); }
