@@ -1057,7 +1057,7 @@ function itemPageHtml(id, e) {
     ${it.magical === false ? `<p class="irar"><span class="rar mundane">Mundane</span></p>` : it.rarity ? `<p class="irar"><span class="rar r-${r}">${esc(it.rarity)}</span></p>` : ""}
     ${e.image || (S.assets && canEdit) ? `<div class="iimg">${e.image ? imageHtml(e.image, e.title, id) : ""}${S.assets && canEdit ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">${e.image ? "Replace image" : "Add image"}</button>` : ""}</div>` : ""}
     ${flavour.trim() ? `<div class="flavour">${md(flavour, { entryId: id })}</div>` : canEdit ? `<div class="iimg"><button class="btn ghost small" data-act="addlore" data-id="${esc(id)}">Add lore</button></div>` : ""}
-    ${isVehicle(e) ? vehStatHtml(e) : ""}${itemStatsHtml(it)}${itemResPreviewHtml(it)}
+    ${isVehicle(e) ? vehStatHtml(e) : ""}${itemStatsHtml(it, isVehicle(e))}${itemResPreviewHtml(it)}
     <div class="iprops">${md(paras.join("\n\n"), { entryId: id })}</div>
     ${(it.props || []).length ? `<div class="wprops"><h3>Properties</h3>${it.props.map(p => { const d = PROP[p.id]; return d ? `<p><strong><em>${esc(d.name)}${p.param ? ` (${esc(propLabel(p).replace(/^[^(]*\(|\)$/g, ""))})` : ""}.</em></strong> ${esc(d.desc)}</p>` : ""; }).join("")}</div>` : ""}
   </div>`;
@@ -1560,13 +1560,13 @@ async function migrateAverages() {
 function libraryData() {
   return { kind: "lore-codex-backup", version: 2, at: new Date().toISOString(), entries: Object.fromEntries(S.entries), tags: Object.fromEntries(S.tags), books: Object.fromEntries(S.books), characters: Object.fromEntries(S.chars), encounters: Object.fromEntries(S.encs || new Map()), vttcamps: Object.fromEntries(S.vttCamps || new Map()), vttpages: Object.fromEntries(S.vttPages || new Map()), vtttokens: Object.fromEntries(S.vttTokens || new Map()), vttfog: Object.fromEntries(S.vttFog || new Map()), vttdraw: Object.fromEntries(S.vttDraw || new Map()), map: S.meta ? { meta: S.meta, towns: S.towns } : null };
 }
-function itemStatsHtml(it) {
+function itemStatsHtml(it, noCost) {
   const st = it.stats || {}, u = useInfo(it);
   const k = kindOfCategory(it.category), rows = [];
   if (u) rows.push(["Uses", esc(useText(u))]);
   if (k !== "armour") { const d = damageText(st); if (d) rows.push(["Damage", diceify(esc(d))]); }
   if (k === "armour") { const a = acText(st, /shield/i.test(it.category || "")); if (a) rows.push(["Armour Class", esc(a)]); }
-  const c = costText(st); if (c) rows.push(["Cost", esc(c)]);
+  const c = noCost ? "" : costText(st); if (c) rows.push(["Cost", esc(c)]);
   if (!rows.length) return "";
   return `<div class="istats">${rows.map(([l, v]) => `<div><span>${l}</span><strong>${v}</strong></div>`).join("")}</div>`;
 }

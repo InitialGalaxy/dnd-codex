@@ -44,15 +44,60 @@ function vehFuelText(v) {
   const what = F.res ? f.res.toLowerCase() : "fuel", per = f.use === "inefficient" ? "a round" : "a square or hex";
   return `${F.name}: ${f.amt} ${what} ${per}${F.tank ? `, ${f.cap} in the tank` : ""}`;
 }
-// On the vehicle's own page.
+// On the vehicle's own page: the stats people look for, then the vehicle itself (each deck, with its size), its fuel in
+// words, and how it turns.
+const vehFt = n => `${n} square${n === 1 ? "" : "s"} (${n * 5} ft)`;
+// The vehicle's shape: W squares wide and L long (front to back), its deck pictures and which way its front faces in them.
+function vehShape(e, id) {
+  const v = vehOf(e); if (!v) return null;
+  if (v.cx !== "complex") { const n = v.size; return { w: n, l: n, img: e.token || e.image || "", decks: [] }; }
+  let I = v.page && S.vttPages && S.vttPages.get(v.page);
+  if (!I && S.vttTokens) for (const [, t] of S.vttTokens) if (t.ref === "e:" + id && t.int) { I = t.int; break; } // players see it through a vehicle on a map
+  if (!I || !(I.w > 0)) return { w: v.tw, l: v.tl, decks: [], box: true };
+  const front = ((Number(I.front) || 0) % 360 + 360) % 360, side = front === 90 || front === 270;
+  const lv = [...new Set((I.objs || []).filter(o => o.img && o.layer !== "gm").map(o => Number(o.level) || 0))].sort((a, b) => b - a);
+  const name = d => ((I.levelNames || {})[d]) || (d === 0 ? "Ground deck" : d > 0 ? `Deck +${d}` : `Deck ${d}`);
+  return { w: side ? I.w : I.h, l: side ? I.h : I.w, pw: I.w, ph: I.h, front, decks: lv.map(d => ({ d, name: name(d), pics: (I.objs || []).filter(o => o.img && o.layer !== "gm" && (Number(o.level) || 0) === d) })) };
+}
+// The pictures of one deck, drawn in a frame where the vehicle's front points the way of angle `face` (degrees, 0 right, -90 up),
+// scaled k pixels a square, centred on (0, 0).
+function vehArt(sh, pics, face) {
+  const rot = face - sh.front;
+  return `<g transform="rotate(${rot}) translate(${-sh.pw / 2} ${-sh.ph / 2})">${pics.map(o => `<image href="${esc(o.img)}" x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" preserveAspectRatio="none"${o.rot ? ` transform="rotate(${o.rot} ${o.x + o.w / 2} ${o.y + o.h / 2})"` : ""}/>`).join("")}</g>`;
+}
+// One deck (or the box, or a simple vehicle's token) lying long side across the top, with arrows for its length and width.
+function vehDeckSvg(sh, deck) {
+  const L = sh.l, Wd = sh.w, k = Math.max(8, Math.min(34, 280 / Math.max(L, Wd * 1.4))), pad = 34, VW = L * k + pad + 12, VH = Wd * k + pad + 12;
+  const x0 = pad, y0 = pad; let grid = ""; for (let i = 1; i < L; i++) grid += `<line x1="${x0 + i * k}" y1="${y0}" x2="${x0 + i * k}" y2="${y0 + Wd * k}"/>`; for (let j = 1; j < Wd; j++) grid += `<line x1="${x0}" y1="${y0 + j * k}" x2="${x0 + L * k}" y2="${y0 + j * k}"/>`;
+  const body = deck ? `<g transform="translate(${x0 + L * k / 2} ${y0 + Wd * k / 2}) scale(${k})">${vehArt(sh, deck.pics, 0)}</g>`
+    : sh.img ? `<image href="${esc(sh.img)}" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}" preserveAspectRatio="xMidYMid meet"/>`
+    : `<rect class="vehbox" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}"/><polygon class="vehbox" points="${x0 + L * k + Math.min(14, k * 0.7)},${y0 + Wd * k / 2} ${x0 + L * k},${y0 + Wd * k / 2 - Math.min(10, k * 0.5)} ${x0 + L * k},${y0 + Wd * k / 2 + Math.min(10, k * 0.5)}"/>`;
+  const arrow = (xa, ya, xb, yb, lab, vert) => `<g class="vehdim"><line x1="${xa}" y1="${ya}" x2="${xb}" y2="${yb}" marker-start="url(#vehah)" marker-end="url(#vehah)"/><text ${vert ? `transform="translate(${xa - 6} ${(ya + yb) / 2}) rotate(-90)" x="0" y="0"` : `x="${(xa + xb) / 2}" y="${ya - 6}"`}>${lab}</text></g>`;
+  return `<svg class="vehdeck" viewBox="0 0 ${VW} ${VH}" width="${VW}" height="${VH}" role="img" aria-label="${esc(deck ? deck.name : "The vehicle")}, ${L} by ${Wd} squares">
+    <defs><marker id="vehah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z"/></marker></defs>
+    ${body}<g class="vehgrid">${grid}<rect x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}" fill="none"/></g>
+    ${arrow(x0, 18, x0 + L * k, 18, `${L} long`, false)}${arrow(18, y0, 18, y0 + Wd * k, `${Wd} wide`, true)}</svg>`;
+}
+function vehFuelHtml(v) {
+  const f = v.fuel, F = VEH_FUELS[f.type], what = F.res ? f.res : "fuel", amt = `${f.amt} ${F.res ? what.toLowerCase() : "fuel"}`;
+  let say = F.help;
+  if (f.type === "refuel") say = `It burns fuel from a tank that holds ${f.cap}. ${f.use === "inefficient" ? `It uses ${amt} every round, on its pilot's turn, whether it moves or not` : `It uses ${amt} for every square or hex it moves`}, so a full tank lasts ${f.amt ? `about ${Math.floor(f.cap / f.amt)} ${f.use === "inefficient" ? "rounds" : "squares or hexes"}` : "for ever"}. Refill it by hand on the tabletop.`;
+  if (f.type === "power") say = `It runs on whoever pilots it: ${f.use === "inefficient" ? `it draws ${amt} from them every round, on their turn, whether it moves or not` : `it draws ${amt} from them for every square or hex it moves`}. When the pilot has none left, it stops.`;
+  return `<h3>Fuel</h3><p><strong>${esc(F.name)}${F.uses ? ` · ${esc(VEH_USES[f.use][0])}` : ""}.</strong> ${esc(say)}</p>`;
+}
 function vehStatHtml(e) {
   const v = vehOf(e); if (!v) return "";
-  const cx = v.cx === "complex", pg = cx && v.page && S.vttPages && S.vttPages.get(v.page);
-  const rows = cx ? [["Type", `${vehModeOf(e.item.category)} vehicle · complex`], ["Size", pg ? `${pg.w} × ${pg.h} squares` : "no map yet"], ["Hull points", v.hull], ["Turning circle", v.turn ? `${v.turn} ft across` : "turns on the spot"], ["Speed", vehSpeedText(v)], ["Fuel", vehFuelText(v)]]
-    : [["Type", `${vehModeOf(e.item.category)} vehicle · simple`], ["Size", `${v.size} × ${v.size} squares`], ["Hull points", v.hull], ["Seats", v.seats], ["Speed", vehSpeedText(v)], ["Fuel", vehFuelText(v)]];
-  const id = [...S.entries].find(([, x]) => x === e); 
-  return `<div class="istats vehstats">${rows.map(([l, x]) => `<div><span>${l}</span><strong>${esc(String(x))}</strong></div>`).join("")}</div>
-    ${cx && id && !READONLY && !PLAYER ? `<p><button class="btn" data-act="vttvehmap" data-id="${esc(id[0])}">⛵ ${pg ? "Edit the vehicle's map" : "Build the vehicle's map"}</button> <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></p>` : ""}`;
+  const cx = v.cx === "complex", idp = [...S.entries].find(([, x]) => x === e), id = idp && idp[0], sh = vehShape(e, id), cost = typeof costText === "function" ? costText((e.item || {}).stats) : "";
+  const stats = [["Hull points", esc(String(v.hull))], ...(cost ? [["Cost", esc(cost)]] : []), ...(cx ? [] : [["Seats", esc(String(v.seats))]]), ["Speed", v.speeds.map(s => `${esc(VEH_MODES[s.mode])} ${s.move} ft${s.travel ? ` · ${s.travel} mph` : ""}${s.omni ? " · any direction" : ""}${s.rev ? " · reverses" : ""}`).join("<br>")]];
+  const decks = sh.decks && sh.decks.length ? sh.decks.map(d => `<figure>${vehDeckSvg(sh, d)}<figcaption>${esc(d.name)}</figcaption></figure>`).join("") : `<figure>${vehDeckSvg(sh, null)}${sh.box ? `<figcaption>No map yet: the shape set for the turning circle</figcaption>` : ""}</figure>`;
+  // Seen from above: every deck stacked, the lowest first.
+  const top = sh.decks && sh.decks.length ? { pics: sh.decks.slice().reverse().flatMap(d => d.pics) } : null;
+  return `<div class="istats vehstats">${stats.map(([l, x]) => `<div><span>${l}</span><strong>${x}</strong></div>`).join("")}</div>
+    <div class="vehsect"><h3>The vehicle</h3><p class="vehsize">${esc(vehFt(sh.l))} long, ${esc(vehFt(sh.w))} wide${sh.decks && sh.decks.length > 1 ? ` · ${sh.decks.length} decks` : ""}</p>
+      <div class="vehdecks">${decks}</div>
+      ${cx && id && !READONLY && !PLAYER ? `<p><button class="btn" data-act="vttvehmap" data-id="${esc(id)}">⛵ ${sh.decks && sh.decks.length || !sh.box ? "Edit the vehicle's map" : "Build the vehicle's map"}</button> <span class="muted small">Its decks, pictures, walls, stairs, helm and centre of mass, in the vehicle workshop.</span></p>` : ""}</div>
+    <div class="vehsect">${vehFuelHtml(v)}</div>
+    ${cx ? `<div class="vehsect"><h3>Turning circle</h3><p>${v.turn ? `${v.turn} ft across.` : "It turns on the spot."}</p><div class="vehturnviz">${vehTurnSvg(v.turn, sh.w, sh.l, top ? { sh, pics: top.pics } : null)}</div></div>` : ""}`;
 }
 // ----- In the item editor -----
 function vehSpeedRow(s) {
@@ -105,7 +150,7 @@ function vehAutoTurn(tw, tl) {
 }
 // The turning circle drawn for a W × L vehicle (W squares wide, L long, front to back), its centre of mass in its middle.
 // It starts facing up, turns right through a quarter circle and comes to rest lined up with the grid.
-function vehTurnSvg(ft, tw, tl) {
+function vehTurnSvg(ft, tw, tl, art) {
   ft = Math.max(0, Number(ft) || 0); const Wd = Math.max(1, Math.min(20, Math.round(Number(tw) || 3))), Ln = Math.max(1, Math.min(20, Math.round(Number(tl) || 3)));
   const R = ft / 10, W = 300, H = 230; // radius in squares
   // Squares have their middles on whole numbers. An even side puts the centre on a grid line, an odd one on a square's middle.
@@ -116,7 +161,8 @@ function vehTurnSvg(ft, tw, tl) {
   let grid = ""; for (let gx = Math.ceil(x0 - 0.5) + 0.5; gx <= x1; gx++) grid += `<line x1="${X(gx)}" y1="${Y(y0)}" x2="${X(gx)}" y2="${Y(y1)}"/>`; for (let gy = Math.ceil(y0 - 0.5) + 0.5; gy <= y1; gy++) grid += `<line x1="${X(x0)}" y1="${Y(gy)}" x2="${X(x1)}" y2="${Y(gy)}"/>`;
   // The vehicle with its centre at (cx, cy), turned a (radians) from facing up towards facing right; the dot is its centre of mass.
   const box = (cx, cy, a, cls) => { const c = Math.cos(a), s2 = Math.sin(a), pt = (u, v) => `${X(cx + u * c - v * s2)},${Y(cy + u * s2 + v * c)}`, hw = Wd / 2, hl = Ln / 2, nose = Math.min(0.8, Ln * 0.3), nw = Math.min(0.7, hw * 0.6);
-    return `<polygon class="${cls}" points="${[[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -hl - nose)} ${pt(-nw, -hl)} ${pt(nw, -hl)}"/><circle class="com" cx="${X(cx)}" cy="${Y(cy)}" r="${Math.max(2.5, 0.18 * k).toFixed(1)}"/>`; };
+    const pic = art ? `<g class="${cls.replace("veh", "vehpic")}" transform="translate(${X(cx)} ${Y(cy)}) rotate(${a * 180 / Math.PI}) scale(${k})">${vehArt(art.sh, art.pics, -90)}</g>` : "";
+    return `${pic}<polygon class="${cls}${art ? " art" : ""}" points="${[[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]].map(([u, v]) => pt(u, v)).join(" ")}"/><polygon class="${cls} nose" points="${pt(0, -hl - nose)} ${pt(-nw, -hl)} ${pt(nw, -hl)}"/><circle class="com" cx="${X(cx)}" cy="${Y(cy)}" r="${Math.max(2.5, 0.18 * k).toFixed(1)}"/>`; };
   const onArc = a => R ? [sx + R - R * Math.cos(a), sy - R * Math.sin(a)] : [sx, sy];
   const arc = R ? `<circle class="ring" cx="${X(sx + R)}" cy="${Y(sy)}" r="${(R * k).toFixed(1)}"/><path class="path" d="M${X(sx)},${Y(sy)} A${(R * k).toFixed(1)},${(R * k).toFixed(1)} 0 0 1 ${X(sx + R)},${Y(sy - R)}${ex !== sx + R || ey !== sy - R ? ` L${X(ex)},${Y(ey)}` : ""}"/><circle class="hub" cx="${X(sx + R)}" cy="${Y(sy)}" r="2.5"/>` : "";
   const mid = onArc(Math.PI / 4), dist = Math.round(Math.PI * R / 2 * 5);
