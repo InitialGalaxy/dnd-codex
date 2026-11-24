@@ -1757,7 +1757,18 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vttwrap { flex: 1; display: grid; grid-template-columns: auto 1fr 340px; min-height: 0; }
 .vttwrap:not(:has(.vtools)) { grid-template-columns: 1fr 340px; }
 .vttwrap:not(:has(.vtools)):has(.vside:empty) { grid-template-columns: 1fr; } .vside:empty { display: none; }
-.vtools { display: flex; flex-direction: column; gap: 12px; padding: 10px; border-right: 1px solid var(--line); background: var(--panel); width: 132px; overflow: auto; }
+.vtools { display: flex; flex-direction: column; gap: 12px; padding: 10px; border-right: 1px solid var(--line); background: var(--panel); width: var(--vtw, 180px); box-sizing: border-box; overflow: auto; }
+.vttwrap { position: relative; }
+.vtresize { position: absolute; top: 0; bottom: 0; left: calc(var(--vtw, 180px) - 4px); width: 8px; cursor: ew-resize; z-index: 30; touch-action: none; }
+.vtresize:hover, .vtresize.on { background: color-mix(in srgb, var(--brass) 45%, transparent); }
+@media (min-width: 861px) {
+  .vtools .vgroup:has(.icon) { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .vtools .vgroup:has(.icon) .vlab { grid-column: 1 / -1; width: auto; }
+  .vtools .vgroup:has(.icon) > .vbtn.icon { min-width: 0; width: 100%; padding: 6px 0; font-size: clamp(1rem, calc(var(--vtw, 180px) / 9), 1.7rem); }
+  .vtools .vgroup:has(.icon) > :not(.vbtn):not(.vlab) { grid-column: 1 / -1; }
+  .vtools .vundo { align-self: stretch; } .vtools .vundo .vbtn { font-size: .82rem; padding: 6px 2px; }
+}
+@media (max-width: 860px) { .vtresize { display: none; } }
 .vgroup { display: flex; flex-direction: column; gap: 4px; } .vlab { font: 600 .7rem var(--ui); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .vbtn { font: 500 .86rem var(--ui); text-align: left; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 7px; padding: 5px 8px; cursor: pointer; }
 .vbtn.on { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 18%, var(--bg)); color: var(--brass); }

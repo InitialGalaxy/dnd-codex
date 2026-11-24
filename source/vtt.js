@@ -426,7 +426,7 @@ function viewVttCamp(camp) {
       ${p && gm && !c.workshop ? `<button class="btn ghost small${VTT.initOpen ? " on" : ""}" data-act="vttinitopen" aria-expanded="${!!VTT.initOpen}">⚔ Turn order</button>` : ""}${gm && p && !c.workshop ? `<button class="btn ghost small" data-act="vttcondlib">✦ Conditions</button><button class="btn ghost small${VTT.questOpen ? " on" : ""}" data-act="vttqopen" aria-expanded="${!!VTT.questOpen}">📜 Quests</button>` : ""}
       ${gm && p ? `<div class="vbaracts">${c.workshop ? `<span class="vpill">⛵ Vehicle workshop</span>` : c.playerPage === pid ? `<span class="vpill">★ Players are here</span>` : `<button class="btn small" data-act="vttsend">Send players here</button>`}<button class="btn ghost small" data-act="vttsettings">Page settings</button></div>` : ""}</div>
     ${gm && VTT.mapsOpen ? `<div class="vmaps" id="vmaps">${vMapsHtml(camp)}</div>` : ""}
-    ${p ? `<div class="vttwrap${VTT.toolsOpen ? " toolsopen" : ""}">${gm ? `<div class="vtools" id="vtools">${vToolsHtml()}</div>` : ""}
+    ${p ? `<div class="vttwrap${VTT.toolsOpen ? " toolsopen" : ""}" style="--vtw:${vToolsW()}px">${gm ? `<div class="vtools" id="vtools">${vToolsHtml()}</div><div class="vtresize" title="Drag to make the toolbar wider or narrower (double-click: back to normal)" aria-hidden="true"></div>` : ""}
       <div class="vview" id="vview" tabindex="0" aria-label="Board"><div class="vstage" id="vstage"></div>
         ${gm ? "" : `<div class="vptools" id="vptools">${vMeasToolsHtml(false)}</div>`}
         <div class="vzoom"><button class="iconbtn" data-act="vttzoom" data-v="-1" aria-label="Zoom out">−</button><button class="iconbtn" data-act="vttzoom" data-v="0" aria-label="Fit board">⤢</button><button class="iconbtn" data-act="vttzoom" data-v="1" aria-label="Zoom in">+</button></div>
@@ -483,6 +483,17 @@ function vCvKeep(stage, old) {
 }
 // Pixels per square for a canvas covering the whole map, kept small enough on big maps for a phone's canvas limits.
 const vCvRes = (p, R) => Math.max(4, Math.min(R, Math.floor(Math.sqrt(4e6 / Math.max(1, p.w * p.h)))));
+// The GM's toolbar on the left: its width (wide screens) is dragged at its edge and kept on this device.
+const VTW_DEF = 180;
+function vToolsW() { let w = VTW_DEF; try { w = Number(localStorage.getItem("vttToolsW")) || VTW_DEF; } catch (e) {} return Math.max(130, Math.min(400, w)); }
+document.addEventListener("pointerdown", ev => {
+  const h = ev.target.closest && ev.target.closest(".vtresize"); if (!h) return;
+  ev.preventDefault(); const wrap = h.closest(".vttwrap"), x0 = ev.clientX, w0 = vToolsW(); let w = w0;
+  const move = e => { w = Math.max(130, Math.min(400, Math.round(w0 + e.clientX - x0))); wrap.style.setProperty("--vtw", w + "px"); };
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); h.classList.remove("on"); try { localStorage.setItem("vttToolsW", w); } catch (e) {} if (typeof vFit === "function" && Math.abs(w - w0) > 2) vDraw(); };
+  h.classList.add("on"); window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+});
+document.addEventListener("dblclick", ev => { const h = ev.target.closest && ev.target.closest(".vtresize"); if (!h) return; try { localStorage.removeItem("vttToolsW"); } catch (e) {} h.closest(".vttwrap").style.setProperty("--vtw", VTW_DEF + "px"); });
 function vRefresh() { const s = document.getElementById("vside"); if (s && !(document.activeElement && s.contains(document.activeElement) && document.activeElement.matches("input,select"))) s.innerHTML = vSideHtml(); vDraw(); }
 function vPageNow() { const root = document.querySelector(".vtt"); if (!root) return null; const pid = vCurrentPage(root.dataset.camp); return pid ? { id: pid, p: S.vttPages.get(pid) } : null; }
 function vDraw() {
