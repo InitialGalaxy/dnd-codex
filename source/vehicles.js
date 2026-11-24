@@ -73,7 +73,7 @@ function vehFieldsHtml(e, cat) {
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Size <small class="muted">squares across</small></span><input id="veh-size" type="number" min="0.5" max="40" step="0.5" value="${v.size}" style="width:110px"></label>
       <label><span>Hull points</span><input id="veh-hull" type="number" min="1" step="1" value="${v.hull}" style="width:110px"></label>
       <label class="vehsimple"${v.cx === "complex" ? ` style="display:none"` : ""}><span>Seats <small class="muted">riders, pilot included</small></span><input id="veh-seats" type="number" min="1" max="200" step="1" value="${v.seats}" style="width:110px"></label>
-      <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"></label>
+      <label class="vehcomplex"${v.cx === "complex" ? "" : ` style="display:none"`}><span>Turning circle <small class="muted">feet across; 0 turns on the spot</small></span><span class="vehturnrow"><input id="veh-turn" type="number" min="0" step="5" value="${v.turn}" style="width:110px"><button class="btn ghost small" type="button" data-vehact="autoturn" title="Pick a turning circle that suits the shape below: about as wide as the vehicle is long, ending squarely on the grid">Auto</button></span></label>
     </div>
     <div class="vehcomplex vehturnbox"${v.cx === "complex" ? "" : ` style="display:none"`}>
       <div class="vehturnsize"><span class="small muted">Shape in the diagram</span><label><span class="small">Width</span><input id="veh-tw" type="number" min="1" max="20" step="1" value="${v.tw}"></label><span class="muted">×</span><label><span class="small">Length</span><input id="veh-tl" type="number" min="1" max="20" step="1" value="${v.tl}"></label><span class="small muted">squares, front to back</span></div>
@@ -96,6 +96,13 @@ function vehFieldsHtml(e, cat) {
 // A picture of a 3 × 3 square vehicle making a quarter turn to the right with this turning circle (feet across), on a 5 ft grid.
 // Its centre of mass is the middle of its middle square; like a ship on the tabletop, it comes to rest with that centre on the
 // middle of a square (so here the squares' middles are at whole numbers, and grid lines at the halves).
+// A turning circle that suits a W × L vehicle: a radius of at least its length, and one that brings it to rest exactly on the
+// grid (no nudge at the end of the turn). Feet across: radius in squares × 10.
+function vehAutoTurn(tw, tl) {
+  const Wd = Math.max(1, Math.round(Number(tw) || 3)), Ln = Math.max(1, Math.round(Number(tl) || 3)), off = n => n % 2 ? 0 : 0.5;
+  const frac = ((off(Ln) - off(Wd)) % 1 + 1) % 1; let R = Math.floor(Ln) + frac; if (R < Ln) R += 1;
+  return Math.round(R * 10);
+}
 // The turning circle drawn for a W × L vehicle (W squares wide, L long, front to back), its centre of mass in its middle.
 // It starts facing up, turns right through a quarter circle and comes to rest lined up with the grid.
 function vehTurnSvg(ft, tw, tl) {
@@ -132,6 +139,7 @@ document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("[data-vehact]"); if (!b) return;
   const a = b.dataset.vehact;
   if (a === "addspeed") { const box = document.getElementById("veh-speeds"), used = [...box.querySelectorAll("[data-vs=mode]")].map(s => s.value), mode = Object.keys(VEH_MODES).find(m => !used.includes(m)) || "ground"; box.insertAdjacentHTML("beforeend", vehSpeedRow({ mode, move: 30, travel: 3 })); }
+  else if (a === "autoturn") { const v = id => (document.getElementById(id) || {}).value, t = document.getElementById("veh-turn"); if (t) { t.value = vehAutoTurn(v("veh-tw"), v("veh-tl")); t.dispatchEvent(new Event("input", { bubbles: true })); } }
   else if (a === "rmspeed") { const box = document.getElementById("veh-speeds"); if (box.querySelectorAll(".vehspd").length > 1) b.closest(".vehspd").remove(); else toast("A vehicle needs at least one way to move."); }
   else if (a === "cx") {
     const k = b.dataset.v === "complex" ? "complex" : "simple"; document.getElementById("veh-cx").value = k;
