@@ -101,24 +101,42 @@ function vShipHelm(id, t) {
   }
   return null;
 }
-// Which decks to draw. The GM sees the levels picked on the side (all by default). Players aboard see their own deck and the
-// ones under it (the floor picker chooses whose, on a shared screen); from outside, the open decks (at ground level or above).
-function vShipDeckShown(id, t, gm, viewers) {
-  const decks = vShipDecks(t);
-  if (gm && !VTT.preview) return { decks: decks.filter(d => !vLvlHid(vShipDeckLvl(t, d))), below: false };
-  const aboard = viewers.filter(([, q]) => q.ship === id).map(([, q]) => vTokFloor(q)), outside = viewers.some(([, q]) => q.ship !== id);
-  // Someone looking is aboard: they see their own deck and those under it, as inside a building; the decks above are hidden
-  // (whoever else is looking from outside). The world outside is dimmed only when everyone looking is below deck.
-  if (aboard.length) { const m = Math.max(...aboard), open = decks.filter(d => vShipDeckLvl(t, d) >= 0); return { decks: decks.filter(d => vShipDeckLvl(t, d) <= m), below: m < 0 && open.length > 0 && !outside }; }
-  // From outside: its open decks, the top one over the others.
-  const topside = decks.filter(d => vShipDeckLvl(t, d) >= 0), top = topside.length ? topside : [decks[decks.length - 1]];
-  return { decks: decks.filter(d => top.includes(d) || aboard.includes(vShipDeckLvl(t, d))), below: false };
+// ----- Each ship's own deck picker -----
+// VTT.shipView[ship] = the deck picked on this screen (none: Auto). Players may pick only decks one of the party's tokens is
+// on (NPCs don't count); the GM any deck. Auto follows the party: the highest deck one of them is on; with nobody aboard,
+// the ship as seen from outside (its open decks). vShipVis gives the decks to draw and the decks whose tokens show.
+const vShipPlayerDecks = id => { const out = new Map(); for (const [, q] of S.vttTokens) if (q.ship === id && vPlayerTok(q)) { const d = Number(q.deck) || 0; if (!out.has(d)) out.set(d, []); out.get(d).push(q.name || "?"); } return out; };
+function vShipVis(id) {
+  const t = S.vttTokens.get(id); if (!vIsShip(t)) return { draw: [], toks: new Set(), pick: null, below: false };
+  const gm = vCanEdit() && !VTT.preview, decks = vShipDecks(t), party = vShipPlayerDecks(id), L = d => vShipDeckLvl(t, d);
+  let pick = VTT.shipView && VTT.shipView[id] != null ? VTT.shipView[id] : null;
+  if (pick != null && (!decks.includes(pick) || (!gm && !party.has(pick)))) { delete VTT.shipView[id]; pick = null; }
+  if (pick != null) return { draw: decks.filter(d => L(d) <= L(pick)), toks: new Set([pick]), pick, below: L(pick) < 0 };
+  if (gm) return { draw: decks.filter(d => !vLvlHid(L(d))), toks: new Set(decks), pick: null, below: false };
+  if (party.size) { const top = Math.max(...[...party.keys()].map(L)); return { draw: decks.filter(d => L(d) <= top), toks: new Set(party.keys()), pick: null, below: top < 0 }; }
+  const open = decks.filter(d => L(d) >= 0), draw = open.length ? open : [decks[decks.length - 1]];
+  return { draw, toks: new Set(draw), pick: null, below: false };
 }
+// The picker, in the ship's side panel and (unless hidden) as tabs by the ship.
+function vShipPickOpts(id) {
+  const t = S.vttTokens.get(id); if (!vIsShip(t)) return [];
+  const gm = vCanEdit() && !VTT.preview, party = vShipPlayerDecks(id);
+  return vShipDecks(t).slice().reverse().filter(d => gm || party.has(d)).map(d => ({ d, name: vShipDeckName(t, d), who: party.get(d) || [] }));
+}
+const vDeckTabsOn = () => { if (VTT.deckTabs != null) return VTT.deckTabs; try { return localStorage.getItem("vttDeckTabs") !== "0"; } catch (e) { return true; } };
+function vShipPickHtml(id) {
+  const opts = vShipPickOpts(id), vis = vShipVis(id); if (!opts.length) return "";
+  const b = (v, label, small, on) => `<button class="${on ? "on" : ""}" data-act="vttshipview" data-id="${esc(id)}" data-v="${v}" aria-pressed="${on}">${esc(label)}${small ? `<small>${esc(small)}</small>` : ""}</button>`;
+  return `<div class="vshippick"><span class="muted small">Decks</span><div class="vdeckbtns">${b("", "Auto", vCanEdit() && !VTT.preview ? "the levels picked on the left" : "follows the party", vis.pick == null)}${opts.map(o => b(o.d, o.name, o.who.join(", "), vis.pick === o.d)).join("")}</div>
+    <label class="check small"><input type="checkbox" data-act="vttdecktabs"${vDeckTabsOn() ? " checked" : ""}> Deck tabs by the ship</label></div>`;
+}
+// Which decks to draw for the screen looking at it.
+function vShipDeckShown(id, t, gm, viewers) { const v = vShipVis(id); return { decks: v.draw, below: v.below }; }
 function vShipsHtml(pid, p, toks, gm) {
   const ships = toks.filter(([, t]) => vIsShip(t) && (gm || t.layer !== "gm")); if (!ships.length) { VTT.shipBelow = false; return ""; }
-  const C = VCELL, viewers = gm && !VTT.preview ? [] : vViewers(p, toks); let below = ships.length > 0;
+  const C = VCELL, viewers = gm && !VTT.preview ? [] : vViewers(p, toks); let below = ships.length > 0 && viewers.length > 0 && viewers.every(([, q]) => q.ship);
   const html = ships.map(([id, t]) => {
-    const I = t.int, vis = vShipDeckShown(id, t, gm, viewers); if (!vis.below) below = false;
+    const I = t.int, vis = vShipDeckShown(id, t, gm, viewers); if (!vis.below && viewers.some(([, q]) => q.ship === id)) below = false;
     const sel = VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id;
     const deckHtml = vis.decks.map(d => {
       const objs = (I.objs || []).filter(o => (Number(o.level) || 0) === d && (gm || o.layer !== "gm"));
@@ -144,7 +162,9 @@ function vShipOverHtml(toks, gm) {
     const sel = VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id;
     const name = `<div class="vshipname" style="left:${(minX + maxX) / 2 * C}px;top:${minY * C}px">${vBarsHtml(t)}<span>${esc(t.name || "")}</span></div>`;
     const rot = sel && gm ? (() => { const h = (vShipHeading(t) + 25) * Math.PI / 180, r = Math.max(t.int.w, t.int.h) / 2 + 1.5; return `<div class="vshiprot" data-ship="${esc(id)}" style="left:${(t.x + Math.cos(h) * r) * C}px;top:${(t.y + Math.sin(h) * r) * C}px" title="Drag to turn the vehicle (Shift: any angle)">⟳</div>`; })() : "";
-    return name + rot;
+    const opts = vShipPickOpts(id), vis = vShipVis(id), want = vDeckTabsOn() && opts.length > (gm ? 1 : 1) && (!gm || sel || vis.pick != null) && (gm || opts.length > 1 || vis.pick != null);
+    const tabs = want ? `<div class="vdecktabs" style="left:${maxX * C}px;top:${minY * C}px">${[`<button class="${vis.pick == null ? "on" : ""}" data-act="vttshipview" data-id="${esc(id)}" data-v="">Auto</button>`].concat(opts.map(o => `<button class="${vis.pick === o.d ? "on" : ""}" data-act="vttshipview" data-id="${esc(id)}" data-v="${o.d}" title="${esc(o.who.join(", "))}">${esc(o.name)}</button>`)).join("")}</div>` : "";
+    return name + rot + tabs;
   }).join("") + vHelmHtml(toks, gm);
 }
 // The ring around whoever is at the helm, with the arrow they drag to steer.

@@ -126,7 +126,7 @@ function vVehSideHtml(id, t, v, riders, gm) {
   const canPick = riders.length > 1 && (gm || riders.some(([, r]) => PLAYER && vPlayerTok(r)));
   const fuelLine = F.uses ? `${F.name}: ${f.amt} ${F.res ? esc(f.res.toLowerCase()) : "fuel"} ${f.use === "inefficient" ? "a round, on the pilot's turn" : "a square or hex"}` : `${F.name}: no fuel`;
   return `<div class="vvehinfo"><p class="small"><span class="muted">Speed</span> ${esc(vehSpeedText(v))}</p><p class="small"><span class="muted">Fuel</span> ${fuelLine}</p>
-    ${riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
+    ${vIsShip(t) ? `<div class="vflyrow"><span>At the helm</span><strong>${pl ? esc(vTokName(pl[1])) : "nobody"}</strong></div>${vShipPickHtml(id)}` : riders.length ? `<div class="vflyrow"><span>Pilot</span>${canPick ? `<select class="vpilotsel" data-id="${esc(id)}" aria-label="Pilot">${riders.map(([rid, r]) => `<option value="${esc(rid)}"${pl && pl[0] === rid ? " selected" : ""}${gm || vPlayerTok(r) ? "" : " disabled"}>${esc(vTokName(r))}</option>`).join("")}</select>` : `<strong>${pl ? esc(vTokName(pl[1])) : "—"}</strong>`}</div>` : `<p class="muted small">Nobody aboard. Drop a token on it and press 🛞 Board.</p>`}
     ${stall ? `<p class="small vstall">⚠ ${esc(stall)}</p>` : ""}${vVehResHtml(id, t)}${vVehAbilHtml(t)}</div>`;
 }
 // A vehicle's resources: the item's resource lines (charges, pools), tracked on its token in t.vres[i] = how many it has.
@@ -505,6 +505,7 @@ function vDraw() {
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
   stage.dataset.layer = VTT.layer; stage.classList.toggle("vbelow", !!VTT.shipBelow); VTT.stageW = W; VTT.stageH = H;
   vFog(cur.id, p, toks); vSteerDraw();
+  if (gm && !VTT.preview) document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (t && t.ship && vIsShip(S.vttTokens.get(t.ship))) el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); });
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
   const pt = document.getElementById("vptools"); if (pt) pt.innerHTML = vMeasToolsHtml(false);
@@ -560,28 +561,22 @@ function vFogLoad(pid, p) {
 }
 // Players' tokens can be on different floors of one building. On a shared screen, the players pick
 // which floor to look at (VTT.pfloor); "All" keeps everyone's view together.
-// A floor's name in the picker: a ship's deck if everyone on it is aboard the same ship, otherwise the map's level.
-function vFloorLabel(p, who, n) {
-  const ships = new Set(who.map(([, t]) => t.ship || "")); const sid = ships.size === 1 ? [...ships][0] : "", sh = sid && S.vttTokens.get(sid);
-  if (vIsShip(sh)) { const d = Number(who[0][1].deck) || 0; return vShipDeckName(sh, d); }
-  return n ? (((p.levelNames || {})[n]) || "Level " + n) : "Ground";
-}
 function vViewers(p, toks) {
-  const base = toks.filter(([, t]) => vPlayerTok(t)), fl = vTokFloor;
+  // The tabletop's floor picker is for the map (buildings): it counts only the party on the map. Each ship has its own
+  // deck picker (VTT.shipView), which decides whose eyes count aboard it.
+  const all = toks.filter(([, t]) => vPlayerTok(t)), fl = vTokFloor;
+  const aboard = ([, t]) => t.ship && vIsShip(S.vttTokens.get(t.ship)), base = all.filter(x => !aboard(x));
   const floors = [...new Set(base.map(([, t]) => fl(t)))].sort((a, b) => a - b);
   const bar = document.getElementById("vfloors");
   if (bar) {
-    // The picker is for party members who'd want different views of the same place: on different floors of the map (a
-    // building), or on different decks of the same ship. Someone aboard a ship and someone on the map don't clash.
-    const where = t => t.ship && vIsShip(S.vttTokens.get(t.ship)) ? "s:" + t.ship : "map", groups = new Map();
-    base.forEach(([, t]) => { const k = where(t); if (!groups.has(k)) groups.set(k, new Set()); groups.get(k).add(fl(t)); });
-    const show = [...groups.values()].some(g => g.size > 1) && (!vCanEdit() || VTT.preview);
+    const show = floors.length > 1 && (!vCanEdit() || VTT.preview);
     if (VTT.pfloor != null && !floors.includes(VTT.pfloor)) VTT.pfloor = null;
-    const html = show ? `<span class="vflab">Floor</span><button class="${VTT.pfloor == null ? "on" : ""}" data-act="vttpfloor" data-v="" aria-pressed="${VTT.pfloor == null}">All</button>${floors.slice().reverse().map(n => { const who = base.filter(([, t]) => fl(t) === n).map(([, t]) => t.name || "?"); return `<button class="${VTT.pfloor === n ? "on" : ""}" data-act="vttpfloor" data-v="${n}" aria-pressed="${VTT.pfloor === n}" title="${esc(who.join(", "))}"><b>${esc(vFloorLabel(p, base.filter(([, t]) => fl(t) === n), n))}</b><small>${esc(who.length > 2 ? who.slice(0, 2).join(", ") + " +" + (who.length - 2) : who.join(", "))}</small></button>`; }).join("")}` : "";
+    const html = show ? `<span class="vflab">Floor</span><button class="${VTT.pfloor == null ? "on" : ""}" data-act="vttpfloor" data-v="" aria-pressed="${VTT.pfloor == null}">All</button>${floors.slice().reverse().map(n => { const who = base.filter(([, t]) => fl(t) === n).map(([, t]) => t.name || "?"); return `<button class="${VTT.pfloor === n ? "on" : ""}" data-act="vttpfloor" data-v="${n}" aria-pressed="${VTT.pfloor === n}" title="${esc(who.join(", "))}"><b>${esc(n ? (((p.levelNames || {})[n]) || "Level " + n) : "Ground")}</b><small>${esc(who.length > 2 ? who.slice(0, 2).join(", ") + " +" + (who.length - 2) : who.join(", "))}</small></button>`; }).join("")}` : "";
     if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
     bar.hidden = !show;
   }
-  return VTT.pfloor == null ? base : base.filter(([, t]) => fl(t) === VTT.pfloor);
+  const onMap = VTT.pfloor == null ? base : base.filter(([, t]) => fl(t) === VTT.pfloor);
+  return onMap.concat(all.filter(aboard).filter(([, t]) => vShipVis(t.ship).toks.has(Number(t.deck) || 0)));
 }
 function vFog(pid, p, toks) {
   const cv = document.getElementById("vfog"); if (!cv) return;
@@ -643,9 +638,11 @@ function vFog(pid, p, toks) {
   vFloorHide(viewers);
 }
 // Players only see tokens on a floor one of their tokens is on (or the floor they've picked).
+// Tokens on the map show on the floors the party is looking at; tokens aboard a ship, on the deck its picker shows.
 function vFloorHide(viewers) {
-  const floors = new Set(viewers.map(([, t]) => vTokFloor(t)));
+  const floors = new Set(viewers.filter(([, t]) => !t.ship).map(([, t]) => vTokFloor(t)));
   document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (!t || t.layer === "gm") return;
+    if (t.ship && vIsShip(S.vttTokens.get(t.ship))) { el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); return; }
     el.classList.toggle("vflooroff", floors.size > 0 && !floors.has(vTokFloor(t))); });
 }
 function vFogSaveSoon(pid, p) {
@@ -694,7 +691,7 @@ function vWire(view) {
   const ptrs = new Map(); let drag = null, pinch = null;
   view.addEventListener("wheel", ev => { ev.preventDefault(); const r = view.getBoundingClientRect(); vZoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
   view.addEventListener("pointerdown", ev => {
-    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors")) return;
+    if (ev.target.closest(".vzoom,.vptools,.vturns,.vquests,.vfloors,.vdecktabs")) return;
     const dm = ev.target.closest("button.vdoor"); if (dm) { ev.preventDefault(); ev.stopPropagation(); vDoorClick(dm.dataset.door); return; }
     const go = ev.target.closest(".vgo button"); if (go) { ev.preventDefault(); ev.stopPropagation(); if (go.dataset.deck != null) vShipGoDeck(go.dataset.tok, Number(go.dataset.deck)); else if (go.dataset.mount) vRideOn(go.dataset.tok, go.dataset.mount); else if (go.dataset.dismount) vDismount(go.dataset.tok); else vGoLevel(go.dataset.tok, Number(go.dataset.lvl)); return; }
     view.focus({ preventScroll: true });
@@ -1074,6 +1071,8 @@ async function vttAction(a, el, ev) {
     const max = ex.cur ? ex.max : ex.max + ex.rise; vExSave(el.dataset.id, t, { ex: max, exMax: max }); return; }
   if (a === "vttvres") { const t = S.vttTokens.get(el.dataset.id), i = Number(el.dataset.i); if (!t) return; const x = vVehRes(Object.assign({ _id: el.dataset.id }, t)).find(q => q.i === i); if (x) vVehResSet(el.dataset.id, i, x.have + Number(el.dataset.d)); return; }
   if (a === "vttvrest") { vVehRest(el.dataset.id, el.dataset.v === "short" ? "short" : "long"); return; }
+  if (a === "vttshipview") { const id = el.dataset.id; VTT.shipView = VTT.shipView || {}; if (el.dataset.v === "") delete VTT.shipView[id]; else VTT.shipView[id] = Number(el.dataset.v); vDraw(); vRefresh(); return; }
+  if (a === "vttdecktabs") { VTT.deckTabs = !vDeckTabsOn(); try { localStorage.setItem("vttDeckTabs", VTT.deckTabs ? "1" : "0"); } catch (e) {} vDraw(); vRefresh(); return; }
   if (a === "vttdismount") { const r = S.vttTokens.get(el.dataset.id); if (r && (vCanEdit() || (PLAYER && vPlayerTok(r)))) vDismount(el.dataset.id); return; }
   if (a === "vttpfloor") { VTT.pfloor = el.dataset.v === "" ? null : Number(el.dataset.v); vDraw(); return; }
   if (/^vtt(newcamp|rencamp|delcamp)$/.test(a)) return vttCampAction(a, el);
