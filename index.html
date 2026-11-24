@@ -9077,6 +9077,19 @@ function vMount() {
   vDraw();
   if (VTT.fitDone !== pid) { VTT.fitDone = pid; vFit(); }
 }
+// The stage is redrawn often (every frame while a ship glides). Phones (Safari especially) free canvases slowly and reload the
+// page once canvas memory runs out, so the fog and light canvases are kept and reused instead of made afresh each time.
+function vCvTake(stage) { const m = new Map(), n = {}; stage.querySelectorAll("canvas").forEach(c => { const k = c.id || c.className; n[k] = (n[k] || 0) + 1; m.set(c.id || c.className + "#" + n[k], c); }); return m; }
+function vCvKeep(stage, old) {
+  const n = {};
+  stage.querySelectorAll("canvas").forEach(c => { const k = c.id || c.className; n[k] = (n[k] || 0) + 1; const key = c.id || c.className + "#" + n[k], o = old.get(key); if (!o) return; old.delete(key);
+    for (const a of [...o.attributes]) if (a.name !== "width" && a.name !== "height" && !c.hasAttribute(a.name)) o.removeAttribute(a.name);
+    for (const a of [...c.attributes]) if (a.name !== "width" && a.name !== "height" && o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+    c.replaceWith(o); });
+  old.forEach(c => { c.width = 0; c.height = 0; });
+}
+// Pixels per square for a canvas covering the whole map, kept small enough on big maps for a phone's canvas limits.
+const vCvRes = (p, R) => Math.max(4, Math.min(R, Math.floor(Math.sqrt(4e6 / Math.max(1, p.w * p.h)))));
 function vRefresh() { const s = document.getElementById("vside"); if (s && !(document.activeElement && s.contains(document.activeElement) && document.activeElement.matches("input,select"))) s.innerHTML = vSideHtml(); vDraw(); }
 function vPageNow() { const root = document.querySelector(".vtt"); if (!root) return null; const pid = vCurrentPage(root.dataset.camp); return pid ? { id: pid, p: S.vttPages.get(pid) } : null; }
 function vDraw() {
@@ -9103,6 +9116,7 @@ function vDraw() {
   const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t)).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
   const prevPos = new Map(); stage.querySelectorAll(".vtok").forEach(e => { if (!e.classList.contains("dragging")) { const cs = getComputedStyle(e); prevPos.set(e.dataset.tid, [parseFloat(cs.left), parseFloat(cs.top), parseFloat(e.style.left), parseFloat(e.style.top), e.dataset.slideT]); } });
+  const oldCv = vCvTake(stage);
   stage.innerHTML = `<div class="vbg" style="background:${esc(p.bg || "#1b1f27")}"></div>
     <div class="vlayer vmap">${objs.filter(o => o.layer === "map" && !o.level).map(img).join("")}</div>${grid}${vShipsHtml(cur.id, p, toks, gm)}
     <div class="vlayer vgm">${gm ? objs.filter(o => o.layer === "gm" && !o.level).map(img).join("") + visToks.filter(([, t]) => t.layer === "gm").map(tok).join("") : ""}</div>
@@ -9112,6 +9126,7 @@ function vDraw() {
     <div class="vlayer vhigh">${visToks.filter(([, t]) => t.layer !== "gm" && (vHeight(t) || vTokFloor(t))).map(tok).join("")}</div><div class="vlayer vshipover">${vShipOverHtml(toks, gm)}</div>${vWorkshopHtml(p)}${vFxStageHtml(p)}<svg class="vdrawl" id="vdrawl" width="${W}" height="${H}" aria-hidden="true">${vDrawingsSvg(cur.id)}</svg>${walls}${gm && !VTT.preview && VTT.layer === "lights" ? vLightMarks(p) : ""}${vLinksHtml(p, gm && !VTT.preview)}${vDoorMarks(p, gm && !VTT.preview)}${vGoHtml(p, toks)}<svg class="vmeas" id="vmeas" width="${W}" height="${H}" aria-hidden="true"></svg><div class="vpings" id="vpings"></div>
     ${gm && VTT.sel && VTT.sel.kind === "obj" ? (o => o ? (o.rot ? "" : `<div class="vhandle" data-handle="obj" style="left:${(o.x + o.w) * VCELL - 9}px;top:${(o.y + o.h) * VCELL - 9}px" title="Drag to resize (Shift: free)"></div>`) + `<div class="vrothandle" data-handle="rot" style="left:${(o.x + o.w / 2) * VCELL - 11}px;top:${o.y * VCELL - 40}px;transform-origin:11px ${o.h * VCELL / 2 + 40}px;transform:rotate(${Number(o.rot) || 0}deg)" title="Drag to rotate (Shift: free; otherwise 15° steps)">⟳</div>` : "")(objs.find(o => o.id === VTT.sel.id)) : ""}
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
+  vCvKeep(stage, oldCv);
   stage.dataset.layer = VTT.layer; stage.classList.toggle("vbelow", !!VTT.shipBelow); VTT.stageW = W; VTT.stageH = H;
   vFog(cur.id, p, toks); vSteerDraw();
   if (gm && !VTT.preview) document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (t && t.ship && vIsShip(S.vttTokens.get(t.ship))) el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); });
@@ -9210,15 +9225,15 @@ function vFog(pid, p, toks) {
     c.restore();
   });
   vRoofs(p, viewers);
-  const R = 20, W = p.w * R, H = p.h * R;
-  cv.width = W; cv.height = H; cv.style.display = "block"; cv.style.width = p.w * VCELL + "px"; cv.style.height = p.h * VCELL + "px";
+  const R = vCvRes(p, 20), W = p.w * R, H = p.h * R;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } else cv.getContext("2d").clearRect(0, 0, W, H); cv.style.display = "block"; cv.style.width = p.w * VCELL + "px"; cv.style.height = p.h * VCELL + "px";
   const ctx = cv.getContext("2d");
   ctx.globalCompositeOperation = "source-over"; ctx.fillStyle = "#05060a"; ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = "destination-out";
   if (p.fogMem !== false) {
     const { gw, gh } = vFogLoad(pid, p);
     // Add what's visible now to the remembered squares.
-    const off = document.createElement("canvas"); off.width = gw; off.height = gh; const oc = off.getContext("2d");
+    const off = VTT.fogOff || (VTT.fogOff = document.createElement("canvas")); if (off.width !== gw || off.height !== gh) { off.width = gw; off.height = gh; } const oc = off.getContext("2d"); oc.clearRect(0, 0, gw, gh);
     oc.fillStyle = "#000"; drawSeen(oc, VFOG_RES);
     const px = oc.getImageData(0, 0, gw, gh).data; let changed = false;
     for (let i = 0; i < gw * gh; i++) if (px[i * 4 + 3] > 100) { const b = i >> 3, m = 1 << (i & 7); if (!(VTT.fogBits[b] & m)) { VTT.fogBits[b] |= m; changed = true; } }
@@ -10468,11 +10483,11 @@ function vInitDraw(force) {
 
 
 // When the turn passes to a token, this screen flips to where it stands: its deck if it's aboard a ship (only that ship's
-// picker changes), otherwise its floor of the building. Players only flip to a deck or floor one of the party is on.
+// picker changes), otherwise its floor of the building. Only players' tokens' turns flip it.
 function vTurnFollow(cur, p, toks) {
   const camp = vCampId(); if (!camp || !S.vttCamps.get(camp)) return;
   const I = vInitOf(camp), key = camp + "|" + I.round + "|" + I.cur; if (VTT.turnKey === key) return; VTT.turnKey = key;
-  const e = I.round && I.list.find(x => x.id === I.cur), id = e && e.tok, t = id && S.vttTokens.get(id); if (!t || t.page !== cur.id) return;
+  const e = I.round && I.list.find(x => x.id === I.cur), id = e && e.tok, t = id && S.vttTokens.get(id); if (!t || t.page !== cur.id || !vPlayerTok(t)) return; // the GM's own turns don't flip anything: their monsters can be anywhere
   const gm = vCanEdit() && !VTT.preview;
   if (t.ship && vIsShip(S.vttTokens.get(t.ship))) {
     const d = Number(t.deck) || 0; if (!gm && !vShipPlayerDecks(t.ship).has(d)) return;
@@ -10670,12 +10685,12 @@ const vTokLights = t => (vLightOk(t.light) ? [t.light] : []).concat(vItemLights(
 function vLightsPaint(pid, p, toks) {
   const cuts = [...document.querySelectorAll("#vstage .vfxcut")], glow = document.getElementById("vlglow");
   if (!cuts.length && !glow) return;
-  const R = 24, W = p.w * R, H = p.h * R, em = vEmitters(p, toks), polyCache = new Map();
+  const R = vCvRes(p, 24), W = p.w * R, H = p.h * R, em = vEmitters(p, toks), polyCache = new Map();
   const polyOf = e => { const k = e.x + "," + e.y + "," + e.h; if (!polyCache.has(k)) polyCache.set(k, vVisPoly(e.x, e.y, vSegs(p, e.h))); return polyCache.get(k); };
   const clip = (ctx, e) => { const poly = polyOf(e); ctx.beginPath(); if (poly.length < 3) { ctx.rect(0, 0, W, H); return; } poly.forEach(([x, y], i) => i ? ctx.lineTo(x * R, y * R) : ctx.moveTo(x * R, y * R)); ctx.closePath(); };
   cuts.forEach(cv => {
-    cv.width = W; cv.height = H; cv.style.width = p.w * VCELL + "px"; cv.style.height = p.h * VCELL + "px";
-    const ctx = cv.getContext("2d"); ctx.fillStyle = cv.dataset.col; ctx.fillRect(0, 0, W, H);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } cv.style.width = p.w * VCELL + "px"; cv.style.height = p.h * VCELL + "px";
+    const ctx = cv.getContext("2d"); ctx.globalCompositeOperation = "source-over"; ctx.clearRect(0, 0, W, H); ctx.fillStyle = cv.dataset.col; ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = "destination-out";
     em.forEach(e => {
       const rr = (e.bright + e.dim) / 5 * R; if (rr <= 0) return; const bf = e.bright / (e.bright + e.dim);
@@ -10686,7 +10701,7 @@ function vLightsPaint(pid, p, toks) {
     });
   });
   if (glow) {
-    glow.width = W; glow.height = H; glow.style.width = p.w * VCELL + "px"; glow.style.height = p.h * VCELL + "px";
+    if (glow.width !== W || glow.height !== H) { glow.width = W; glow.height = H; } glow.getContext("2d").clearRect(0, 0, W, H); glow.style.width = p.w * VCELL + "px"; glow.style.height = p.h * VCELL + "px";
     const ctx = glow.getContext("2d"); ctx.globalCompositeOperation = "lighter";
     const rgba = (hex, a) => { const m = String(hex).match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i); const [r, g, b] = m ? [1, 2, 3].map(i => parseInt(m[i], 16)) : [255, 217, 160]; return `rgba(${r},${g},${b},${a})`; };
     em.forEach(e => {
