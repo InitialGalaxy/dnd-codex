@@ -2179,6 +2179,11 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vlvlname { min-width: 6em !important; color: #e8c27a !important; font-size: .82rem; }
 .vscale { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px 10px; padding:8px 10px; border:1px solid var(--line, #333); border-radius:8px; margin:6px 0 }
 .vscale label { display:flex; flex-direction:column; gap:4px } .vscalein { display:flex; align-items:center; gap:6px; white-space:nowrap } .vscalein input { width:6em } .vscale small { flex-basis:100% }
+.vgridedl { pointer-events:none; z-index:40 } .vgridedl svg { position:absolute; left:0; top:0 }
+.vgecell { fill:rgba(62,230,255,.12); stroke:#3ee6ff; stroke-width:3; stroke-dasharray:8 5 }
+.vgehandle { position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; background:#3ee6ff; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.5); pointer-events:auto; cursor:nwse-resize; transform:scale(var(--vinv,1)); touch-action:none }
+.vgridediting .vgrid { opacity:.2 }
+.vgridedtools { flex-direction:column; align-items:stretch; gap:6px } .vgenudge { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:3px; max-width:150px } .vgenudge .vbtn { width:100%; min-width:0; padding:0 } .vgridedtools input[type=number] { width:7em }
 </style>
 </head>
 <body>

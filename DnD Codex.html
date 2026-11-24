@@ -2180,6 +2180,11 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vlvlname { min-width: 6em !important; color: #e8c27a !important; font-size: .82rem; }
 .vscale { display:flex; flex-wrap:wrap; align-items:flex-end; gap:6px 10px; padding:8px 10px; border:1px solid var(--line, #333); border-radius:8px; margin:6px 0 }
 .vscale label { display:flex; flex-direction:column; gap:4px } .vscalein { display:flex; align-items:center; gap:6px; white-space:nowrap } .vscalein input { width:6em } .vscale small { flex-basis:100% }
+.vgridedl { pointer-events:none; z-index:40 } .vgridedl svg { position:absolute; left:0; top:0 }
+.vgecell { fill:rgba(62,230,255,.12); stroke:#3ee6ff; stroke-width:3; stroke-dasharray:8 5 }
+.vgehandle { position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; background:#3ee6ff; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.5); pointer-events:auto; cursor:nwse-resize; transform:scale(var(--vinv,1)); touch-action:none }
+.vgridediting .vgrid { opacity:.2 }
+.vgridedtools { flex-direction:column; align-items:stretch; gap:6px } .vgenudge { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:3px; max-width:150px } .vgenudge .vbtn { width:100%; min-width:0; padding:0 } .vgridedtools input[type=number] { width:7em }
 </style>
 </head>
 <body>
@@ -9051,7 +9056,7 @@ function viewVttCamp(camp) {
 }
 function vToolsHtml() {
   const L = [["map", "Map", "Battle maps and backgrounds, under the grid"], ["token", "Tokens", "Creatures and things players can see"], ["gm", "GM", "Only you can see these"], ["walls", "Walls", "Lines that block sight"], ["lights", "Lights", "Torches, lanterns and glows: click to place one, drag to move it"]];
-  const T = [["select", "↖", "Select and move (V)"], ["pan", "✋", "Pan (H, or drag empty space)"], ["measure", "📏", "Measure (M)"], ["wall", "╱", "Draw walls (W): click points, double-click or Enter to finish"], ["area", "▦", "Raised squares (A): drag over the squares that are up on the level you're editing (a rooftop or upper floor). Alt-drag to remove squares."], ["link", "⇅", "Stairs or lift (S): drag over the squares; tokens standing there get a button to change level"], ["draw", "✏️", "Draw (D): doodle on the map for everyone to see"], ["scale", "📐", "Travel scale: drag a line and say how much travel it is (e.g. one day)"], ["align", "⊞", "Line up with the grid: drag across something on the map (a corridor, a door) and say how many squares it is. Every level moves together."], ["travel", "🧭", "Travel (T): click out a route to see how long it takes; double-click or Enter to finish"], ["ping", "📍", "Ping (P): click to flash a spot for everyone; Shift-click to move everyone's view there. Or hold the mouse still on the map anywhere."]];
+  const T = [["select", "↖", "Select and move (V)"], ["pan", "✋", "Pan (H, or drag empty space)"], ["measure", "📏", "Measure (M)"], ["wall", "╱", "Draw walls (W): click points, double-click or Enter to finish"], ["area", "▦", "Raised squares (A): drag over the squares that are up on the level you're editing (a rooftop or upper floor). Alt-drag to remove squares."], ["link", "⇅", "Stairs or lift (S): drag over the squares; tokens standing there get a button to change level"], ["draw", "✏️", "Draw (D): doodle on the map for everyone to see"], ["scale", "📐", "Travel scale: drag a line and say how much travel it is (e.g. one day)"], ["gridfit", "#", "Move the grid: drag the grid onto the squares drawn in the picture, size it with the corner handle, then Apply. Every level moves together."], ["align", "⊞", "Line up with the grid: drag across something on the map (a corridor, a door) and say how many squares it is. Every level moves together."], ["travel", "🧭", "Travel (T): click out a route to see how long it takes; double-click or Enter to finish"], ["ping", "📍", "Ping (P): click to flash a spot for everyone; Shift-click to move everyone's view there. Or hold the mouse still on the map anywhere."]];
   return `<div class="vgroup"><span class="vlab">Layer</span>${L.map(([v, l, t]) => `<button class="vbtn${VTT.layer === v ? " on" : ""}" data-act="vttlayer" data-v="${v}" title="${t}" aria-pressed="${VTT.layer === v}">${l}</button>`).join("")}</div>
     <div class="vgroup"><span class="vlab">Tool</span>${T.map(([v, l, t]) => `<button class="vbtn icon${VTT.tool === v ? " on" : ""}" data-act="vtttool" data-v="${v}" title="${t}" aria-label="${t}" aria-pressed="${VTT.tool === v}">${l}</button>`).join("")}</div>
     <div class="vgroup vundo"><button class="vbtn" data-act="vttundo"${VTT.undo.length ? "" : " disabled"} title="Undo (Ctrl+Z)">↶ Undo</button><button class="vbtn" data-act="vttredo"${VTT.redo.length ? "" : " disabled"} title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
@@ -9059,6 +9064,7 @@ function vToolsHtml() {
     ${vLevelToolsHtml()}
     ${vMeasToolsHtml(true)}
     ${VTT.tool === "draw" ? `<div class="vgroup"><span class="vlab">Pen</span>${vPenHtml(true)}</div>` : ""}
+    ${VTT.tool === "gridfit" ? vGridEdToolsHtml() : ""}
     ${VTT.tool === "travel" || VTT.tool === "scale" || VTT.tool === "align" ? `<div class="vgroup"><span class="vlab">${VTT.tool === "scale" ? "Scale" : VTT.tool === "align" ? "Line up" : "Travel"}</span>${vTravelToolsHtml(true)}</div>` : ""}
     ${VTT.tool === "wall" ? `<div class="vgroup"><span class="vlab">Draw as</span><div class="seg vwk">${[["wall", "Wall"], ["door", "🚪 Door"], ["window", "🪟 Window"]].map(([v, l]) => `<button class="${(VTT.wallKind || "wall") === v ? "on" : ""}" data-act="vttwk" data-v="${v}" aria-pressed="${(VTT.wallKind || "wall") === v}">${l}</button>`).join("")}</div>
       <label class="check small"><input type="checkbox" data-act="vttwsnap"${VTT.wallSnap !== false ? " checked" : ""}> Snap to grid <small class="muted">(Alt flips it)</small></label></div>` : ""}
@@ -9130,7 +9136,7 @@ function vDraw() {
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
   vCvKeep(stage, oldCv);
   stage.dataset.layer = VTT.layer; stage.classList.toggle("vbelow", !!VTT.shipBelow); VTT.stageW = W; VTT.stageH = H;
-  vFog(cur.id, p, toks); vSteerDraw();
+  vFog(cur.id, p, toks); vSteerDraw(); vGridEdDraw();
   if (gm && !VTT.preview) document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (t && t.ship && vIsShip(S.vttTokens.get(t.ship))) el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); });
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
@@ -9335,6 +9341,7 @@ function vWire(view) {
     if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : vHexOf(cur.p) ? vHexSnapPt(cur.p, x, y) : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
     if (VTT.tool === "ping") { ev.preventDefault(); vPing(x, y, gm && ev.shiftKey); return; }
     if (VTT.tool === "travel") { ev.preventDefault(); vTravelClick(x, y, ev); return; }
+    if (gm && VTT.tool === "gridfit") { ev.preventDefault(); const G = vGridEd(cur.id), hd = ev.target.closest(".vgehandle"); drag = hd ? { kind: "gridsize", g0: G.g, ox: G.ox, oy: G.oy } : { kind: "gridmove", sx: x, sy: y, ox: G.ox, oy: G.oy }; view.setPointerCapture(ev.pointerId); return; }
     if (gm && VTT.tool === "align") { ev.preventDefault(); drag = { kind: "align" }; VTT.meas = { shape: "align", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (gm && VTT.tool === "scale") { ev.preventDefault(); drag = { kind: "scale" }; VTT.meas = { shape: "scale", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (VTT.tool === "draw") { ev.preventDefault(); if (VTT.erase) { vEraseAt(x, y); drag = { kind: "erase" }; view.setPointerCapture(ev.pointerId); return; } drag = { kind: "draw", pts: [[x, y]] }; view.setPointerCapture(ev.pointerId); vDrawLive(drag.pts); return; }
@@ -9398,6 +9405,8 @@ function vWire(view) {
     if (drag.kind === "rot") { let a = Math.atan2(y - drag.cy, x - drag.cx) * 180 / Math.PI + 90; if (!ev.shiftKey) a = Math.round(a / 15) * 15; a = ((a % 360) + 360) % 360; drag.a = a; if (drag.el) drag.el.style.transform = `rotate(${a}deg)`; const hd = document.querySelector(".vrothandle"); if (hd) hd.style.transform = `rotate(${a}deg)`; return; }
     if (drag.kind === "wend") { const np = vSnapWall([x, y], ev, drag.pt); drag.np = np; drag.el.style.left = np[0] * VCELL + "px"; drag.el.style.top = np[1] * VCELL + "px"; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = vWallEndPreview(drag); return; }
     if (drag.kind === "scale" || drag.kind === "align") { VTT.meas.e = [x, y]; vMeasDraw(); return; }
+    if (drag.kind === "gridmove") { const G = VTT.gridEd; G.ox = drag.ox + x - drag.sx; G.oy = drag.oy + y - drag.sy; vGridEdDraw(); return; }
+    if (drag.kind === "gridsize") { const G = VTT.gridEd, n = 3, g = Math.max(0.2, Math.min(10, ((x - drag.ox) + (y - drag.oy)) / 2 / n)); G.g = Math.round(g * 1000) / 1000; vGridEdDraw(); return; }
     if (drag.kind === "draw") { const l = drag.pts[drag.pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) > 0.04) { drag.pts.push([x, y]); vDrawLive(drag.pts); } return; }
     if (drag.kind === "erase") { vEraseAt(x, y); return; }
     if (drag.kind === "box") { drag.ex = x; drag.ey = y; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = `<rect class="vboxsel" x="${Math.min(drag.sx, x) * VCELL}" y="${Math.min(drag.sy, y) * VCELL}" width="${Math.abs(x - drag.sx) * VCELL}" height="${Math.abs(y - drag.sy) * VCELL}"/>`; return; }
@@ -9687,6 +9696,63 @@ async function vTransformPage(pid, k, dx, dy, W, H) {
   }
   for (const [id, d] of [...(S.vttDraw || new Map())]) if (d.page === pid && Array.isArray(d.pts)) await vPatch("vttdraw/" + id, { pts: d.pts.map(q => [rx(q[0]), ry(q[1])]) }).catch(() => {});
   if (p.fogMem !== false && !p.vehicle) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + pid).catch(() => {}); }
+}
+// The # tool: move and size a grid over the pictures to match the squares drawn in them. Applying it rescales and shifts the
+// whole page (every level and layer) so that grid becomes the map's own grid. VTT.gridEd = { pid, ox, oy, g } in squares.
+function vGridEd(pid) { if (!VTT.gridEd || VTT.gridEd.pid !== pid) VTT.gridEd = { pid, ox: 0, oy: 0, g: 1 }; return VTT.gridEd; }
+function vGridEdDraw() {
+  const st = document.getElementById("vstage"), cur = vPageNow(); if (!st) return;
+  let el = document.getElementById("vgridedl"); const on = VTT.tool === "gridfit" && cur && vCanEdit() && !VTT.preview;
+  st.classList.toggle("vgridediting", !!on);
+  if (!on) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement("div"); el.id = "vgridedl"; el.className = "vlayer vgridedl"; st.appendChild(el); }
+  const G = vGridEd(cur.id), C = VCELL, gp = G.g * C, W = cur.p.w * C, H = cur.p.h * C, n = 3;
+  const ox = ((G.ox % G.g) + G.g) % G.g, oy = ((G.oy % G.g) + G.g) % G.g;
+  el.innerHTML = `<svg width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgep" x="${ox * C}" y="${oy * C}" width="${gp}" height="${gp}" patternUnits="userSpaceOnUse"><path d="M ${gp} 0 L 0 0 0 ${gp}" fill="none" stroke="rgba(0,0,0,.75)" stroke-width="4"/><path d="M ${gp} 0 L 0 0 0 ${gp}" fill="none" stroke="#3ee6ff" stroke-width="2"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgep)"/>
+    <rect class="vgecell" x="${G.ox * C}" y="${G.oy * C}" width="${gp * n}" height="${gp * n}"/></svg>
+    <div class="vgehandle" style="left:${(G.ox + G.g * n) * C}px;top:${(G.oy + G.g * n) * C}px" title="Drag to make the squares bigger or smaller"></div>`;
+  const o = document.getElementById("vgeout"); if (o) o.textContent = vGridEdText(cur.p, G);
+  const si = document.getElementById("vgesize"); if (si && document.activeElement !== si) si.value = Math.round(G.g * 1000) / 10;
+}
+const vGridEdText = (p, G) => `Squares ${Math.round(G.g * 1000) / 10}% of now · the map would be about ${Math.ceil(p.w / G.g)} × ${Math.ceil(p.h / G.g)}`;
+function vGridEdToolsHtml() {
+  const cur = vPageNow(); if (!cur) return ""; const G = vGridEd(cur.id), nb = (dx, dy, l, t) => `<button class="vbtn icon" data-act="vttgenudge" data-dx="${dx}" data-dy="${dy}" title="${t}" aria-label="${t}">${l}</button>`;
+  return `<div class="vgroup vgridedtools"><span class="vlab">Move the grid</span>
+    <p class="muted small vlhint">Drag the blue grid so its lines sit on the squares drawn in the picture. Drag the round handle to size the squares (the box is 3 × 3 squares).</p>
+    <div class="vgenudge">${nb(-0.05, 0, "←", "Nudge left")}${nb(0, -0.05, "↑", "Nudge up")}${nb(0, 0.05, "↓", "Nudge down")}${nb(0.05, 0, "→", "Nudge right")}</div>
+    <label class="small"><span class="muted">Square size, % of now</span><input type="number" min="20" max="1000" step="0.5" id="vgesize" value="${Math.round(G.g * 1000) / 10}"></label>
+    <p class="muted small" id="vgeout">${esc(vGridEdText(cur.p, G))}</p>
+    <label class="check small"><input type="checkbox" id="vgefit"${cur.p.vehicle ? " checked" : ""}> Fit the page to the pictures</label>
+    <div class="acts"><button class="btn small" data-act="vttgeapply">Apply</button><button class="btn ghost small" data-act="vttgereset">Reset</button></div></div>`;
+}
+document.addEventListener("input", ev => { if (!ev.target || ev.target.id !== "vgesize" || !VTT.gridEd) return; const v = Number(ev.target.value); if (v >= 20 && v <= 1000) { VTT.gridEd.g = v / 100; vGridEdDraw(); } });
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest && ev.target.closest("[data-act=vttgenudge],[data-act=vttgeapply],[data-act=vttgereset]"); if (!b || !vCanEdit()) return;
+  const cur = vPageNow(); if (!cur) return; const G = vGridEd(cur.id), a = b.dataset.act;
+  if (a === "vttgenudge") { G.ox += Number(b.dataset.dx) * G.g; G.oy += Number(b.dataset.dy) * G.g; vGridEdDraw(); return; }
+  if (a === "vttgereset") { VTT.gridEd = null; vGridEd(cur.id); vGridEdDraw(); const i = document.getElementById("vgesize"); if (i) i.value = 100; return; }
+  if (Math.abs(G.g - 1) < 1e-4 && Math.abs(G.ox % 1) < 1e-4 && Math.abs(G.oy % 1) < 1e-4) { toast("The grid hasn't moved."); return; }
+  const fit = !!(document.getElementById("vgefit") || {}).checked, k = 1 / G.g;
+  const ox = ((G.ox % G.g) + G.g) % G.g, oy = ((G.oy % G.g) + G.g) % G.g;
+  // The blue line at ox becomes a grid line of the map.
+  const dx = -ox * k, dy = -oy * k;
+  await vUndoStep(() => vRegridPage(cur.id, k, dx, dy, fit), "moving the grid");
+  VTT.gridEd = null; VTT.fitDone = ""; vMount(); const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml();
+});
+// Scale by k and shift by (dx, dy) whole page; then fit it to the pictures, or keep everything that was on it.
+async function vRegridPage(pid, k, dx, dy, fit) {
+  const p = S.vttPages.get(pid); if (!p) return;
+  const objs = (p.objs || []).filter(o => o.layer === "map" || o.level);
+  let W, H;
+  if (fit && objs.length) {
+    const x0 = Math.min(...objs.map(o => o.x * k + dx)), y0 = Math.min(...objs.map(o => o.y * k + dy)), x1 = Math.max(...objs.map(o => (o.x + o.w) * k + dx)), y1 = Math.max(...objs.map(o => (o.y + o.h) * k + dy));
+    const sx = Math.floor(x0 + 0.02), sy = Math.floor(y0 + 0.02); dx -= sx; dy -= sy; W = Math.ceil(x1 - sx - 0.02); H = Math.ceil(y1 - sy - 0.02);
+  } else { // keep the old page's corner on the page: whole squares only, so the lines stay put
+    const sx = Math.floor(dx + 1e-6), sy = Math.floor(dy + 1e-6); if (sx < 0) dx -= sx; if (sy < 0) dy -= sy; W = Math.ceil(p.w * k + dx - 1e-6); H = Math.ceil(p.h * k + dy - 1e-6);
+  }
+  W = Math.max(1, Math.min(200, W)); H = Math.max(1, Math.min(200, H));
+  await vTransformPage(pid, k, dx, dy, W, H);
+  toast(`Grid moved: squares are ${Math.round(k * 1000) / 10}% of what they were in the picture. The page is ${W} × ${H}. Undo puts it back.`);
 }
 // The ⊞ tool: a line dragged across something on the map, and how many squares it should be. Everything on the page (every
 // level and layer) is scaled about the line's start, then nudged so the start sits on a grid line along the way the line runs.
@@ -10632,7 +10698,7 @@ function vLiveSnap() {
   document.addEventListener("pointerdown", ev => {
     cancel();
     const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
-    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "draw", "link"].includes(VTT.tool)) return;
+    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
     timer = setTimeout(() => { timer = 0; VTT.pingHeld = true; vPing(pt[0], pt[1], shift && vCanEdit()); }, 550);
