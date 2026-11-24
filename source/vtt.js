@@ -440,7 +440,7 @@ function viewVttCamp(camp) {
 }
 function vToolsHtml() {
   const L = [["map", "Map", "Battle maps and backgrounds, under the grid"], ["token", "Tokens", "Creatures and things players can see"], ["gm", "GM", "Only you can see these"], ["walls", "Walls", "Lines that block sight"], ["lights", "Lights", "Torches, lanterns and glows: click to place one, drag to move it"]];
-  const T = [["select", "↖", "Select and move (V)"], ["pan", "✋", "Pan (H, or drag empty space)"], ["measure", "📏", "Measure (M)"], ["wall", "╱", "Draw walls (W): click points, double-click or Enter to finish"], ["area", "▦", "Raised squares (A): drag over the squares that are up on the level you're editing (a rooftop or upper floor). Alt-drag to remove squares."], ["link", "⇅", "Stairs or lift (S): drag over the squares; tokens standing there get a button to change level"], ["draw", "✏️", "Draw (D): doodle on the map for everyone to see"], ["scale", "📐", "Travel scale: drag a line and say how much travel it is (e.g. one day)"], ["travel", "🧭", "Travel (T): click out a route to see how long it takes; double-click or Enter to finish"], ["ping", "📍", "Ping (P): click to flash a spot for everyone; Shift-click to move everyone's view there. Or hold the mouse still on the map anywhere."]];
+  const T = [["select", "↖", "Select and move (V)"], ["pan", "✋", "Pan (H, or drag empty space)"], ["measure", "📏", "Measure (M)"], ["wall", "╱", "Draw walls (W): click points, double-click or Enter to finish"], ["area", "▦", "Raised squares (A): drag over the squares that are up on the level you're editing (a rooftop or upper floor). Alt-drag to remove squares."], ["link", "⇅", "Stairs or lift (S): drag over the squares; tokens standing there get a button to change level"], ["draw", "✏️", "Draw (D): doodle on the map for everyone to see"], ["scale", "📐", "Travel scale: drag a line and say how much travel it is (e.g. one day)"], ["align", "⊞", "Line up with the grid: drag across something on the map (a corridor, a door) and say how many squares it is. Every level moves together."], ["travel", "🧭", "Travel (T): click out a route to see how long it takes; double-click or Enter to finish"], ["ping", "📍", "Ping (P): click to flash a spot for everyone; Shift-click to move everyone's view there. Or hold the mouse still on the map anywhere."]];
   return `<div class="vgroup"><span class="vlab">Layer</span>${L.map(([v, l, t]) => `<button class="vbtn${VTT.layer === v ? " on" : ""}" data-act="vttlayer" data-v="${v}" title="${t}" aria-pressed="${VTT.layer === v}">${l}</button>`).join("")}</div>
     <div class="vgroup"><span class="vlab">Tool</span>${T.map(([v, l, t]) => `<button class="vbtn icon${VTT.tool === v ? " on" : ""}" data-act="vtttool" data-v="${v}" title="${t}" aria-label="${t}" aria-pressed="${VTT.tool === v}">${l}</button>`).join("")}</div>
     <div class="vgroup vundo"><button class="vbtn" data-act="vttundo"${VTT.undo.length ? "" : " disabled"} title="Undo (Ctrl+Z)">↶ Undo</button><button class="vbtn" data-act="vttredo"${VTT.redo.length ? "" : " disabled"} title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
@@ -448,7 +448,7 @@ function vToolsHtml() {
     ${vLevelToolsHtml()}
     ${vMeasToolsHtml(true)}
     ${VTT.tool === "draw" ? `<div class="vgroup"><span class="vlab">Pen</span>${vPenHtml(true)}</div>` : ""}
-    ${VTT.tool === "travel" || VTT.tool === "scale" ? `<div class="vgroup"><span class="vlab">${VTT.tool === "scale" ? "Scale" : "Travel"}</span>${vTravelToolsHtml(true)}</div>` : ""}
+    ${VTT.tool === "travel" || VTT.tool === "scale" || VTT.tool === "align" ? `<div class="vgroup"><span class="vlab">${VTT.tool === "scale" ? "Scale" : VTT.tool === "align" ? "Line up" : "Travel"}</span>${vTravelToolsHtml(true)}</div>` : ""}
     ${VTT.tool === "wall" ? `<div class="vgroup"><span class="vlab">Draw as</span><div class="seg vwk">${[["wall", "Wall"], ["door", "🚪 Door"], ["window", "🪟 Window"]].map(([v, l]) => `<button class="${(VTT.wallKind || "wall") === v ? "on" : ""}" data-act="vttwk" data-v="${v}" aria-pressed="${(VTT.wallKind || "wall") === v}">${l}</button>`).join("")}</div>
       <label class="check small"><input type="checkbox" data-act="vttwsnap"${VTT.wallSnap !== false ? " checked" : ""}> Snap to grid <small class="muted">(Alt flips it)</small></label></div>` : ""}
     ${VTT.layer === "lights" ? vLightToolsHtml() : ""}
@@ -724,6 +724,7 @@ function vWire(view) {
     if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : vHexOf(cur.p) ? vHexSnapPt(cur.p, x, y) : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
     if (VTT.tool === "ping") { ev.preventDefault(); vPing(x, y, gm && ev.shiftKey); return; }
     if (VTT.tool === "travel") { ev.preventDefault(); vTravelClick(x, y, ev); return; }
+    if (gm && VTT.tool === "align") { ev.preventDefault(); drag = { kind: "align" }; VTT.meas = { shape: "align", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (gm && VTT.tool === "scale") { ev.preventDefault(); drag = { kind: "scale" }; VTT.meas = { shape: "scale", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (VTT.tool === "draw") { ev.preventDefault(); if (VTT.erase) { vEraseAt(x, y); drag = { kind: "erase" }; view.setPointerCapture(ev.pointerId); return; } drag = { kind: "draw", pts: [[x, y]] }; view.setPointerCapture(ev.pointerId); vDrawLive(drag.pts); return; }
     if (gm && VTT.tool === "link") { ev.preventDefault(); const sx = Math.floor(x), sy = Math.floor(y); drag = { kind: "link", sx, sy, ex: sx, ey: sy }; view.setPointerCapture(ev.pointerId); vLinkDraft(drag); return; }
@@ -785,7 +786,7 @@ function vWire(view) {
     if (drag.kind === "link" || drag.kind === "area") { drag.ex = Math.floor(x); drag.ey = Math.floor(y); if (drag.kind === "area") drag.rm = drag.rm || ev.altKey; vLinkDraft(drag); return; }
     if (drag.kind === "rot") { let a = Math.atan2(y - drag.cy, x - drag.cx) * 180 / Math.PI + 90; if (!ev.shiftKey) a = Math.round(a / 15) * 15; a = ((a % 360) + 360) % 360; drag.a = a; if (drag.el) drag.el.style.transform = `rotate(${a}deg)`; const hd = document.querySelector(".vrothandle"); if (hd) hd.style.transform = `rotate(${a}deg)`; return; }
     if (drag.kind === "wend") { const np = vSnapWall([x, y], ev, drag.pt); drag.np = np; drag.el.style.left = np[0] * VCELL + "px"; drag.el.style.top = np[1] * VCELL + "px"; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = vWallEndPreview(drag); return; }
-    if (drag.kind === "scale") { VTT.meas.e = [x, y]; vMeasDraw(); return; }
+    if (drag.kind === "scale" || drag.kind === "align") { VTT.meas.e = [x, y]; vMeasDraw(); return; }
     if (drag.kind === "draw") { const l = drag.pts[drag.pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) > 0.04) { drag.pts.push([x, y]); vDrawLive(drag.pts); } return; }
     if (drag.kind === "erase") { vEraseAt(x, y); return; }
     if (drag.kind === "box") { drag.ex = x; drag.ey = y; const svg = document.getElementById("vmeas"); if (svg) svg.innerHTML = `<rect class="vboxsel" x="${Math.min(drag.sx, x) * VCELL}" y="${Math.min(drag.sy, y) * VCELL}" width="${Math.abs(x - drag.sx) * VCELL}" height="${Math.abs(y - drag.sy) * VCELL}"/>`; return; }
@@ -810,6 +811,7 @@ function vWire(view) {
     if (d.kind === "area") { vAreaPaint(d); return; }
     if (d.kind === "draw") { vDrawSave(d.pts); return; }
     if (d.kind === "scale") { vScaleSet(); return; }
+    if (d.kind === "align") { vAlignAsk(); return; }
     if (d.kind === "rot") { if (d.a != null) vObjSet(d.o.id, { rot: d.a }); return; }
     if (d.kind === "wend") { vMeasDraw(); if (d.np) vWallMoveEnd(d.pt, d.np, d.lvl); return; }
     if (d.kind === "erase") return;
@@ -1051,26 +1053,66 @@ function vPlaceToken(ref, name, img) {
 }
 
 // Scale a whole page by k: everything on it, plus tokens standing on it (and, for a vehicle's map, tokens aboard that vehicle).
-async function vScalePage(pid, k) {
+async function vScalePage(pid, k) { const p = S.vttPages.get(pid); if (!p) return; return vTransformPage(pid, k, 0, 0, Math.max(1, Math.ceil(p.w * k - 1e-6)), Math.max(1, Math.ceil(p.h * k - 1e-6))); }
+// Each point (x, y) goes to (x * k + dx, y * k + dy), and the page becomes W × H.
+async function vTransformPage(pid, k, dx, dy, W, H) {
   const p = S.vttPages.get(pid); if (!p) return;
-  const r = v => Math.round(v * k * 1000) / 1000, cell = v => Math.floor(v * k + 1e-6);
-  const cells = list => { const out = new Map(); (list || []).forEach(([x, y]) => { const x0 = cell(x), y0 = cell(y), x1 = Math.max(x0, Math.ceil((x + 1) * k - 1e-6) - 1), y1 = Math.max(y0, Math.ceil((y + 1) * k - 1e-6) - 1); for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) out.set(a + "," + b, [a, b]); }); return [...out.values()]; };
-  const f = { w: Math.max(1, Math.ceil(p.w * k - 1e-6)), h: Math.max(1, Math.ceil(p.h * k - 1e-6)),
-    objs: (p.objs || []).map(o => Object.assign({}, o, { x: r(o.x), y: r(o.y), w: r(o.w), h: r(o.h) })),
-    walls: (p.walls || []).map(w => [r(w[0]), r(w[1]), r(w[2]), r(w[3])].concat(w.slice(4))),
-    areas: (p.areas || []).map(a => Object.assign({}, a, a.cells ? { cells: cells(a.cells) } : {}, a.pts ? { pts: a.pts.map(q => [r(q[0]), r(q[1])]) } : {})),
-    links: (p.links || []).map(l => { const x = cell(l.x), y = cell(l.y); return Object.assign({}, l, { x, y, w: Math.max(1, Math.round((l.x + l.w) * k) - x), h: Math.max(1, Math.round((l.y + l.h) * k) - y) }); }),
-    lights: (p.lights || []).map(l => Object.assign({}, l, { x: r(l.x), y: r(l.y) })) };
-  if (p.vehicle) { const hm = new Map(); (p.helm || []).forEach(h => { const x = cell(h[0]), y = cell(h[1]), d = h[2] || 0; hm.set(x + "," + y + "," + d, [x, y, d]); }); f.helm = [...hm.values()];
-    f.com = Array.isArray(p.com) ? [r(p.com[0]), r(p.com[1])] : [f.w / 2, f.h / 2]; }
+  const rx = v => Math.round((v * k + dx) * 1000) / 1000, ry = v => Math.round((v * k + dy) * 1000) / 1000, r = v => Math.round(v * k * 1000) / 1000;
+  const cx = v => Math.floor(v * k + dx + 1e-6), cy = v => Math.floor(v * k + dy + 1e-6);
+  const cells = list => { const out = new Map(); (list || []).forEach(([x, y]) => { const x0 = cx(x), y0 = cy(y), x1 = Math.max(x0, Math.ceil((x + 1) * k + dx - 1e-6) - 1), y1 = Math.max(y0, Math.ceil((y + 1) * k + dy - 1e-6) - 1); for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) out.set(a + "," + b, [a, b]); }); return [...out.values()]; };
+  const f = { w: W, h: H,
+    objs: (p.objs || []).map(o => Object.assign({}, o, { x: rx(o.x), y: ry(o.y), w: r(o.w), h: r(o.h) })),
+    walls: (p.walls || []).map(w => [rx(w[0]), ry(w[1]), rx(w[2]), ry(w[3])].concat(w.slice(4))),
+    areas: (p.areas || []).map(a => Object.assign({}, a, a.cells ? { cells: cells(a.cells) } : {}, a.pts ? { pts: a.pts.map(q => [rx(q[0]), ry(q[1])]) } : {})),
+    links: (p.links || []).map(l => { const x = cx(l.x), y = cy(l.y); return Object.assign({}, l, { x, y, w: Math.max(1, Math.round((l.x + l.w) * k + dx) - x), h: Math.max(1, Math.round((l.y + l.h) * k + dy) - y) }); }),
+    lights: (p.lights || []).map(l => Object.assign({}, l, { x: rx(l.x), y: ry(l.y) })) };
+  if (p.vehicle) { const hm = new Map(); (p.helm || []).forEach(h => { const x = cx(h[0]), y = cy(h[1]), d = h[2] || 0; hm.set(x + "," + y + "," + d, [x, y, d]); }); f.helm = [...hm.values()];
+    f.com = Array.isArray(p.com) ? [rx(p.com[0]), ry(p.com[1])] : [f.w / 2, f.h / 2]; }
   await vPatch("vttpages/" + pid, f);
   const sz = t => vTokSz(t), hex = !!vHexOf(p), snap = (v, h) => h ? v : Math.round(v); // tokens land back on a square
   for (const [id, t] of [...S.vttTokens]) {
-    if (t.page === pid && !t.ship && !vIsShip(t)) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { x: snap(r(t.x + s) - s, hex), y: snap(r(t.y + s) - s, hex) }); }
-    if (p.vehicle && t.ship) { const sh = S.vttTokens.get(t.ship); if (vIsShip(sh) && sh.ref === "e:" + p.vehicle && t.sx != null) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { sx: snap(r(t.sx + s) - s), sy: snap(r(t.sy + s) - s) }); } }
+    if (t.page === pid && !t.ship && !vIsShip(t)) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { x: snap(rx(t.x + s) - s, hex), y: snap(ry(t.y + s) - s, hex) }); }
+    if (p.vehicle && t.ship) { const sh = S.vttTokens.get(t.ship); if (vIsShip(sh) && sh.ref === "e:" + p.vehicle && t.sx != null) { const s = sz(t) / 2; await vPatch("vtttokens/" + id, { sx: snap(rx(t.sx + s) - s), sy: snap(ry(t.sy + s) - s) }); } }
   }
-  for (const [id, d] of [...(S.vttDraw || new Map())]) if (d.page === pid && Array.isArray(d.pts)) await vPatch("vttdraw/" + id, { pts: d.pts.map(q => [r(q[0]), r(q[1])]) }).catch(() => {});
+  for (const [id, d] of [...(S.vttDraw || new Map())]) if (d.page === pid && Array.isArray(d.pts)) await vPatch("vttdraw/" + id, { pts: d.pts.map(q => [rx(q[0]), ry(q[1])]) }).catch(() => {});
   if (p.fogMem !== false && !p.vehicle) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + pid).catch(() => {}); }
+}
+// The ⊞ tool: a line dragged across something on the map, and how many squares it should be. Everything on the page (every
+// level and layer) is scaled about the line's start, then nudged so the start sits on a grid line along the way the line runs.
+function vAlignAsk() {
+  const m = VTT.meas, cur = vPageNow(); if (!m || m.shape !== "align" || !cur) return;
+  const p = cur.p, L = Math.hypot(m.e[0] - m.s[0], m.e[1] - m.s[1]); if (L < 0.1) { VTT.meas = null; vMeasDraw(); return; }
+  const done = () => { VTT.meas = null; vMeasDraw(); };
+  openModal(`<h2>Line up with the grid</h2><form class="vask">
+      <p class="muted small">That line is <strong>${L.toFixed(2)}</strong> squares now.</p>
+      <label><span>How many squares should it be?</span><input id="al-n" type="number" min="0.25" step="0.25" value="${Math.max(1, Math.round(L))}"></label>
+      <label class="check"><input id="al-snap" type="checkbox" checked> Put where the line starts on a grid line</label>
+      <label class="check"><input id="al-fit" type="checkbox"${p.vehicle ? " checked" : ""}> Fit the page to the pictures <small class="muted">${p.vehicle ? "the vehicle's footprint is the page, so trim it to the deck pictures" : "trim or grow the page around the pictures"}</small></label>
+      <p class="muted small">Every level's pictures move together, and so do walls, doors, raised squares, stairs, lights${p.vehicle ? ", the helm and centre of mass" : ""} and tokens. Undo puts it back.</p>
+      <div class="acts"><button class="btn" type="submit">Line up</button><button class="btn ghost" type="button" id="al-no">Cancel</button></div></form>`, md => {
+    md.querySelector("#al-no").onclick = () => { closeModal(); done(); };
+    md.querySelector("form").onsubmit = async ev => {
+      ev.preventDefault(); const n = Number(md.querySelector("#al-n").value); if (!(n > 0)) return;
+      const snap = md.querySelector("#al-snap").checked, fit = md.querySelector("#al-fit").checked; closeModal(); done();
+      await vUndoStep(() => vAlignPage(cur.id, m.s, m.e, n, snap, fit), "lining up with the grid"); VTT.fitDone = ""; vMount();
+    };
+    setTimeout(() => { const i = md.querySelector("#al-n"); if (i) { i.focus(); i.select(); } }, 0);
+  });
+}
+async function vAlignPage(pid, A, B, n, snap, fit) {
+  const p = S.vttPages.get(pid); if (!p) return;
+  const L = Math.hypot(B[0] - A[0], B[1] - A[1]), k = n / L, ax = Math.abs(B[0] - A[0]), ay = Math.abs(B[1] - A[1]);
+  // Scale about A (A stays put), then nudge A onto a grid line along the way the line runs (both ways if it runs diagonally).
+  let dx = A[0] * (1 - k), dy = A[1] * (1 - k);
+  if (snap && !vHexOf(p)) { if (ax >= ay * 0.5) dx += Math.round(A[0]) - A[0]; if (ay >= ax * 0.5) dy += Math.round(A[1]) - A[1]; }
+  let W = Math.max(1, Math.ceil(p.w * k + dx - 1e-6)), H = Math.max(1, Math.ceil(p.h * k + dy - 1e-6));
+  const objs = (p.objs || []).filter(o => o.layer === "map" || o.level);
+  if (fit && objs.length) { // whole squares only, so what's lined up stays lined up
+    const x0 = Math.min(...objs.map(o => o.x * k + dx)), y0 = Math.min(...objs.map(o => o.y * k + dy)), x1 = Math.max(...objs.map(o => (o.x + o.w) * k + dx)), y1 = Math.max(...objs.map(o => (o.y + o.h) * k + dy));
+    const sx = Math.floor(x0 + 0.02), sy = Math.floor(y0 + 0.02); dx -= sx; dy -= sy; W = Math.max(1, Math.ceil(x1 - sx - 0.02)); H = Math.max(1, Math.ceil(y1 - sy - 0.02));
+  } else if (!fit) { W = Math.max(p.w, W); H = Math.max(p.h, H); }
+  await vTransformPage(pid, k, dx, dy, Math.min(200, W), Math.min(200, H));
+  toast(`Lined up: ${n} square${n === 1 ? "" : "s"} across (${Math.round(k * 100)}%). The page is ${Math.min(200, W)} × ${Math.min(200, H)}. Undo puts it back.`);
 }
 // ----- Page settings -----
 function vSettings() {
@@ -1249,6 +1291,7 @@ const vFt5 = (dx, dy) => Math.round(Math.max(Math.abs(dx), Math.abs(dy))) * 5;
 const vFtE = (dx, dy) => Math.round(Math.hypot(dx, dy)) * 5;
 function vMeasShape(m) {
   if (m.shape === "travel") { const pts = m.pts.concat(m.open && m.hover ? [m.hover] : []); return { path: pts, label: vTravelLabel(pts, m.pace, m.by), at: pts[pts.length - 1], nohits: true, travel: true }; }
+  if (m.shape === "align") { const L = Math.hypot(m.e[0] - m.s[0], m.e[1] - m.s[1]); return { line: [m.s[0], m.s[1], m.e[0], m.e[1]], label: `${L.toFixed(2)} squares now`, at: m.e }; }
   if (m.shape === "scale") return { line: [m.s[0], m.s[1], m.e[0], m.e[1]], label: "This much travel is…", at: m.e };
   const hp = (vPageNow() || {}).p, hx = vHexOf(hp);
   if (m.shape === "path" && hx) { let n = 0; for (let i = 1; i < m.pts.length; i++) n += vHexDist(vHexNear(hp, m.pts[i - 1][0], m.pts[i - 1][1]), vHexNear(hp, m.pts[i][0], m.pts[i][1])); return { path: m.pts, label: vHexText(hp, n), at: m.pts[m.pts.length - 1] }; }
@@ -1978,7 +2021,7 @@ function vLiveSnap() {
   document.addEventListener("pointerdown", ev => {
     cancel();
     const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
-    if (["wall", "area", "measure", "ping", "travel", "scale", "draw", "link"].includes(VTT.tool)) return;
+    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
     timer = setTimeout(() => { timer = 0; VTT.pingHeld = true; vPing(pt[0], pt[1], shift && vCanEdit()); }, 550);
@@ -2794,6 +2837,7 @@ function vTravelLabel(pts, pace, by) {
 }
 function vTravelToolsHtml(gm) {
   const cur = vPageNow(), sc = cur && cur.p.scale;
+  if (VTT.tool === "align") return `<p class="muted small vlhint">Drag from one edge of something on the map to the other (a corridor, a door, a room), then say how many squares it is. Do it once across and once down to line up both ways.</p>`;
   if (VTT.tool === "scale") return `<p class="muted small vlhint">Drag a line over a stretch of the map, then say how much travel it is.${sc && sc.len ? `<br>Now: ${esc(vScaleText(sc))}.` : ""}</p>`;
   const paces = Object.entries(VPACE).map(([k, [, l]]) => `<button class="${(VTT.pace || "normal") === k ? "on" : ""}" data-act="vtttpace" data-v="${k}" aria-pressed="${(VTT.pace || "normal") === k}">${l}</button>`).join("");
   const opts = vTravelVehOpts(), by = VTT.travelBy || "";
