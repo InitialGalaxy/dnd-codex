@@ -1070,6 +1070,7 @@ async function vTransformPage(pid, k, dx, dy, W, H) {
     areas: (p.areas || []).map(a => Object.assign({}, a, a.cells ? { cells: cells(a.cells) } : {}, a.pts ? { pts: a.pts.map(q => [rx(q[0]), ry(q[1])]) } : {})),
     links: (p.links || []).map(l => { const x = cx(l.x), y = cy(l.y); return Object.assign({}, l, { x, y, w: Math.max(1, Math.round((l.x + l.w) * k + dx) - x), h: Math.max(1, Math.round((l.y + l.h) * k + dy) - y) }); }),
     lights: (p.lights || []).map(l => Object.assign({}, l, { x: rx(l.x), y: ry(l.y) })) };
+  if (p.off) { f.off = {}; for (const [d, list] of Object.entries(p.off)) { const c = cells((list || []).map(k => k.split(",").map(Number))).filter(([a, b]) => a >= 0 && b >= 0 && a < W && b < H).map(([a, b]) => a + "," + b); if (c.length) f.off[d] = c; } }
   if (p.vehicle) { const hm = new Map(); (p.helm || []).forEach(h => { const x = cx(h[0]), y = cy(h[1]), d = h[2] || 0; hm.set(x + "," + y + "," + d, [x, y, d]); }); f.helm = [...hm.values()];
     f.com = Array.isArray(p.com) ? [rx(p.com[0]), ry(p.com[1])] : [f.w / 2, f.h / 2]; }
   await vPatch("vttpages/" + pid, f);
@@ -2082,7 +2083,7 @@ function vLiveSnap() {
   document.addEventListener("pointerdown", ev => {
     cancel();
     const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
-    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "draw", "link"].includes(VTT.tool)) return;
+    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "decksq", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
     timer = setTimeout(() => { timer = 0; VTT.pingHeld = true; vPing(pt[0], pt[1], shift && vCanEdit()); }, 550);

@@ -2185,6 +2185,9 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vgehandle { position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; background:#3ee6ff; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.5); pointer-events:auto; cursor:nwse-resize; transform:scale(var(--vinv,1)); touch-action:none }
 .vgridediting .vgrid { opacity:.2 }
 .vgridedtools { flex-direction:column; align-items:stretch; gap:6px } .vgenudge { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:3px; max-width:150px } .vgenudge .vbtn { width:100%; min-width:0; padding:0 } .vgridedtools input[type=number] { width:7em }
+.vwsoff { position:absolute; left:0; top:0; pointer-events:none }
+.vdecksqbox { position:absolute; pointer-events:none; border:2px dashed #ff5a5a; background:rgba(255,90,90,.18) } .vdecksqbox.on { border-color:#5ad17a; background:rgba(90,209,122,.18) }
+.vdecksqtools { display:flex; flex-direction:column; gap:6px; margin:4px 0 }
 </style>
 </head>
 <body>
@@ -9686,6 +9689,7 @@ async function vTransformPage(pid, k, dx, dy, W, H) {
     areas: (p.areas || []).map(a => Object.assign({}, a, a.cells ? { cells: cells(a.cells) } : {}, a.pts ? { pts: a.pts.map(q => [rx(q[0]), ry(q[1])]) } : {})),
     links: (p.links || []).map(l => { const x = cx(l.x), y = cy(l.y); return Object.assign({}, l, { x, y, w: Math.max(1, Math.round((l.x + l.w) * k + dx) - x), h: Math.max(1, Math.round((l.y + l.h) * k + dy) - y) }); }),
     lights: (p.lights || []).map(l => Object.assign({}, l, { x: rx(l.x), y: ry(l.y) })) };
+  if (p.off) { f.off = {}; for (const [d, list] of Object.entries(p.off)) { const c = cells((list || []).map(k => k.split(",").map(Number))).filter(([a, b]) => a >= 0 && b >= 0 && a < W && b < H).map(([a, b]) => a + "," + b); if (c.length) f.off[d] = c; } }
   if (p.vehicle) { const hm = new Map(); (p.helm || []).forEach(h => { const x = cx(h[0]), y = cy(h[1]), d = h[2] || 0; hm.set(x + "," + y + "," + d, [x, y, d]); }); f.helm = [...hm.values()];
     f.com = Array.isArray(p.com) ? [rx(p.com[0]), ry(p.com[1])] : [f.w / 2, f.h / 2]; }
   await vPatch("vttpages/" + pid, f);
@@ -10698,7 +10702,7 @@ function vLiveSnap() {
   document.addEventListener("pointerdown", ev => {
     cancel();
     const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
-    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "draw", "link"].includes(VTT.tool)) return;
+    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "decksq", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
     timer = setTimeout(() => { timer = 0; VTT.pingHeld = true; vPing(pt[0], pt[1], shift && vCanEdit()); }, 550);
@@ -11583,7 +11587,7 @@ function vShipIntOf(p) {
   const pick = (k, d) => p[k] == null ? d : JSON.parse(JSON.stringify(p[k]));
   return { w: p.w, h: p.h, objs: pick("objs", []), walls: pick("walls", []), links: pick("links", []), lights: pick("lights", []), helm: pick("helm", []),
     com: Array.isArray(p.com) ? p.com.slice(0, 2) : [p.w / 2, p.h / 2], front: Number(p.front) || 0, levelNames: pick("levelNames", {}),
-    minLevel: Number(p.minLevel) || 0, maxLevel: Number(p.maxLevel) || 0, bg: p.bg || "" };
+    minLevel: Number(p.minLevel) || 0, maxLevel: Number(p.maxLevel) || 0, bg: p.bg || "", off: pick("off", {}) };
 }
 const vShipDecks = t => { const I = t.int, s = new Set([0]); for (let l = Math.min(0, I.minLevel || 0); l <= Math.max(0, I.maxLevel || 0); l++) s.add(l); (I.objs || []).forEach(o => s.add(Number(o.level) || 0)); (I.walls || []).forEach(w => s.add(Number(w[4]) || 0)); return [...s].sort((a, b) => a - b); };
 const vShipDeckLvl = (t, d) => t.decks && t.decks[d] != null && t.decks[d] !== "" ? Number(t.decks[d]) : Number(d) || 0;
@@ -11594,20 +11598,25 @@ function vShipToLocal(t, mx, my) { const a = (Number(t.rot) || 0) * Math.PI / 18
 const vShipCorners = t => [[0, 0], [t.int.w, 0], [t.int.w, t.int.h], [0, t.int.h]].map(([a, b]) => vShipToMap(t, a, b));
 const vShipHeading = t => (Number(t.rot) || 0) + (Number(t.int.front) || 0); // degrees, the way its front points on the battle map
 // Is (lx, ly) on deck d? Where the deck has pictures, their outlines are the deck; with none, the whole ship is.
+// Squares marked "not part of the vehicle" in the workshop (int.off[deck] = ["x,y", …]) never count.
+const vShipOff = (I, d, cx, cy) => { const o = I.off && I.off[d]; return !!(o && o.length && o.includes(cx + "," + cy)); };
 function vShipOnDeck(t, d, lx, ly) {
   if (lx < 0 || ly < 0 || lx > t.int.w || ly > t.int.h) return false;
+  if (vShipOff(t.int, d, Math.min(t.int.w - 1, Math.floor(lx)), Math.min(t.int.h - 1, Math.floor(ly)))) return false;
   const pics = (t.int.objs || []).filter(o => (Number(o.level) || 0) === d && o.layer !== "gm");
   return !pics.length || pics.some(o => lx >= o.x && ly >= o.y && lx <= o.x + o.w && ly <= o.y + o.h);
 }
 const vShips = pid => [...S.vttTokens].filter(([, t]) => t.page === pid && vIsShip(t));
 // The ship (and deck) a token dropped at (cx, cy), standing on map level lvl, would be on: the deck at that level if there's
-// floor there, otherwise the top deck with floor there.
+// floor there. If the ship has a deck at that level but no floor at this spot (say, only an upper deck hangs over it), the token
+// is beside or under the ship, not on it. A ship with no deck at that level at all: the highest deck at or below it, else the lowest.
 function vShipUnder(pid, cx, cy, lvl, skip) {
   for (const [id, t] of vShips(pid)) {
     if (id === skip || (t.layer === "gm" && !vCanEdit())) continue;
     const [lx, ly] = vShipToLocal(t, cx, cy); if (lx < 0 || ly < 0 || lx > t.int.w || ly > t.int.h) continue;
     const decks = vShipDecks(t).filter(d => vShipOnDeck(t, d, lx, ly)); if (!decks.length) continue;
-    const same = decks.find(d => vShipDeckLvl(t, d) === lvl), deck = same != null ? same : decks[decks.length - 1];
+    const L = d => vShipDeckLvl(t, d), same = decks.find(d => L(d) === lvl); let deck = same;
+    if (deck == null) { if (vShipDecks(t).some(d => L(d) === lvl)) continue; const lower = decks.filter(d => L(d) <= lvl); deck = lower.length ? lower[lower.length - 1] : decks[0]; }
     return { id, t, deck, lx, ly };
   }
   return null;
@@ -11716,7 +11725,8 @@ function vShipsHtml(pid, p, toks, gm) {
       const helm = (I.helm || []).filter(h => (Number(h[2]) || 0) === d).map(h => `<div class="vshelm" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm">⎈</div>`).join("");
       return `<div class="vsdeck" data-deck="${d}" data-lvl="${vShipDeckLvl(t, d)}">${objs.map(o => `<img class="vsobj" src="${esc(o.img || "")}" alt="" draggable="false" style="left:${o.x * C}px;top:${o.y * C}px;width:${o.w * C}px;height:${o.h * C}px${o.rot ? `;transform:rotate(${o.rot}deg)` : ""}">`).join("")}${helm}${doors}</div>`;
     }).join("");
-    const grid = p.grid !== false ? `<svg class="vsgrid" width="${I.w * C}" height="${I.h * C}" aria-hidden="true"><defs><pattern id="vsg-${esc(id)}" width="${C}" height="${C}" patternUnits="userSpaceOnUse"><path d="M ${C} 0 L 0 0 0 ${C}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vsg-${esc(id)})"/></svg>` : "";
+    let cellsP = ""; if (p.grid !== false) for (let gy = 0; gy < I.h; gy++) for (let gx = 0; gx < I.w; gx++) if (vis.decks.some(d => vShipOnDeck(t, d, gx + 0.5, gy + 0.5))) cellsP += `M${gx * C} ${gy * C}h${C}v${C}h${-C}z`;
+    const grid = cellsP ? `<svg class="vsgrid" width="${I.w * C}" height="${I.h * C}" aria-hidden="true"><path d="${cellsP}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></svg>` : "";
     const walls = gm && !VTT.preview && VTT.layer === "walls" ? `<svg class="vswalls" width="${I.w * C}" height="${I.h * C}" aria-hidden="true">${(I.walls || []).filter(w => vis.decks.includes(Number(w[4]) || 0)).map(w => `<line x1="${w[0] * C}" y1="${w[1] * C}" x2="${w[2] * C}" y2="${w[3] * C}"/>`).join("")}</svg>` : "";
     return `<div class="vship${sel ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${vDead(t) ? " wreck" : ""}" data-ship="${esc(id)}" style="left:${(t.x - I.com[0]) * C}px;top:${(t.y - I.com[1]) * C}px;width:${I.w * C}px;height:${I.h * C}px;transform-origin:${I.com[0] * C}px ${I.com[1] * C}px;transform:rotate(${Number(t.rot) || 0}deg)" title="${esc(t.name || "Vehicle")}">${deckHtml}${grid}${walls}
       ${sel && gm ? `<div class="vscom" style="left:${I.com[0] * C}px;top:${I.com[1] * C}px" title="Centre of mass"></div>` : ""}</div>`;
@@ -11884,6 +11894,7 @@ function vShipPointerDown(ev, cur, gm, x, y) {
   const arrow = ev.target.closest(".vhelmarrow"); if (arrow) { vSteerStart(ev, arrow.dataset.ship); return true; }
   const door = ev.target.closest(".vsdoor"); if (door) { ev.preventDefault(); ev.stopPropagation(); vShipDoor(door.dataset.ship, Number(door.dataset.wi)); return true; }
   if (gm && cur.p.vehicle && (VTT.tool === "helm" || VTT.tool === "com")) { ev.preventDefault(); vWorkshopClick(cur, x, y, ev); return true; }
+  if (gm && cur.p.vehicle && VTT.tool === "decksq") { ev.preventDefault(); vDeckSqStart(ev, cur, x, y); return true; }
   const rh = gm && ev.target.closest(".vshiprot"); if (rh) {
     ev.preventDefault(); ev.stopPropagation(); const id = rh.dataset.ship;
     const move = e => { const [px, py] = vPt(e), q = S.vttTokens.get(id); if (!q) return; let hd = Math.atan2(py - q.y, px - q.x) * 180 / Math.PI; if (!e.shiftKey) hd = Math.round(hd / 15) * 15; S.vttTokens.set(id, Object.assign({}, q, { rot: ((hd - (Number(q.int.front) || 0)) % 360 + 360) % 360 })); vDraw(); };
@@ -11975,10 +11986,51 @@ function vWorkshopClick(cur, x, y, ev) {
   vPatch("vttpages/" + cur.id, { com });
 }
 // In the workshop: the helm squares, the centre of mass and an arrow for which way is the front.
+// ----- Deck squares: which squares of each deck are really the vehicle (the rest, like a picture's empty corners, aren't) -----
+const vDeckSqDecks = (p) => VTT.decksqAll !== false ? vLevelList(p) : [VTT.lvl || 0];
+function vDeckSqStart(ev, cur, x, y) {
+  const p = cur.p, d = VTT.lvl || 0, c0 = [Math.floor(x), Math.floor(y)], wasOff = ((p.off || {})[d] || []).includes(c0[0] + "," + c0[1]);
+  const st = { a: c0, b: c0, on: wasOff || ev.altKey }, box = document.createElement("div"); box.className = "vdecksqbox" + (st.on ? " on" : "");
+  const layer = document.querySelector("#vstage .vworkshop"); if (layer) layer.appendChild(box);
+  const show = () => { const C = VCELL, x0 = Math.min(st.a[0], st.b[0]), y0 = Math.min(st.a[1], st.b[1]); Object.assign(box.style, { left: x0 * C + "px", top: y0 * C + "px", width: (Math.abs(st.a[0] - st.b[0]) + 1) * C + "px", height: (Math.abs(st.a[1] - st.b[1]) + 1) * C + "px" }); };
+  show();
+  const move = e => { const [px, py] = vPt(e); st.b = [Math.max(0, Math.min(p.w - 1, Math.floor(px))), Math.max(0, Math.min(p.h - 1, Math.floor(py)))]; show(); };
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); box.remove();
+    const off = JSON.parse(JSON.stringify(p.off || {})), x0 = Math.min(st.a[0], st.b[0]), x1 = Math.max(st.a[0], st.b[0]), y0 = Math.min(st.a[1], st.b[1]), y1 = Math.max(st.a[1], st.b[1]);
+    for (const dk of vDeckSqDecks(p)) { const set = new Set(off[dk] || []); for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) { if (st.on) set.delete(a + "," + b); else set.add(a + "," + b); } if (set.size) off[dk] = [...set]; else delete off[dk]; }
+    vUndoStep(() => vPatch("vttpages/" + cur.id, { off }), "deck squares"); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+// Guess each deck's squares from its pictures: a square counts when enough of it is picture (not see-through, and not the
+// plain background colour filling the picture's corners).
+async function vDeckSqGuess(cur) {
+  const p = cur.p, R = 8, W = p.w * R, H = p.h * R, off = {}, load = src => new Promise(res => { const im = new Image(); im.crossOrigin = "anonymous"; im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  let read = 0, solid = 0;
+  for (const d of vLevelList(p)) {
+    const pics = (p.objs || []).filter(o => (Number(o.level) || 0) === d && o.layer !== "gm" && o.img); if (!pics.length) continue;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const cx = cv.getContext("2d", { willReadFrequently: true }); let bgs = [];
+    for (const o of pics) { const im = await load(o.img); if (!im) continue;
+      const N = 128, k = document.createElement("canvas"); k.width = N; k.height = N; const kc = k.getContext("2d", { willReadFrequently: true }); kc.imageSmoothingEnabled = false; kc.drawImage(im, 0, 0, im.naturalWidth, im.naturalHeight, 0, 0, N, N);
+      try { const q = kc.getImageData(0, 0, N, N).data, px = (a, b) => { const i = (b * N + a) * 4; return [q[i], q[i + 1], q[i + 2], q[i + 3]]; }; bgs.push([px(1, 1), px(N - 2, 1), px(1, N - 2), px(N - 2, N - 2)]); } catch (e) { bgs.push(null); }
+      cx.save(); cx.translate((o.x + o.w / 2) * R, (o.y + o.h / 2) * R); if (o.rot) cx.rotate(o.rot * Math.PI / 180); cx.drawImage(im, -o.w * R / 2, -o.h * R / 2, o.w * R, o.h * R); cx.restore(); }
+    let data; try { data = cx.getImageData(0, 0, W, H).data; } catch (e) { toast("Couldn't read the pictures here. Paint the squares instead."); return; }
+    // The background: if a picture's four corners are the same solid colour, that colour is empty space too.
+    const bg = []; bgs.forEach(c => { if (!c || c.some(q => q[3] < 200)) return; const [r, g, b] = c[0]; if (c.every(q => Math.abs(q[0] - r) + Math.abs(q[1] - g) + Math.abs(q[2] - b) < 45)) bg.push([r, g, b]); });
+    const set = [];
+    for (let gy = 0; gy < p.h; gy++) for (let gx = 0; gx < p.w; gx++) { let n = 0;
+      for (let yy = 0; yy < R; yy++) for (let xx = 0; xx < R; xx++) { const i = ((gy * R + yy) * W + gx * R + xx) * 4; if (data[i + 3] < 60) continue; if (bg.some(([r, g, b]) => Math.abs(data[i] - r) + Math.abs(data[i + 1] - g) + Math.abs(data[i + 2] - b) < 60)) continue; n++; }
+      if (n < R * R * 0.3) set.push(gx + "," + gy); else solid++; }
+    read++; if (set.length) off[d] = set;
+  }
+  if (!read) { toast("No deck pictures to read."); return; }
+  await vUndoStep(() => vPatch("vttpages/" + cur.id, { off }), "deck squares");
+  toast(`Guessed from the pictures. Squares that aren't the vehicle are shaded; paint any it got wrong. Undo puts it back.`);
+}
 function vWorkshopHtml(p) {
   if (!p.vehicle) return "";
   const C = VCELL, com = Array.isArray(p.com) ? p.com : [p.w / 2, p.h / 2], f = (Number(p.front) || 0) * Math.PI / 180, L = Math.max(1.5, Math.min(p.w, p.h) / 3);
-  return `<div class="vlayer vworkshop">${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
+  const offD = ((p.off || {})[VTT.lvl || 0] || []).map(k => k.split(",").map(Number)).map(([a, b]) => `M${a * C} ${b * C}h${C}v${C}h${-C}z`).join("");
+  return `<div class="vlayer vworkshop">${offD ? `<svg class="vwsoff" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><pattern id="vwsoffp" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="rgba(10,12,18,.55)"/><line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,90,90,.6)" stroke-width="3"/></pattern></defs><path d="${offD}" fill="url(#vwsoffp)" stroke="rgba(255,90,90,.7)" stroke-width="1"/></svg>` : ""}${(p.helm || []).map(h => `<div class="vshelm ws${(Number(h[2]) || 0) === (VTT.lvl || 0) ? "" : " other"}" style="left:${h[0] * C}px;top:${h[1] * C}px;width:${C}px;height:${C}px" title="Helm (${esc(vLevelName(p, Number(h[2]) || 0))})">⎈</div>`).join("")}
     <svg class="vwsfront" width="${p.w * C}" height="${p.h * C}" aria-hidden="true"><defs><marker id="vwsarrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#f2d36b"/></marker></defs>
       <line x1="${com[0] * C}" y1="${com[1] * C}" x2="${(com[0] + Math.cos(f) * L) * C}" y2="${(com[1] + Math.sin(f) * L) * C}" stroke="#f2d36b" stroke-width="3" marker-end="url(#vwsarrow)"/></svg>
     <div class="vscom ws" style="left:${com[0] * C}px;top:${com[1] * C}px" title="Centre of mass: the vehicle turns around this"></div></div>`;
@@ -11986,9 +12038,20 @@ function vWorkshopHtml(p) {
 function vWorkshopToolsHtml(p) {
   if (!p || !p.vehicle) return "";
   return `<div class="vgroup"><span class="vlab">Vehicle</span><button class="vbtn${VTT.tool === "helm" ? " on" : ""}" data-act="vtttool" data-v="helm" title="Helm: click squares where a pilot steers from (on the level you're editing); click again to remove">⎈ Helm</button><button class="vbtn${VTT.tool === "com" ? " on" : ""}" data-act="vtttool" data-v="com" title="Centre of mass: click where the vehicle turns around (Alt: anywhere)">✛ Centre</button>
+    <button class="vbtn${VTT.tool === "decksq" ? " on" : ""}" data-act="vtttool" data-v="decksq" title="Deck squares: drag over squares that aren't part of the vehicle (a picture's empty corners); drag over shaded ones to put them back">▧ Deck squares</button>
+    ${VTT.tool === "decksq" ? `<div class="vdecksqtools"><p class="muted small vlhint">Drag over squares that aren't part of the vehicle. Drag over shaded squares to put them back. Only shaded squares stop counting: nobody can stand there, and the grid isn't drawn there.</p>
+      <label class="check small"><input type="checkbox" data-act="vttdecksqall"${VTT.decksqAll !== false ? " checked" : ""}> Every deck at once</label>
+      <button class="vbtn" data-act="vttdecksqguess" title="Shade every deck's squares that are empty in its pictures">✨ Guess from the pictures</button>
+      <button class="vbtn" data-act="vttdecksqclear" title="Every square counts again">Clear</button></div>` : ""}
     <label><span class="small muted">Front points</span><select data-act="vttfront">${[[0, "→ Right"], [90, "↓ Down"], [180, "← Left"], [270, "↑ Up"]].map(([v, l]) => `<option value="${v}"${(Number(p.front) || 0) === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
     <a class="small" href="#entry-${esc(p.vehicle)}">← Back to the vehicle</a></div>`;
 }
+document.addEventListener("change", ev => { if (ev.target.matches && ev.target.matches("[data-act=vttdecksqall]")) VTT.decksqAll = ev.target.checked; });
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-act=vttdecksqguess],[data-act=vttdecksqclear]"); if (!b || !vCanEdit()) return;
+  const cur = vPageNow(); if (!cur || !cur.p.vehicle) return;
+  if (b.dataset.act === "vttdecksqguess") vDeckSqGuess(cur); else vUndoStep(() => vPatch("vttpages/" + cur.id, { off: {} }), "deck squares");
+});
 document.addEventListener("change", ev => {
   const s = ev.target.matches && ev.target.matches("[data-act=vttfront]") && ev.target; if (!s) return;
   const cur = vPageNow(); if (cur && vCanEdit()) vPatch("vttpages/" + cur.id, { front: Number(s.value) || 0 });
