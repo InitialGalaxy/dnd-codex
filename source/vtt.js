@@ -560,14 +560,24 @@ function vFogLoad(pid, p) {
 }
 // Players' tokens can be on different floors of one building. On a shared screen, the players pick
 // which floor to look at (VTT.pfloor); "All" keeps everyone's view together.
+// A floor's name in the picker: a ship's deck if everyone on it is aboard the same ship, otherwise the map's level.
+function vFloorLabel(p, who, n) {
+  const ships = new Set(who.map(([, t]) => t.ship || "")); const sid = ships.size === 1 ? [...ships][0] : "", sh = sid && S.vttTokens.get(sid);
+  if (vIsShip(sh)) { const d = Number(who[0][1].deck) || 0; return vShipDeckName(sh, d); }
+  return n ? (((p.levelNames || {})[n]) || "Level " + n) : "Ground";
+}
 function vViewers(p, toks) {
   const base = toks.filter(([, t]) => vPlayerTok(t)), fl = vTokFloor;
   const floors = [...new Set(base.map(([, t]) => fl(t)))].sort((a, b) => a - b);
   const bar = document.getElementById("vfloors");
   if (bar) {
-    const show = floors.length > 1 && (!vCanEdit() || VTT.preview);
+    // The picker is for party members who'd want different views of the same place: on different floors of the map (a
+    // building), or on different decks of the same ship. Someone aboard a ship and someone on the map don't clash.
+    const where = t => t.ship && vIsShip(S.vttTokens.get(t.ship)) ? "s:" + t.ship : "map", groups = new Map();
+    base.forEach(([, t]) => { const k = where(t); if (!groups.has(k)) groups.set(k, new Set()); groups.get(k).add(fl(t)); });
+    const show = [...groups.values()].some(g => g.size > 1) && (!vCanEdit() || VTT.preview);
     if (VTT.pfloor != null && !floors.includes(VTT.pfloor)) VTT.pfloor = null;
-    const html = show ? `<span class="vflab">Floor</span><button class="${VTT.pfloor == null ? "on" : ""}" data-act="vttpfloor" data-v="" aria-pressed="${VTT.pfloor == null}">All</button>${floors.slice().reverse().map(n => { const who = base.filter(([, t]) => fl(t) === n).map(([, t]) => t.name || "?"); return `<button class="${VTT.pfloor === n ? "on" : ""}" data-act="vttpfloor" data-v="${n}" aria-pressed="${VTT.pfloor === n}" title="${esc(who.join(", "))}"><b>${esc(n ? (((p.levelNames || {})[n]) || "Level " + n) : "Ground")}</b><small>${esc(who.length > 2 ? who.slice(0, 2).join(", ") + " +" + (who.length - 2) : who.join(", "))}</small></button>`; }).join("")}` : "";
+    const html = show ? `<span class="vflab">Floor</span><button class="${VTT.pfloor == null ? "on" : ""}" data-act="vttpfloor" data-v="" aria-pressed="${VTT.pfloor == null}">All</button>${floors.slice().reverse().map(n => { const who = base.filter(([, t]) => fl(t) === n).map(([, t]) => t.name || "?"); return `<button class="${VTT.pfloor === n ? "on" : ""}" data-act="vttpfloor" data-v="${n}" aria-pressed="${VTT.pfloor === n}" title="${esc(who.join(", "))}"><b>${esc(vFloorLabel(p, base.filter(([, t]) => fl(t) === n), n))}</b><small>${esc(who.length > 2 ? who.slice(0, 2).join(", ") + " +" + (who.length - 2) : who.join(", "))}</small></button>`; }).join("")}` : "";
     if (bar.dataset.h !== html) { bar.innerHTML = html; bar.dataset.h = html; }
     bar.hidden = !show;
   }
