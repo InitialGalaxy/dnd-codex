@@ -133,12 +133,13 @@ function vTrHexPath(p, keys) {
 function vTrDraw() {
   const st = document.getElementById("vstage"), cur = vPageNow(); if (!st) return;
   let el = document.getElementById("vtrl"); const p = cur && cur.p, j = p && vTrJ(p);
-  const show = p && vTrOn(p) && (VTT.tool === "travel" || (j.stops && j.stops.length) || j.started);
+  const painting = p && vHexOf(p) && VTT.tool === "terrain" && vCanEdit();
+  const show = painting || (p && vTrOn(p) && (VTT.tool === "travel" || (j.stops && j.stops.length) || j.started));
   if (!show) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement("div"); el.id = "vtrl"; el.className = "vlayer vtrl"; const before = st.querySelector(".vgm"); if (before) st.insertBefore(el, before); else st.appendChild(el); }
-  const C = VCELL, W = p.w * C, H = p.h * C, planning = VTT.tool === "travel";
+  const C = VCELL, W = p.w * C, H = p.h * C, shade = painting || (VTT.tool === "travel" && !p.terrainHide);
   const ter = Object.entries(p.terrain || {}), roads = ter.filter(([, v]) => v === "road").map(([k]) => k), blocks = ter.filter(([, v]) => v === "block").map(([k]) => k);
-  const plan = vTrPlan(cur), pts = plan.path.map(x => vHexCenter(p, { q: x[0], r: x[1] }).map(v => v * C)), line = a => a.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ");
+  const plan = vTrOn(p) ? vTrPlan(cur) : { path: [], hrs: [], ok: true }, pts = plan.path.map(x => vHexCenter(p, { q: x[0], r: x[1] }).map(v => v * C)), line = a => a.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ");
   let route = "";
   if (pts.length > 1) {
     route += `<polyline class="vtrroute" points="${line(pts)}"/>`;
@@ -151,22 +152,32 @@ function vTrDraw() {
   }
   const stops = (j.stops || []).map((s, i, a) => { const [x, y] = vHexCenter(p, { q: s[0], r: s[1] }), lab = i === 0 ? "A" : i === a.length - 1 ? "B" : String(i); return `<g class="vtrstop${i === 0 ? " start" : i === a.length - 1 ? " end" : " via"}"><circle cx="${x * C}" cy="${y * C}" r="${C * 0.3}"/><text x="${x * C}" y="${y * C}">${lab}</text></g>`; }).join("");
   const broken = !plan.ok && plan.broken > 0 ? (() => { const s = j.stops[plan.broken], [x, y] = vHexCenter(p, { q: s[0], r: s[1] }); return `<circle class="vtrbroken" cx="${x * C}" cy="${y * C}" r="${C * 0.45}"/>`; })() : "";
-  el.innerHTML = `<svg width="${W}" height="${H}" aria-hidden="true">${planning || vCanEdit() && VTT.trPaint ? `<path class="vtrroad" d="${vTrHexPath(p, roads)}"/><path class="vtrblock" d="${vTrHexPath(p, blocks)}"/>` : ""}${route}${broken}${stops}</svg>`;
+  el.innerHTML = `<svg width="${W}" height="${H}" aria-hidden="true">${shade ? `<path class="vtrroad" d="${vTrHexPath(p, roads)}"/><path class="vtrblock" d="${vTrHexPath(p, blocks)}"/>` : ""}${route}${broken}${stops}</svg>`;
 }
 
-// ----- Clicking the map with the travel tool: add a stop (or paint, for the GM) -----
+// ----- The GM's 🛣 tool: click or drag over hexes to paint roads or impassable hexes, or erase them -----
+VTT.trBrush = "road";
+function vTrPaintAt(cur, x, y) {
+  const p = cur.p, h = vHexNear(p, x, y), k = h.q + "," + h.r; if (!vTrHexes(p).has(k)) return;
+  const mode = VTT.trBrush || "road", set = new Set([k]), before = p.terrain || {};
+  const paint = () => { const t = Object.assign({}, before); for (const n of set) { if (mode === "clear") delete t[n]; else t[n] = mode; } return t; };
+  const preview = () => { const q = S.vttPages.get(cur.id); if (q) S.vttPages.set(cur.id, Object.assign({}, q, { terrain: paint() })); vTrDraw(); };
+  preview();
+  const move = e => { const [px, py] = vPt(e), n = vHexNear(p, px, py), nk = n.q + "," + n.r; if (vTrHexes(p).has(nk) && !set.has(nk)) { set.add(nk); preview(); } };
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); const terrain = paint(); const q = S.vttPages.get(cur.id); if (q) S.vttPages.set(cur.id, Object.assign({}, q, { terrain: before })); vUndoStep(() => vPatch("vttpages/" + cur.id, { terrain }), "painting hexes"); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+}
+const vTrShadeBox = p => `<label class="check small"><input type="checkbox" data-act="vtrshade"${p.terrainHide ? "" : " checked"}> Shade roads and impassable hexes while planning <small class="muted">untick if the map picture already shows them</small></label>`;
+function vTrTerrainToolsHtml() {
+  const cur = vPageNow(); if (!cur || !vHexOf(cur.p)) return ""; const p = cur.p, ter = Object.values(p.terrain || {});
+  return `<div class="vgroup vtrtools"><span class="vlab">Roads</span><div class="seg">${[["road", "Road"], ["block", "Impassable"], ["clear", "Erase"]].map(([v, l]) => `<button class="${VTT.trBrush === v ? "on" : ""}" data-act="vtrbrush" data-v="${v}" aria-pressed="${VTT.trBrush === v}">${l}</button>`).join("")}</div>
+    <p class="muted small vlhint">Click or drag over hexes. Moving road to road is 20% faster; nobody can travel through impassable hexes (cliffs, water). ${ter.filter(v => v === "road").length} road, ${ter.filter(v => v === "block").length} impassable.</p>
+    ${vTrShadeBox(p)}</div>`;
+}
+// ----- Clicking the map with the travel tool: add a stop -----
 function vTrPointer(ev, cur, x, y) {
   const p = cur.p, h = vHexNear(p, x, y), k = h.q + "," + h.r;
   if (!vTrHexes(p).has(k)) return true;
-  if (vCanEdit() && VTT.trPaint) {
-    const mode = VTT.trPaint, set = new Set([k]);
-    const paint = () => { const t = Object.assign({}, p.terrain || {}); for (const n of set) { if (mode === "clear") delete t[n]; else t[n] = mode; } return t; };
-    const preview = () => { const q = S.vttPages.get(cur.id); if (q) S.vttPages.set(cur.id, Object.assign({}, q, { terrain: paint() })); vTrDraw(); };
-    preview();
-    const move = e => { const [px, py] = vPt(e), n = vHexNear(p, px, py), nk = n.q + "," + n.r; if (vTrHexes(p).has(nk) && !set.has(nk)) { set.add(nk); preview(); } };
-    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); const terrain = paint(); S.vttPages.set(cur.id, Object.assign({}, S.vttPages.get(cur.id) || p, { terrain: p.terrain || {} })); vUndoStep(() => vPatch("vttpages/" + cur.id, { terrain }), "painting hexes"); };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); return true;
-  }
   const j = vTrJ(p); if (j.started) { toast(vCanEdit() ? "The party is travelling. Stop travelling to change the route." : "The party is already travelling this route."); return true; }
   if (vTrTer(p, k) === "block") { toast("That hex can't be travelled through."); return true; }
   const stops = (j.stops || []).slice(), last = stops[stops.length - 1];
@@ -180,8 +191,7 @@ function vTrPanelHtml(cur) {
   const p = cur.p, j = vTrJ(p), gm = vCanEdit() && !VTT.preview;
   if (!vTrOn(p)) return `<h2>Route planner</h2><p class="muted small">${vHexOf(p) ? "Set how many miles a hex is in the page settings to plan routes here." : "Routes are planned on hex maps."}</p>`;
   const plan = vTrPlan(cur), sum = plan.path.length > 1 ? vTrSum(p, plan) : null, sp = j.started ? null : vTrSpeed(cur), o = vTrOptions(cur), lock = j.started ? " disabled" : "";
-  const paint = gm ? `<div class="vtrpaint"><span class="small muted">Paint hexes</span><div class="seg">${[["road", "Road"], ["block", "Impassable"], ["clear", "Erase"]].map(([v, l]) => `<button class="${VTT.trPaint === v ? "on" : ""}" data-act="vtrpaint" data-v="${v}" aria-pressed="${VTT.trPaint === v}">${l}</button>`).join("")}</div>
-      <p class="muted small">${VTT.trPaint ? "Click or drag over hexes. Pick it again to go back to planning." : "Roads: moving road to road is 20% faster. Impassable: cliffs, water."}</p></div>` : "";
+  const paint = gm ? `<div class="vtrpaint">${vTrShadeBox(p)}<p class="muted small">Paint roads and impassable hexes with the 🛣 tool on the left.</p></div>` : "";
   if (j.started) {
     const days = vTrDays(vTrTotal(plan)), d = Number(j.day) || 0, at = vTrAt(p, plan, d * VTR_DAY), doneMi = Math.round(((at.i + at.f) * p.hexMi) * 10) / 10;
     return `<h2>Travelling</h2><p class="vtrbig">${d >= days ? "Arrived" : d === 0 ? "Setting off" : `Day ${d} of ${days}`}</p>
@@ -209,7 +219,7 @@ function vTrPanelHtml(cur) {
 document.addEventListener("click", ev => {
   const b = ev.target.closest && ev.target.closest("[data-act^=vtr]"); if (!b) return;
   const cur = vPageNow(); if (!cur) return; const a = b.dataset.act, j = vTrJ(cur.p), gm = vCanEdit();
-  if (a === "vtrpaint" && gm) { VTT.trPaint = VTT.trPaint === b.dataset.v ? "" : b.dataset.v; vTrDraw(); vTrPanelRefresh(); return; }
+  if (a === "vtrbrush" && gm) { VTT.trBrush = b.dataset.v; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); return; }
   if (a === "vtrpace" && !j.started) return vTrSave(cur, { pace: b.dataset.v });
   if (a === "vtrundo" && !j.started) return vTrSave(cur, { stops: (j.stops || []).slice(0, -1) });
   if (a === "vtrclear" && !j.started) return vTrSave(cur, { stops: [] });
@@ -218,6 +228,7 @@ document.addEventListener("click", ev => {
   if (a === "vtrstop" && gm) return vTrSave(cur, { started: false, day: 0, path: null, hrs: null });
 });
 document.addEventListener("change", ev => {
+  if (ev.target && ev.target.matches && ev.target.matches("[data-act=vtrshade]") && vCanEdit()) { const cur = vPageNow(); if (cur) vPatch("vttpages/" + cur.id, { terrainHide: !ev.target.checked }); return; }
   const el = ev.target; if (!el || !el.closest || !el.closest(".vtrpanel")) return; const cur = vPageNow(); if (!cur) return; const j = vTrJ(cur.p); if (j.started) return;
   if (el.matches("[data-trhow]")) return vTrSave(cur, { party: Object.assign({}, j.party || {}, { [el.dataset.trhow]: el.value }) });
   if (el.matches("[data-trveh]")) return vTrSave(cur, { veh: el.value });

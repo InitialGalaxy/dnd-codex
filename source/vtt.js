@@ -441,6 +441,7 @@ function viewVttCamp(camp) {
 function vToolsHtml() {
   const L = [["map", "Map", "Battle maps and backgrounds, under the grid"], ["token", "Tokens", "Creatures and things players can see"], ["gm", "GM", "Only you can see these"], ["walls", "Walls", "Lines that block sight"], ["lights", "Lights", "Torches, lanterns and glows: click to place one, drag to move it"]];
   const T = [["select", "↖", "Select and move (V)"], ["pan", "✋", "Pan (H, or drag empty space)"], ["measure", "📏", "Measure (M)"], ["wall", "╱", "Draw walls (W): click points, double-click or Enter to finish"], ["area", "▦", "Raised squares (A): drag over the squares that are up on the level you're editing (a rooftop or upper floor). Alt-drag to remove squares."], ["link", "⇅", "Stairs or lift (S): drag over the squares; tokens standing there get a button to change level"], ["draw", "✏️", "Draw (D): doodle on the map for everyone to see"], ["scale", "📐", "Travel scale: drag a line and say how much travel it is (e.g. one day)"], ["gridfit", "#", "Move the grid: drag the grid onto the squares drawn in the picture, size it with the corner handle, then Apply. Every level moves together."], ["align", "⊞", "Line up with the grid: drag across something on the map (a corridor, a door) and say how many squares it is. Every level moves together."], ["travel", "🧭", "Travel (T): click out a route to see how long it takes; double-click or Enter to finish"], ["ping", "📍", "Ping (P): click to flash a spot for everyone; Shift-click to move everyone's view there. Or hold the mouse still on the map anywhere."]];
+  { const hp = (vPageNow() || {}).p; if (hp && vHexOf(hp)) T.splice(T.findIndex(x => x[0] === "scale") + 1 || T.length, 0, ["terrain", "🛣", "Roads and impassable hexes: paint them for the route planner"]); }
   return `<div class="vgroup"><span class="vlab">Layer</span>${L.map(([v, l, t]) => `<button class="vbtn${VTT.layer === v ? " on" : ""}" data-act="vttlayer" data-v="${v}" title="${t}" aria-pressed="${VTT.layer === v}">${l}</button>`).join("")}</div>
     <div class="vgroup"><span class="vlab">Tool</span>${T.map(([v, l, t]) => `<button class="vbtn icon${VTT.tool === v ? " on" : ""}" data-act="vtttool" data-v="${v}" title="${t}" aria-label="${t}" aria-pressed="${VTT.tool === v}">${l}</button>`).join("")}</div>
     <div class="vgroup vundo"><button class="vbtn" data-act="vttundo"${VTT.undo.length ? "" : " disabled"} title="Undo (Ctrl+Z)">↶ Undo</button><button class="vbtn" data-act="vttredo"${VTT.redo.length ? "" : " disabled"} title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
@@ -448,7 +449,7 @@ function vToolsHtml() {
     ${vLevelToolsHtml()}
     ${vMeasToolsHtml(true)}
     ${VTT.tool === "draw" ? `<div class="vgroup"><span class="vlab">Pen</span>${vPenHtml(true)}</div>` : ""}
-    ${VTT.tool === "gridfit" ? vGridEdToolsHtml() : ""}
+    ${VTT.tool === "gridfit" ? vGridEdToolsHtml() : ""}${VTT.tool === "terrain" ? vTrTerrainToolsHtml() : ""}
     ${VTT.tool === "travel" || VTT.tool === "scale" || VTT.tool === "align" ? `<div class="vgroup"><span class="vlab">${VTT.tool === "scale" ? "Scale" : VTT.tool === "align" ? "Line up" : "Travel"}</span>${vTravelToolsHtml(true)}</div>` : ""}
     ${VTT.tool === "wall" ? `<div class="vgroup"><span class="vlab">Draw as</span><div class="seg vwk">${[["wall", "Wall"], ["door", "🚪 Door"], ["window", "🪟 Window"]].map(([v, l]) => `<button class="${(VTT.wallKind || "wall") === v ? "on" : ""}" data-act="vttwk" data-v="${v}" aria-pressed="${(VTT.wallKind || "wall") === v}">${l}</button>`).join("")}</div>
       <label class="check small"><input type="checkbox" data-act="vttwsnap"${VTT.wallSnap !== false ? " checked" : ""}> Snap to grid <small class="muted">(Alt flips it)</small></label></div>` : ""}
@@ -726,6 +727,7 @@ function vWire(view) {
     if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : vHexOf(cur.p) ? vHexSnapPt(cur.p, x, y) : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
     if (VTT.tool === "ping") { ev.preventDefault(); vPing(x, y, gm && ev.shiftKey); return; }
     if (VTT.tool === "travel") { ev.preventDefault(); if (vTrOn(cur.p)) vTrPointer(ev, cur, x, y); else vTravelClick(x, y, ev); return; }
+    if (gm && VTT.tool === "terrain" && vHexOf(cur.p)) { ev.preventDefault(); vTrPaintAt(cur, x, y); return; }
     if (gm && VTT.tool === "gridfit") { ev.preventDefault(); const G = vGridEd(cur.id), hd = ev.target.closest(".vgehandle"); drag = hd ? { kind: "gridsize", g0: G.g, ox: G.ox, oy: G.oy } : { kind: "gridmove", sx: x, sy: y, ox: G.ox, oy: G.oy }; view.setPointerCapture(ev.pointerId); return; }
     if (gm && VTT.tool === "align") { ev.preventDefault(); drag = { kind: "align" }; VTT.meas = { shape: "align", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (gm && VTT.tool === "scale") { ev.preventDefault(); drag = { kind: "scale" }; VTT.meas = { shape: "scale", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
@@ -919,7 +921,7 @@ function vToolsShow(on) {
   if (w) w.classList.toggle("toolsopen", on); if (btn) { btn.classList.toggle("on", on); btn.setAttribute("aria-expanded", on); }
 }
 function vToolsAutoClose() { if (VTT.toolsOpen && matchMedia("(max-width: 860px)").matches) vToolsShow(false); }
-function vSetTool(t) { VTT.tool = t; if (t === "area" && !VTT.lvl) vAreaPickLevel(); if (t === "wall" || t === "area" || t === "link") VTT.layer = "walls"; VTT.draft = null; VTT.hover = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); if (t !== "travel") VTT.trPaint = ""; vRefresh(); }
+function vSetTool(t) { VTT.tool = t; if (t === "area" && !VTT.lvl) vAreaPickLevel(); if (t === "wall" || t === "area" || t === "link") VTT.layer = "walls"; VTT.draft = null; VTT.hover = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml();  vRefresh(); }
 async function vDeleteSel() {
   const cur = vPageNow(), s = VTT.sel; if (!cur) return;
   if (VTT.multi.size) { const ids = [...VTT.multi]; VTT.multi.clear(); VTT.sel = null; await vUndoStep(async () => { for (const id of ids) await vDel("vtttokens/" + id); }, `deleting ${ids.length} tokens`); vRefresh(); return; }
@@ -2084,7 +2086,7 @@ function vLiveSnap() {
   document.addEventListener("pointerdown", ev => {
     cancel();
     const view = ev.target.closest && ev.target.closest("#vview"); if (!view || ev.button !== 0 || ev.target.closest(".vzoom,.vptools,.vturns,.vfloors")) return;
-    if (["wall", "area", "measure", "ping", "travel", "scale", "align", "gridfit", "decksq", "draw", "link"].includes(VTT.tool)) return;
+    if (["wall", "area", "measure", "ping", "travel", "terrain", "scale", "align", "gridfit", "decksq", "draw", "link"].includes(VTT.tool)) return;
     start = [ev.clientX, ev.clientY];
     const pt = vPt(ev), shift = ev.shiftKey;
     timer = setTimeout(() => { timer = 0; VTT.pingHeld = true; vPing(pt[0], pt[1], shift && vCanEdit()); }, 550);
