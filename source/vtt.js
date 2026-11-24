@@ -1079,8 +1079,6 @@ function vSettings() {
   openModal(`<h2>Page settings</h2><form class="vset">
     <label><span>Name</span><input id="vs-name" type="text" value="${esc(p.name || "")}"></label>
     <div class="frow tight"><label><span>Width (squares)</span><input id="vs-w" type="number" min="1" max="200" value="${p.w}"></label><label><span>Height (squares)</span><input id="vs-h" type="number" min="1" max="200" value="${p.h}"></label><label><span>Background</span><input id="vs-bg" type="color" value="${esc(p.bg || "#1b1f27")}"></label></div>
-    <div class="vscale"><label><span>Scale everything</span><input id="vs-k" type="number" min="10" max="400" step="5" value="100"> %</label><span class="muted small" id="vs-kout"></span><button class="btn ghost small" type="button" id="vs-kgo">Scale</button>
-      <small class="muted">Shrinks or grows the whole map: pictures, walls, doors, raised squares, stairs, lights${p.vehicle ? ", the helm and centre of mass" : ""} and where tokens stand. Tokens keep their own size.</small></div>
     <label><span>Folder</span><select id="vs-folder"><option value="">(top level)</option>${vFolders(S.vttCamps.get(p.camp)).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(S.vttCamps.get(p.camp), f.parent) + f.name)}</option>`).join("")}</select></label>
     <label class="check"><input id="vs-open" type="checkbox"${p.open ? " checked" : ""}> Players can switch to this map themselves <small class="muted">it appears in their map list, like a base they can teleport to</small></label>
     <label class="check"><input id="vs-grid" type="checkbox"${p.grid !== false ? " checked" : ""}> Show the grid</label>
@@ -1093,9 +1091,6 @@ function vSettings() {
       vPatch("vttpages/" + cur.id, { name: m.querySelector("#vs-name").value.trim() || "Page", w: n("#vs-w", 1, 200, 15), h: n("#vs-h", 1, 200, 15), bg: m.querySelector("#vs-bg").value, grid: m.querySelector("#vs-grid").checked, light: m.querySelector("#vs-light").checked, fogMem: m.querySelector("#vs-mem").checked, folder: m.querySelector("#vs-folder").value, open: m.querySelector("#vs-open").checked });
       VTT.fitDone = ""; closeModal();
     };
-    const kIn = m.querySelector("#vs-k"), kOut = m.querySelector("#vs-kout"), kVal = () => Math.max(0.1, Math.min(4, (Number(kIn.value) || 100) / 100));
-    const kShow = () => { const k = kVal(); kOut.textContent = `${p.w} × ${p.h} → ${Math.max(1, Math.ceil(p.w * k - 1e-6))} × ${Math.max(1, Math.ceil(p.h * k - 1e-6))} squares`; }; kIn.oninput = kShow; kShow();
-    m.querySelector("#vs-kgo").onclick = async () => { const k = kVal(); if (Math.abs(k - 1) < 1e-6) return; closeModal(); await vUndoStep(() => vScalePage(cur.id, k), "scaling the map"); VTT.fitDone = ""; toast(`Scaled to ${Math.round(k * 100)}%. Undo puts it back.`); };
     m.querySelector("#vs-fog").onclick = async () => { closeModal(); if (await confirmBox("Forget everything the players' tokens have explored on this page?", "Reset")) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + cur.id).catch(() => {}); vDraw(); } };
     m.querySelector("#vs-walls").onclick = async () => { closeModal(); if (await confirmBox(`Remove all ${(p.walls || []).length} walls from this page?`, "Remove walls")) vPatch("vttpages/" + cur.id, { walls: [] }); };
     m.querySelector("#vs-del").onclick = async () => {
@@ -2594,6 +2589,8 @@ function vPageSideHtml(p) {
       <div><span class="flabel">Map image</span><div class="acts wrap"><button class="btn small" data-act="vttmapimg">🖼 ${hasMap ? "Add another map image" : "Add a map image"}</button></div>
         <p class="muted small">Goes on the Map layer, under the grid. Name the file like <em>tavern 30x40.jpg</em> or <em>cave 140dpi.png</em> and the grid is read from it.</p></div>
       <div class="frow tight"><label><span>Width</span><input type="number" min="1" max="200" data-ps="w" value="${p.w}"></label><label><span>Height</span><input type="number" min="1" max="200" data-ps="h" value="${p.h}"></label><label><span>Background</span><input type="color" data-ps="bg" value="${esc(p.bg || "#1b1f27")}"></label></div>
+      <div class="vscale"><label><span>Scale everything</span><span class="vscalein"><input type="number" min="10" max="400" step="5" value="100" id="ps-k" aria-label="Scale, percent"> %</span></label><button class="btn ghost small" type="button" data-act="vttpsscale">Scale</button><span class="muted small" id="ps-kout">${p.w} × ${p.h} squares</span>
+        <small class="muted">Shrinks or grows the whole map: pictures, walls, doors, raised squares, stairs, lights${p.vehicle ? ", the helm and centre of mass" : ""} and where tokens stand. Tokens keep their own size. Undo puts it back.</small></div>
       <label><span>Folder</span><select data-ps="folder"><option value="">(top level)</option>${vFolders(camp).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(camp, f.parent) + f.name)}</option>`).join("")}</select></label>
       <label class="check"><input type="checkbox" data-ps="open"${p.open ? " checked" : ""}> Players can switch to this map themselves</label>
       <label><span>Grid</span><select data-ps="gridType"><option value=""${vHexOf(p) ? "" : " selected"}>Squares</option><option value="hexflat"${p.gridType === "hexflat" ? " selected" : ""}>Hexes, flat-topped</option><option value="hexpointy"${p.gridType === "hexpointy" ? " selected" : ""}>Hexes, pointy-topped</option></select></label>
@@ -2619,6 +2616,16 @@ document.addEventListener("change", ev => {
     if (v && !pg.gridType) { if (!pg.open) f2.open = true; if (!(Number(pg.hexMi) > 0)) f2.hexMi = 6; toast(`Now a hex map${f2.open ? ", and players can switch to it themselves" : ""}. Each hex is ${f2.hexMi || pg.hexMi} miles: change it below.`); }
     vPatch("vttpages/" + pid, f2); return; }
   vPatch("vttpages/" + pid, { [k]: v }); if (k === "w" || k === "h") VTT.fitDone = "";
+});
+const vScaleK = () => { const i = document.getElementById("ps-k"); return Math.max(0.1, Math.min(4, (Number(i && i.value) || 100) / 100)); };
+document.addEventListener("input", ev => {
+  if (!ev.target || ev.target.id !== "ps-k") return; const cur = vPageNow(), o = document.getElementById("ps-kout"); if (!cur || !o) return;
+  const k = vScaleK(), p = cur.p; o.textContent = `${p.w} × ${p.h} → ${Math.max(1, Math.ceil(p.w * k - 1e-6))} × ${Math.max(1, Math.ceil(p.h * k - 1e-6))} squares`;
+});
+document.addEventListener("click", async ev => {
+  const sb = ev.target.closest && ev.target.closest("[data-act=vttpsscale]"); if (!sb || !vCanEdit()) return;
+  const cur = vPageNow(), k = vScaleK(); if (!cur || Math.abs(k - 1) < 1e-6) return;
+  await vUndoStep(() => vScalePage(cur.id, k), "scaling the map"); VTT.fitDone = ""; toast(`Scaled to ${Math.round(k * 100)}%. Undo puts it back.`);
 });
 document.addEventListener("click", async ev => {
   const b = ev.target.closest && ev.target.closest("[data-act=vttpsfog],[data-act=vttpswalls],[data-act=vttpsdel]"); if (!b || !vCanEdit()) return;
