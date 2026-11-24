@@ -520,7 +520,7 @@ function vDraw() {
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
   vCvKeep(stage, oldCv);
   stage.dataset.layer = VTT.layer; stage.classList.toggle("vbelow", !!VTT.shipBelow); VTT.stageW = W; VTT.stageH = H;
-  vFog(cur.id, p, toks); vSteerDraw(); vGridEdDraw();
+  vFog(cur.id, p, toks); vSteerDraw(); vGridEdDraw(); vTrDraw();
   if (gm && !VTT.preview) document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (t && t.ship && vIsShip(S.vttTokens.get(t.ship))) el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); });
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
@@ -670,6 +670,7 @@ function vFogSaveSoon(pid, p) {
 function vSideHtml() {
   const cur = vPageNow(); if (!cur) return "";
   const p = cur.p, sel = VTT.sel;
+  if (VTT.tool === "travel" && vHexOf(p)) return `<div class="vtrpanel">${vTrPanelHtml(cur)}</div>`;
   if (VTT.multi.size > 1) return vMultiSideHtml();
   if (sel && sel.kind === "tok") { const t = S.vttTokens.get(sel.id); return t ? vTokSideHtml(sel.id, t) : vSideHelp(p); }
   if (sel && sel.kind === "obj") {
@@ -724,7 +725,7 @@ function vWire(view) {
     if (gm && VTT.tool === "wall") { ev.preventDefault(); return vWallClick(x, y, ev); }
     if (VTT.tool === "measure") { const sp = ev.altKey ? [x, y] : vHexOf(cur.p) ? vHexSnapPt(cur.p, x, y) : [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; VTT.meas = { s: sp, e: sp, shape: VTT.mshape, bw: VTT.mbeam }; drag = { kind: "meas" }; view.setPointerCapture(ev.pointerId); vMeasDraw(); vLiveMeas(); vMeasToolsRefresh(); return; }
     if (VTT.tool === "ping") { ev.preventDefault(); vPing(x, y, gm && ev.shiftKey); return; }
-    if (VTT.tool === "travel") { ev.preventDefault(); vTravelClick(x, y, ev); return; }
+    if (VTT.tool === "travel") { ev.preventDefault(); if (vTrOn(cur.p)) vTrPointer(ev, cur, x, y); else vTravelClick(x, y, ev); return; }
     if (gm && VTT.tool === "gridfit") { ev.preventDefault(); const G = vGridEd(cur.id), hd = ev.target.closest(".vgehandle"); drag = hd ? { kind: "gridsize", g0: G.g, ox: G.ox, oy: G.oy } : { kind: "gridmove", sx: x, sy: y, ox: G.ox, oy: G.oy }; view.setPointerCapture(ev.pointerId); return; }
     if (gm && VTT.tool === "align") { ev.preventDefault(); drag = { kind: "align" }; VTT.meas = { shape: "align", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
     if (gm && VTT.tool === "scale") { ev.preventDefault(); drag = { kind: "scale" }; VTT.meas = { shape: "scale", s: [x, y], e: [x, y] }; view.setPointerCapture(ev.pointerId); vMeasDraw(); return; }
@@ -918,7 +919,7 @@ function vToolsShow(on) {
   if (w) w.classList.toggle("toolsopen", on); if (btn) { btn.classList.toggle("on", on); btn.setAttribute("aria-expanded", on); }
 }
 function vToolsAutoClose() { if (VTT.toolsOpen && matchMedia("(max-width: 860px)").matches) vToolsShow(false); }
-function vSetTool(t) { VTT.tool = t; if (t === "area" && !VTT.lvl) vAreaPickLevel(); if (t === "wall" || t === "area" || t === "link") VTT.layer = "walls"; VTT.draft = null; VTT.hover = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); vDraw(); }
+function vSetTool(t) { VTT.tool = t; if (t === "area" && !VTT.lvl) vAreaPickLevel(); if (t === "wall" || t === "area" || t === "link") VTT.layer = "walls"; VTT.draft = null; VTT.hover = null; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); if (t !== "travel") VTT.trPaint = ""; vRefresh(); }
 async function vDeleteSel() {
   const cur = vPageNow(), s = VTT.sel; if (!cur) return;
   if (VTT.multi.size) { const ids = [...VTT.multi]; VTT.multi.clear(); VTT.sel = null; await vUndoStep(async () => { for (const id of ids) await vDel("vtttokens/" + id); }, `deleting ${ids.length} tokens`); vRefresh(); return; }
@@ -2838,9 +2839,9 @@ const vNoSnap = () => { const cur = vPageNow(); return !!(cur && cur.p && cur.p.
 
 // ===== Travel: a scale for the map, and routes measured in days =====
 // page.scale = { len: squares, amt, unit: "day" | "hour", mi } : a line of len squares is amt days (or hours) of travel, mi miles (optional).
-// A travel day is 8 hours on the road, as in the 5e rules; slow pace covers 2/3 the ground, fast 4/3.
+// A travel day is 8 hours on the road, as in the 5e rules; slow pace is 25% slower, fast 25% quicker.
 VTT.pace = "normal";
-const VPACE = { slow: [2 / 3, "Slow"], normal: [1, "Normal"], fast: [4 / 3, "Fast"] };
+const VPACE = { slow: [0.75, "Slow"], normal: [1, "Normal"], fast: [1.25, "Fast"] };
 function vScaleText(sc) { return `${+sc.len.toFixed(2)} squares = ${sc.amt} ${sc.unit === "hour" ? "hour" : "day"}${sc.amt === 1 ? "" : "s"} of travel${sc.mi ? ` (${sc.mi} miles)` : ""}`; }
 function vRouteLen(pts) { let d = 0; for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return d; }
 function vFmtDays(h) {
@@ -2900,6 +2901,7 @@ function vTravelLabel(pts, pace, by) {
 function vTravelToolsHtml(gm) {
   const cur = vPageNow(), sc = cur && cur.p.scale;
   if (VTT.tool === "align") return `<p class="muted small vlhint">Drag from one edge of something on the map to the other (a corridor, a door, a room), then say how many squares it is. Do it once across and once down to line up both ways.</p>`;
+  if (VTT.tool === "travel" && vTrOn(cur && cur.p)) return `<p class="muted small vlhint">Click hexes on the map to add stops. The route planner panel shows the time.</p>`;
   if (VTT.tool === "scale") return `<p class="muted small vlhint">Drag a line over a stretch of the map, then say how much travel it is.${sc && sc.len ? `<br>Now: ${esc(vScaleText(sc))}.` : ""}</p>`;
   const paces = Object.entries(VPACE).map(([k, [, l]]) => `<button class="${(VTT.pace || "normal") === k ? "on" : ""}" data-act="vtttpace" data-v="${k}" aria-pressed="${(VTT.pace || "normal") === k}">${l}</button>`).join("");
   const opts = vTravelVehOpts(), by = VTT.travelBy || "";

@@ -167,13 +167,24 @@ function playerSummonToken(p, doc) {
   return false;
 }
 // Players open and close doors: only the open flag of doors that aren't locked or secret changes; everything else stays as the GM has it.
+// Players plan journeys on a travel map: the route, pace, how each travels. Starting, moving on a day and stopping are the GM's.
+function playerJourney(old, j) {
+  const o = old.journey || {};
+  if (JSON.stringify(o) === JSON.stringify(j)) return null;
+  if (o.started || !j || typeof j !== "object" || Array.isArray(j) || j.started || j.day || j.path || j.hrs || JSON.stringify(j).length > 40000) return null;
+  if (j.stops != null && !(Array.isArray(j.stops) && j.stops.length <= 200 && j.stops.every(s => Array.isArray(s) && s.length === 2 && s.every(Number.isInteger)))) return null;
+  return { stops: j.stops || [], pace: ["slow", "normal", "fast"].includes(j.pace) ? j.pace : "normal", veh: typeof j.veh === "string" ? j.veh.slice(0, 80) : "",
+    party: j.party && typeof j.party === "object" ? j.party : {}, mph: j.mph && typeof j.mph === "object" ? j.mph : {} };
+}
 function playerDoorWrite(p, doc) {
-  if (!/^vttpages\/[A-Za-z0-9_.-]+$/.test(p) || !doc || !Array.isArray(doc.walls)) return null;
+  if (!/^vttpages\/[A-Za-z0-9_.-]+$/.test(p) || !doc) return null;
   const old = docs[p]; if (!old || !vttVisible(p.slice(9), old)) return null;
+  const jn = doc.journey !== undefined ? playerJourney(old, doc.journey) : null;
+  if (!Array.isArray(doc.walls)) return jn ? Object.assign({}, old, { journey: jn }) : null;
   const want = new Map(); doc.walls.forEach(w => { if (Array.isArray(w) && w[5] && typeof w[5].id === "string") want.set(w[5].id, !!w[5].open); });
   let changed = false;
   const walls = (old.walls || []).map(w => { const m = Array.isArray(w) && w[5]; if (!m || m.k !== "door" || m.locked || m.secret || !want.has(m.id) || want.get(m.id) === !!m.open) return w; changed = true; return w.slice(0, 5).concat([Object.assign({}, m, { open: want.get(m.id) })]); });
-  return changed ? Object.assign({}, old, { walls }) : null;
+  return changed || jn ? Object.assign({}, old, changed ? { walls } : {}, jn ? { journey: jn } : {}) : null;
 }
 const playerMayWrite = (p, doc) => /^characters\/[A-Za-z0-9_.-]+$/.test(p) || (/^vttfog\/[A-Za-z0-9_.-]+$/.test(p) && !!doc && typeof doc.bits === "string" && doc.bits.length < 400000) || playerTokenMove(p, doc) || playerSummonToken(p, doc) || playerLive(p, doc) || playerDraw(p, doc);
 // Wrong passwords: 5 in 15 minutes locks that address out for 15 minutes; 30 from the internet in total

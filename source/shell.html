@@ -2187,6 +2187,21 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vwsoff { position:absolute; left:0; top:0; pointer-events:none }
 .vdecksqbox { position:absolute; pointer-events:none; border:2px dashed #ff5a5a; background:rgba(255,90,90,.18) } .vdecksqbox.on { border-color:#5ad17a; background:rgba(90,209,122,.18) }
 .vdecksqtools { display:flex; flex-direction:column; gap:6px; margin:4px 0 }
+.vtrl { pointer-events:none } .vtrl svg { position:absolute; left:0; top:0; overflow:visible }
+.vtrroad { fill:rgba(214,160,70,.38); stroke:rgba(214,160,70,.85); stroke-width:1.5 }
+.vtrblock { fill:rgba(200,50,50,.35); stroke:rgba(230,70,70,.9); stroke-width:1.5 }
+.vtrroute { fill:none; stroke:#f2d36b; stroke-width:5; stroke-linecap:round; stroke-linejoin:round; opacity:.95; filter:drop-shadow(0 0 2px rgba(0,0,0,.8)) }
+.vtrdone { fill:none; stroke:#4a3a12; stroke-width:6; stroke-linecap:round; stroke-linejoin:round }
+.vtrday circle { fill:#f2d36b; stroke:#1a1408; stroke-width:2 } .vtrday.past circle { fill:#4a3a12 } .vtrday text { fill:#fff; font:700 13px system-ui, sans-serif; text-anchor:middle; paint-order:stroke; stroke:#000; stroke-width:3px }
+.vtrdot { fill:#fff; stroke:#111; stroke-width:3; filter:drop-shadow(0 0 4px rgba(0,0,0,.9)) }
+.vtrstop circle { fill:#1b2233; stroke:#f2d36b; stroke-width:3 } .vtrstop.start circle { stroke:#5ad17a } .vtrstop.end circle { stroke:#ff8a5a }
+.vtrstop text { fill:#fff; font:700 14px system-ui, sans-serif; text-anchor:middle; dominant-baseline:central }
+.vtrbroken { fill:none; stroke:#ff5a5a; stroke-width:4; stroke-dasharray:6 4 }
+.vtrpanel .vtrbig { font-size:1.35rem; font-weight:700; margin:.4em 0 .1em }
+.vtrpanel label { display:flex; flex-direction:column; gap:4px; margin:.5em 0 }
+.vtrparty { display:flex; flex-direction:column; gap:6px; margin:.5em 0 } .vtrmem { display:flex; flex-wrap:wrap; align-items:center; gap:6px }
+.vtrmem .vtrname { min-width:5em; font-weight:600 } .vtrmem select { flex:1; min-width:8em } .vtrpanel .vtrmph { flex-direction:row; align-items:center; margin:0 } .vtrmph input { width:4.5em }
+.vtrwarn { color:#ffb36b; margin:.3em 0 } .vtrpaint { border-top:1px solid var(--line, #333); margin-top:12px; padding-top:8px } .vtrpanel .acts { display:flex; flex-wrap:wrap; gap:6px; margin:.6em 0 }
 </style>
 </head>
 <body>
