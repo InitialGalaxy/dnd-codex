@@ -46,7 +46,7 @@ with sync_playwright() as p:
         bb=pg.locator(sel).bounding_box(); pg.mouse.move(bb['x']+bb['width']/2, bb['y']+bb['height']/2); pg.mouse.down(); pg.mouse.move(*to, steps=10); pg.mouse.up(); pg.wait_for_timeout(1200)
     tk=lambda pg,i: pg.evaluate(f"(t=>t?[Math.round(t.x*100)/100,Math.round(t.y*100)/100,t.lvl||0,t.ship||null,t.sx,t.sy,t.deck]:null)(S.vttTokens.get('{i}'))")
     m2=lambda pg,lx,ly: pg.evaluate(f"vShipToMap(S.vttTokens.get('{shid}'),{lx},{ly})")
-    drag(P,'.vtok[data-tid=pc]', scr(P,*m2(P,6.5,3.5))); print('4 boarded', tk(P,'pc'), '| GM', tk(G,'pc'))
+    drag(P,'.vtok[data-tid=pc]', scr(P,*m2(P,6.5,3.5))); print('4 boarded', tk(P,'pc'), '| GM', tk(G,'pc'), '| player sees decks', P.evaluate(f"[...document.querySelectorAll('.vship[data-ship={shid}] .vsdeck')].map(e=>e.dataset.deck)"))
     drag(P,'.vtok[data-tid=pc]', scr(P,*m2(P,21.5,3.5))); print('  at the helm', tk(G,'pc'), '| helm', P.evaluate(f"(h=>h&&h[0])(vShipHelm('{shid}'))"), '| ring', P.locator('.vhelmarrow').count())
     P.screenshot(path='/tmp/ship-helm.png')
     # 5. steer: ahead and a little to the side
@@ -77,6 +77,9 @@ with sync_playwright() as p:
     P.click('.vgo button[data-deck="-1"]'); P.wait_for_timeout(1200); print('  below', tk(G,'pc'), '| player stage below-deck', P.evaluate("document.getElementById('vstage').classList.contains('vbelow')"), '| decks shown', P.evaluate(f"[...document.querySelectorAll('.vship[data-ship={shid}] .vsdeck')].map(e=>e.dataset.deck)"))
     P.screenshot(path='/tmp/ship-below.png')
     # 9. levels dialog: put the lower deck at G
+    P.click('.vgo button[data-deck="0"]'); P.wait_for_timeout(1200); drag(P,'.vtok[data-tid=pc]', scr(P,*m2(P,9.5,1.5))); P.wait_for_timeout(500); print('8b stairs up', P.locator('.vgo button').all_inner_texts())
+    P.click('.vgo button[data-deck="1"]'); P.wait_for_timeout(1200); print('  up top', tk(G,'pc'), '| player sees decks', P.evaluate(f"[...document.querySelectorAll('.vship[data-ship={shid}] .vsdeck')].map(e=>e.dataset.deck)"))
+    P.click('.vgo button[data-deck="0"]'); P.wait_for_timeout(1200); drag(P,'.vtok[data-tid=pc]', scr(P,*m2(P,10.5,3.5))); P.click('.vgo button[data-deck="-1"]'); P.wait_for_timeout(1200)
     G.click('[data-act=vttlvldlg]'); G.wait_for_timeout(400); print('9 dialog decks', G.locator('.vlvdeck span').all_inner_texts())
     G.select_option(f'[data-lvship={shid}][data-deck="-1"]', '0'); G.wait_for_timeout(800); G.screenshot(path='/tmp/ship-levels.png'); G.click('[data-lvd=close]'); G.wait_for_timeout(800)
     print('  hero now at map level', tk(G,'pc')[2])

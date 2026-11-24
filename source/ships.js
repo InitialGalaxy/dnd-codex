@@ -101,14 +101,16 @@ function vShipHelm(id, t) {
   }
   return null;
 }
-// Which decks to draw. The GM sees the levels picked on the side (all by default). Players see the open decks (those at
-// the map's ground level or above) unless everyone looking is below deck on this ship, when they see their deck and below.
+// Which decks to draw. The GM sees the levels picked on the side (all by default). Players aboard see their own deck and the
+// ones under it (the floor picker chooses whose, on a shared screen); from outside, the open decks (at ground level or above).
 function vShipDeckShown(id, t, gm, viewers) {
   const decks = vShipDecks(t);
   if (gm && !VTT.preview) return { decks: decks.filter(d => !vLvlHid(vShipDeckLvl(t, d))), below: false };
   const aboard = viewers.filter(([, q]) => q.ship === id).map(([, q]) => vTokFloor(q)), outside = viewers.some(([, q]) => q.ship !== id);
+  // Aboard (and nobody looking from outside): your own deck and those under it, as in a building; the decks above are hidden.
+  if (aboard.length && !outside) { const m = Math.max(...aboard), open = decks.filter(d => vShipDeckLvl(t, d) >= 0); return { decks: decks.filter(d => vShipDeckLvl(t, d) <= m), below: m < 0 && open.length > 0 }; }
+  // From outside: its open decks, the top one over the others.
   const topside = decks.filter(d => vShipDeckLvl(t, d) >= 0), top = topside.length ? topside : [decks[decks.length - 1]];
-  if (aboard.length && !outside && aboard.every(f => f < 0)) { const m = Math.max(...aboard); return { decks: decks.filter(d => vShipDeckLvl(t, d) <= m), below: true }; }
   return { decks: decks.filter(d => top.includes(d) || aboard.includes(vShipDeckLvl(t, d))), below: false };
 }
 function vShipsHtml(pid, p, toks, gm) {
