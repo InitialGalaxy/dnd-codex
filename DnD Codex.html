@@ -11337,7 +11337,8 @@ function vPageSideHtml(p) {
       <label><span>Folder</span><select data-ps="folder"><option value="">(top level)</option>${vFolders(camp).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(camp, f.parent) + f.name)}</option>`).join("")}</select></label>
       <label class="check"><input type="checkbox" data-ps="open"${p.open ? " checked" : ""}> Players can switch to this map themselves</label>
       <label><span>Grid</span><select data-ps="gridType"><option value=""${vHexOf(p) ? "" : " selected"}>Squares</option><option value="hexflat"${p.gridType === "hexflat" ? " selected" : ""}>Hexes, flat-topped</option><option value="hexpointy"${p.gridType === "hexpointy" ? " selected" : ""}>Hexes, pointy-topped</option></select></label>
-      ${vHexOf(p) ? `<label><span>Each hex is <small class="muted">miles across, for the 🧭 travel tool</small></span><input type="number" min="0.1" step="0.5" data-ps="hexMi" value="${esc(p.hexMi || "")}" placeholder="6" style="width:110px"></label>` : ""}
+      ${vHexOf(p) ? `<label><span>Each hex is <small class="muted">miles across, for the 🧭 travel tool</small></span><input type="number" min="0.1" step="0.5" data-ps="hexMi" value="${esc(p.hexMi || "")}" placeholder="6" style="width:110px"></label>
+      <label><span>Roads are faster by <small class="muted">%, moving road hex to road hex</small></span><input type="number" min="0" max="400" step="5" data-ps="roadBonus" value="${esc(p.roadBonus != null ? p.roadBonus : 50)}" style="width:110px"></label>` : ""}
       <label class="check"><input type="checkbox" data-ps="grid"${p.grid !== false ? " checked" : ""}> Show the grid</label>
       <label class="check"><input type="checkbox" data-ps="snap"${p.snap !== false ? " checked" : ""}> Snap tokens to the grid <small class="muted">untick for world and region maps (Alt flips it)</small></label>
       ${vHexOf(p) ? "" : `<div><span class="flabel">Travel scale</span>${p.scale && p.scale.len ? `<p class="small">${vScaleText(p.scale)} <button class="linkbtn small" data-act="vttscaleclr">Clear</button></p>` : `<p class="muted small">None yet. Use the <strong>📐 Scale</strong> tool to drag a line and say how far a day's travel is; then anyone can plan routes with <strong>🧭 Travel</strong>.</p>`}</div>`}
@@ -11354,6 +11355,7 @@ document.addEventListener("change", ev => {
   if (k === "w" || k === "h") v = Math.max(1, Math.min(200, Math.round(Number(v) || 15)));
   if (k === "name") v = String(v).trim() || "Page";
   if (k === "hexMi") v = Math.max(0.1, Math.min(1000, Number(v) || 6));
+  if (k === "roadBonus") v = Math.max(0, Math.min(400, Math.round(Number(v)) || 0));
   if (k === "gridType") { const pg = S.vttPages.get(pid) || {}, f2 = { gridType: v };
     // A hex map is a map of a region: players can open it themselves, and travel needs its miles a hex.
     if (v && !pg.gridType) { if (!pg.open) f2.open = true; if (!(Number(pg.hexMi) > 0)) f2.hexMi = 6; toast(`Now a hex map${f2.open ? ", and players can switch to it themselves" : ""}. Each hex is ${f2.hexMi || pg.hexMi} miles: change it below.`); }
@@ -12107,8 +12109,9 @@ function vLevelsDialog() {
 // page.journey = { stops: [[q, r], …], pace, veh, party: { tokenId: "foot" | "m:<ref>" | "v:<ref>" }, mph: { <ref>: n },
 //                  started, day, path: [[q, r], …], hrs: [hours per step] }   (path and hrs are frozen when travel starts)
 // Refs: "t:<token>" a token on the map, "e:<entry>" a library vehicle, "s:<character>:<summon>" a character's summon.
-// A route steps hex centre to hex centre. Moving from a road hex to the next road hex is 20% faster.
-const VTR_ROAD = 1.2, VTR_DAY = 8;
+// A route steps hex centre to hex centre. Moving from a road hex to the next road hex is faster by page.roadBonus % (50 unless set).
+const VTR_DAY = 8;
+const vTrRoadPct = p => p.roadBonus != null && isFinite(p.roadBonus) ? Number(p.roadBonus) : 50;
 const VTR_PACE = { slow: [0.75, "Slow"], normal: [1, "Normal"], fast: [1.25, "Fast"] };
 const VTR_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
 const vTrOn = p => !!(p && vHexOf(p) && Number(p.hexMi) > 0);
@@ -12161,7 +12164,7 @@ function vTrOptions(cur) {
   const nm = (a, b) => byName(vTrRefName(a), vTrRefName(b));
   return { mounts: mounts.sort(nm), simple: simple.sort(nm), complex: complex.sort(nm) };
 }
-// The party's speed in mph (on the open road it's this; road to road, 20% more), and who sets it.
+// The party's speed in mph (off the road it's this; road to road, faster by the map's road bonus), and who sets it.
 function vTrSpeed(cur) {
   const p = cur.p, j = vTrJ(p), pf = (VTR_PACE[j.pace || "normal"] || VTR_PACE.normal)[0], mph = j.mph || {}, notes = [];
   if (j.veh) { const v = vTrVeh(j.veh); if (v) return { mph: v.mph, by: `${vTrRefName(j.veh)} carries everyone`, notes, members: [] }; }
@@ -12180,7 +12183,7 @@ function vTrSpeed(cur) {
 }
 
 // ----- The route: fewest hours, hex centre to hex centre, around impassable hexes, taking roads when they're quicker -----
-function vTrStepHrs(p, a, b, mph) { const road = vTrTer(p, a) === "road" && vTrTer(p, b) === "road"; return p.hexMi / (mph * (road ? VTR_ROAD : 1)); }
+function vTrStepHrs(p, a, b, mph) { const road = vTrTer(p, a) === "road" && vTrTer(p, b) === "road"; return p.hexMi / (mph * (road ? 1 + vTrRoadPct(p) / 100 : 1)); }
 function vTrPath(p, from, to, mph) {
   const all = vTrHexes(p), s = vTrKey(from), g = vTrKey(to); if (!all.has(s) || !all.has(g) || vTrTer(p, g) === "block") return null;
   const dist = new Map([[s, 0]]), prev = new Map(), heap = [[0, s]], done = new Set();
@@ -12275,7 +12278,7 @@ const vTrShadeBox = p => `<label class="check small"><input type="checkbox" data
 function vTrTerrainToolsHtml() {
   const cur = vPageNow(); if (!cur || !vHexOf(cur.p)) return ""; const p = cur.p, ter = Object.values(p.terrain || {});
   return `<div class="vgroup vtrtools"><span class="vlab">Roads</span><div class="seg">${[["road", "Road"], ["block", "Impassable"], ["clear", "Erase"]].map(([v, l]) => `<button class="${VTT.trBrush === v ? "on" : ""}" data-act="vtrbrush" data-v="${v}" aria-pressed="${VTT.trBrush === v}">${l}</button>`).join("")}</div>
-    <p class="muted small vlhint">Click or drag over hexes. Moving road to road is 20% faster; nobody can travel through impassable hexes (cliffs, water). ${ter.filter(v => v === "road").length} road, ${ter.filter(v => v === "block").length} impassable.</p>
+    <p class="muted small vlhint">Click or drag over hexes. Moving road to road is ${vTrRoadPct(p)}% faster (change it in Page settings); nobody can travel through impassable hexes (cliffs, water). ${ter.filter(v => v === "road").length} road, ${ter.filter(v => v === "block").length} impassable.</p>
     ${vTrShadeBox(p)}</div>`;
 }
 // ----- Clicking the map with the travel tool: add a stop -----

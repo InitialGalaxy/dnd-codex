@@ -2702,7 +2702,8 @@ function vPageSideHtml(p) {
       <label><span>Folder</span><select data-ps="folder"><option value="">(top level)</option>${vFolders(camp).map(f => `<option value="${esc(f.id)}"${p.folder === f.id ? " selected" : ""}>${esc(vFolderPath(camp, f.parent) + f.name)}</option>`).join("")}</select></label>
       <label class="check"><input type="checkbox" data-ps="open"${p.open ? " checked" : ""}> Players can switch to this map themselves</label>
       <label><span>Grid</span><select data-ps="gridType"><option value=""${vHexOf(p) ? "" : " selected"}>Squares</option><option value="hexflat"${p.gridType === "hexflat" ? " selected" : ""}>Hexes, flat-topped</option><option value="hexpointy"${p.gridType === "hexpointy" ? " selected" : ""}>Hexes, pointy-topped</option></select></label>
-      ${vHexOf(p) ? `<label><span>Each hex is <small class="muted">miles across, for the 🧭 travel tool</small></span><input type="number" min="0.1" step="0.5" data-ps="hexMi" value="${esc(p.hexMi || "")}" placeholder="6" style="width:110px"></label>` : ""}
+      ${vHexOf(p) ? `<label><span>Each hex is <small class="muted">miles across, for the 🧭 travel tool</small></span><input type="number" min="0.1" step="0.5" data-ps="hexMi" value="${esc(p.hexMi || "")}" placeholder="6" style="width:110px"></label>
+      <label><span>Roads are faster by <small class="muted">%, moving road hex to road hex</small></span><input type="number" min="0" max="400" step="5" data-ps="roadBonus" value="${esc(p.roadBonus != null ? p.roadBonus : 50)}" style="width:110px"></label>` : ""}
       <label class="check"><input type="checkbox" data-ps="grid"${p.grid !== false ? " checked" : ""}> Show the grid</label>
       <label class="check"><input type="checkbox" data-ps="snap"${p.snap !== false ? " checked" : ""}> Snap tokens to the grid <small class="muted">untick for world and region maps (Alt flips it)</small></label>
       ${vHexOf(p) ? "" : `<div><span class="flabel">Travel scale</span>${p.scale && p.scale.len ? `<p class="small">${vScaleText(p.scale)} <button class="linkbtn small" data-act="vttscaleclr">Clear</button></p>` : `<p class="muted small">None yet. Use the <strong>📐 Scale</strong> tool to drag a line and say how far a day's travel is; then anyone can plan routes with <strong>🧭 Travel</strong>.</p>`}</div>`}
@@ -2719,6 +2720,7 @@ document.addEventListener("change", ev => {
   if (k === "w" || k === "h") v = Math.max(1, Math.min(200, Math.round(Number(v) || 15)));
   if (k === "name") v = String(v).trim() || "Page";
   if (k === "hexMi") v = Math.max(0.1, Math.min(1000, Number(v) || 6));
+  if (k === "roadBonus") v = Math.max(0, Math.min(400, Math.round(Number(v)) || 0));
   if (k === "gridType") { const pg = S.vttPages.get(pid) || {}, f2 = { gridType: v };
     // A hex map is a map of a region: players can open it themselves, and travel needs its miles a hex.
     if (v && !pg.gridType) { if (!pg.open) f2.open = true; if (!(Number(pg.hexMi) > 0)) f2.hexMi = 6; toast(`Now a hex map${f2.open ? ", and players can switch to it themselves" : ""}. Each hex is ${f2.hexMi || pg.hexMi} miles: change it below.`); }

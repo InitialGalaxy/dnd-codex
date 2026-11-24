@@ -3,8 +3,9 @@
 // page.journey = { stops: [[q, r], …], pace, veh, party: { tokenId: "foot" | "m:<ref>" | "v:<ref>" }, mph: { <ref>: n },
 //                  started, day, path: [[q, r], …], hrs: [hours per step] }   (path and hrs are frozen when travel starts)
 // Refs: "t:<token>" a token on the map, "e:<entry>" a library vehicle, "s:<character>:<summon>" a character's summon.
-// A route steps hex centre to hex centre. Moving from a road hex to the next road hex is 20% faster.
-const VTR_ROAD = 1.2, VTR_DAY = 8;
+// A route steps hex centre to hex centre. Moving from a road hex to the next road hex is faster by page.roadBonus % (50 unless set).
+const VTR_DAY = 8;
+const vTrRoadPct = p => p.roadBonus != null && isFinite(p.roadBonus) ? Number(p.roadBonus) : 50;
 const VTR_PACE = { slow: [0.75, "Slow"], normal: [1, "Normal"], fast: [1.25, "Fast"] };
 const VTR_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
 const vTrOn = p => !!(p && vHexOf(p) && Number(p.hexMi) > 0);
@@ -57,7 +58,7 @@ function vTrOptions(cur) {
   const nm = (a, b) => byName(vTrRefName(a), vTrRefName(b));
   return { mounts: mounts.sort(nm), simple: simple.sort(nm), complex: complex.sort(nm) };
 }
-// The party's speed in mph (on the open road it's this; road to road, 20% more), and who sets it.
+// The party's speed in mph (off the road it's this; road to road, faster by the map's road bonus), and who sets it.
 function vTrSpeed(cur) {
   const p = cur.p, j = vTrJ(p), pf = (VTR_PACE[j.pace || "normal"] || VTR_PACE.normal)[0], mph = j.mph || {}, notes = [];
   if (j.veh) { const v = vTrVeh(j.veh); if (v) return { mph: v.mph, by: `${vTrRefName(j.veh)} carries everyone`, notes, members: [] }; }
@@ -76,7 +77,7 @@ function vTrSpeed(cur) {
 }
 
 // ----- The route: fewest hours, hex centre to hex centre, around impassable hexes, taking roads when they're quicker -----
-function vTrStepHrs(p, a, b, mph) { const road = vTrTer(p, a) === "road" && vTrTer(p, b) === "road"; return p.hexMi / (mph * (road ? VTR_ROAD : 1)); }
+function vTrStepHrs(p, a, b, mph) { const road = vTrTer(p, a) === "road" && vTrTer(p, b) === "road"; return p.hexMi / (mph * (road ? 1 + vTrRoadPct(p) / 100 : 1)); }
 function vTrPath(p, from, to, mph) {
   const all = vTrHexes(p), s = vTrKey(from), g = vTrKey(to); if (!all.has(s) || !all.has(g) || vTrTer(p, g) === "block") return null;
   const dist = new Map([[s, 0]]), prev = new Map(), heap = [[0, s]], done = new Set();
@@ -171,7 +172,7 @@ const vTrShadeBox = p => `<label class="check small"><input type="checkbox" data
 function vTrTerrainToolsHtml() {
   const cur = vPageNow(); if (!cur || !vHexOf(cur.p)) return ""; const p = cur.p, ter = Object.values(p.terrain || {});
   return `<div class="vgroup vtrtools"><span class="vlab">Roads</span><div class="seg">${[["road", "Road"], ["block", "Impassable"], ["clear", "Erase"]].map(([v, l]) => `<button class="${VTT.trBrush === v ? "on" : ""}" data-act="vtrbrush" data-v="${v}" aria-pressed="${VTT.trBrush === v}">${l}</button>`).join("")}</div>
-    <p class="muted small vlhint">Click or drag over hexes. Moving road to road is 20% faster; nobody can travel through impassable hexes (cliffs, water). ${ter.filter(v => v === "road").length} road, ${ter.filter(v => v === "block").length} impassable.</p>
+    <p class="muted small vlhint">Click or drag over hexes. Moving road to road is ${vTrRoadPct(p)}% faster (change it in Page settings); nobody can travel through impassable hexes (cliffs, water). ${ter.filter(v => v === "road").length} road, ${ter.filter(v => v === "block").length} impassable.</p>
     ${vTrShadeBox(p)}</div>`;
 }
 // ----- Clicking the map with the travel tool: add a stop -----
