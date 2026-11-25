@@ -375,7 +375,7 @@ async function vttCampAction(a, el) {
     await vSave("vttcamps/" + id, { name, created: new Date().toISOString() });
     const pid = await vNewPage(id, "Page 1", 0);
     await vPatch("vttcamps/" + id, { playerPage: pid });
-    location.hash = "vtt-" + id;
+    location.hash = "camp-" + id;
   } else if (a === "vttrencamp") {
     const c = S.vttCamps.get(el.dataset.id); if (!c) return;
     const name = await vAsk("Rename campaign", "Name", c.name, "Save"); if (name) vPatch("vttcamps/" + el.dataset.id, { name });
@@ -413,7 +413,7 @@ function vCurrentPage(camp) {
 }
 function viewVttCamp(camp) {
   const c = S.vttCamps && S.vttCamps.get(camp);
-  if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening the table…"}</p><p><a href="#vtt">All campaigns</a></p></section>`;
+  if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening the table…"}</p><p><a href="#campaigns">All campaigns</a></p></section>`;
   if (!S.vttPages) return `<section class="page"><p class="muted">Opening the table…</p></section>`;
   const pid = vCurrentPage(camp), p = pid && S.vttPages.get(pid);
   const gm = vCanEdit();
@@ -422,7 +422,7 @@ function viewVttCamp(camp) {
     : avail.length > 1 ? `<label class="vpsel"><span class="sr">Map</span><select id="vpsel">${avail.map(([id, pg]) => `<option value="${esc(id)}"${id === pid ? " selected" : ""}>${c.playerPage === id ? "★ " : ""}${esc(vFolderPath(c, pg.folder) + (pg.name || "Map"))}</option>`).join("")}</select></label>${pid !== c.playerPage && c.playerPage ? `<button class="btn ghost small" data-act="vttgoparty">★ Back to the party</button>` : ""}`
     : p ? `<span class="vcurpage"><strong>${esc(p.name || "Map")}</strong></span>` : "";
   return `<section class="vtt" data-camp="${esc(camp)}">
-    <div class="vttbar"><a href="#vtt" class="vback">← Campaigns</a><h1>${esc(c.name)}</h1>${p && gm ? `<button class="btn small vtoolsbtn${VTT.toolsOpen ? " on" : ""}" data-act="vtttoolsopen" aria-expanded="${!!VTT.toolsOpen}">🛠 Tools</button>` : ""}${tabs}
+    <div class="vttbar"><a href="#camp-${esc(camp)}" class="vback" title="This campaign's page">← ${esc(c.name || "Campaign")}</a><h1>${esc(c.name)}</h1>${p && gm ? `<button class="btn small vtoolsbtn${VTT.toolsOpen ? " on" : ""}" data-act="vtttoolsopen" aria-expanded="${!!VTT.toolsOpen}">🛠 Tools</button>` : ""}${tabs}
       ${p && gm && !c.workshop ? `<button class="btn ghost small${VTT.initOpen ? " on" : ""}" data-act="vttinitopen" aria-expanded="${!!VTT.initOpen}">⚔ Turn order</button>` : ""}${gm && p && !c.workshop ? `<button class="btn ghost small" data-act="vttcondlib">✦ Conditions</button><button class="btn ghost small${VTT.questOpen ? " on" : ""}" data-act="vttqopen" aria-expanded="${!!VTT.questOpen}">📜 Quests</button>` : ""}
       ${gm && p ? `<div class="vbaracts">${c.workshop ? `<span class="vpill">⛵ Vehicle workshop</span>` : c.playerPage === pid ? `<span class="vpill">★ Players are here</span>` : `<button class="btn small" data-act="vttsend">Send players here</button>`}<button class="btn ghost small" data-act="vttsettings">Page settings</button></div>` : ""}</div>
     ${gm && VTT.mapsOpen ? `<div class="vmaps" id="vmaps">${vMapsHtml(camp)}</div>` : ""}

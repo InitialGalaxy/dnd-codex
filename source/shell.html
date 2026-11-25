@@ -2238,6 +2238,31 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vwsedge button { width:30px; height:30px; border-radius:50%; border:2px solid var(--brass); background:var(--panel); color:var(--brass); font:700 1.1rem/1 var(--ui); cursor:pointer; padding:0; box-shadow:0 1px 4px rgba(0,0,0,.5); }
 .vwsedge button:hover:not(:disabled) { background:var(--brass); color:#1a1408; } .vwsedge button:disabled { opacity:.35; cursor:default; }
 .vehmapbtn { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px 0 10px; }
+.campcards { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; }
+.campcard { border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; display:flex; flex-direction:column; }
+.campcardlink { display:flex; flex-direction:column; color:inherit; text-decoration:none; flex:1; } .campcardlink:hover h2 { color:var(--brass); }
+.campthumb { height:150px; background:var(--bg); display:grid; place-items:center; overflow:hidden; border-bottom:1px solid var(--line); }
+.campthumb img, .campthumb svg { width:100%; height:100%; object-fit:cover; } .campthumb .mapwrap { width:100%; height:100%; margin:0; }
+.campinit { font:700 3rem var(--display); color:var(--brass); opacity:.6; }
+.campcardbody { padding:12px 14px 6px; } .campcardbody h2 { margin:0 0 4px; font-size:1.25rem; }
+.campfaces { display:flex; gap:4px; margin:8px 0 4px; } .campfaces img, .campfaces .pcinit { width:30px; height:30px; border-radius:50%; object-fit:cover; font-size:.8rem; }
+.campnow1 { margin:6px 0 0; } .campcardacts { display:flex; flex-wrap:wrap; gap:6px; padding:8px 14px 12px; }
+.camppage .phead { align-items:flex-end; } .camppage .vback { font-size:.9rem; } .campdesc { max-width:70ch; margin:0 0 14px; }
+.campenter { display:block; position:relative; color:inherit; border:2px solid var(--brass); border-radius:18px; padding:18px 20px; margin:6px 0 22px;
+  background:linear-gradient(135deg, color-mix(in srgb, var(--brass) 16%, var(--panel)), var(--panel) 60%); transition:transform .12s, box-shadow .12s; }
+.campenter:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.campenterlink, .campenterlink:hover, .campenterlink strong { color:inherit; text-decoration:none; flex-basis:100%; } .campenterlink strong { color:var(--brass); } .campenterlink::after { content:""; position:absolute; inset:0; border-radius:16px; } /* the whole card enters the tabletop */
+.campmember { position:relative; z-index:1; }
+.campenterhead { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; } .campenterhead strong { font:700 1.7rem var(--display); color:var(--brass); flex-basis:100%; }
+.campenterhead .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; opacity:.7; }
+.campnow { list-style:none; padding:0; margin:12px 0; display:flex; flex-direction:column; gap:4px; }
+.campparty { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; margin-top:12px; }
+.campmember { display:grid; grid-template-columns:44px 1fr; grid-template-rows:auto auto auto auto; column-gap:10px; align-items:center; padding:8px 10px; border-radius:12px; background:var(--bg); border:1px solid var(--line); color:inherit; text-decoration:none; }
+.campmember > img, .campmember > .pcinit { grid-row:1 / span 4; width:44px; height:44px; border-radius:50%; object-fit:cover; }
+.campmname { font-weight:700; } .campmember .hpbar { margin:3px 0 0; } .campmhp { opacity:.75; }
+.campmap { margin:8px 0 20px; } .campmap img { max-width:100%; border-radius:12px; border:1px solid var(--line); display:block; }
+.campform fieldset { border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin:10px 0; } .campform legend { padding:0 6px; font-weight:600; }
+.campform > label { display:flex; flex-direction:column; gap:4px; margin:8px 0; } .cpchars { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:2px 12px; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -2249,14 +2274,14 @@ button.vtname.vtsel:hover { color: var(--brass); }
     <a href="#library" data-nav="library">Library</a>
     <a href="#characters" data-nav="characters">Characters</a>
     <a href="#bestiary" data-nav="bestiary">Bestiary</a>
-    <a href="#vtt" data-nav="vtt">Tabletop</a>
+    <a href="#campaigns" data-nav="campaigns">Campaigns</a>
     <a href="#items" data-nav="items">Items</a>
     <a href="#spells" data-nav="spells">Spells</a>
     <a href="#books" data-nav="books">Books</a>
-    <a href="#world" data-nav="world">World</a>
   </nav>
   <details class="navmore" id="navmore"><summary><span class="nmlab">More</span> <span aria-hidden="true">▾</span></summary>
     <div class="nmpop" role="menu">
+      <a href="#world" data-nav="world" role="menuitem">World map</a>
       <a href="#srd" data-nav="srd" role="menuitem">SRD rules</a>
       <a href="#encounters" data-nav="encounters" role="menuitem">Encounters</a>
       <a href="#tags" data-nav="tags" role="menuitem">Tags</a>

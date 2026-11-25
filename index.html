@@ -2239,6 +2239,31 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .vwsedge button { width:30px; height:30px; border-radius:50%; border:2px solid var(--brass); background:var(--panel); color:var(--brass); font:700 1.1rem/1 var(--ui); cursor:pointer; padding:0; box-shadow:0 1px 4px rgba(0,0,0,.5); }
 .vwsedge button:hover:not(:disabled) { background:var(--brass); color:#1a1408; } .vwsedge button:disabled { opacity:.35; cursor:default; }
 .vehmapbtn { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px 0 10px; }
+.campcards { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; }
+.campcard { border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; display:flex; flex-direction:column; }
+.campcardlink { display:flex; flex-direction:column; color:inherit; text-decoration:none; flex:1; } .campcardlink:hover h2 { color:var(--brass); }
+.campthumb { height:150px; background:var(--bg); display:grid; place-items:center; overflow:hidden; border-bottom:1px solid var(--line); }
+.campthumb img, .campthumb svg { width:100%; height:100%; object-fit:cover; } .campthumb .mapwrap { width:100%; height:100%; margin:0; }
+.campinit { font:700 3rem var(--display); color:var(--brass); opacity:.6; }
+.campcardbody { padding:12px 14px 6px; } .campcardbody h2 { margin:0 0 4px; font-size:1.25rem; }
+.campfaces { display:flex; gap:4px; margin:8px 0 4px; } .campfaces img, .campfaces .pcinit { width:30px; height:30px; border-radius:50%; object-fit:cover; font-size:.8rem; }
+.campnow1 { margin:6px 0 0; } .campcardacts { display:flex; flex-wrap:wrap; gap:6px; padding:8px 14px 12px; }
+.camppage .phead { align-items:flex-end; } .camppage .vback { font-size:.9rem; } .campdesc { max-width:70ch; margin:0 0 14px; }
+.campenter { display:block; position:relative; color:inherit; border:2px solid var(--brass); border-radius:18px; padding:18px 20px; margin:6px 0 22px;
+  background:linear-gradient(135deg, color-mix(in srgb, var(--brass) 16%, var(--panel)), var(--panel) 60%); transition:transform .12s, box-shadow .12s; }
+.campenter:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.campenterlink, .campenterlink:hover, .campenterlink strong { color:inherit; text-decoration:none; flex-basis:100%; } .campenterlink strong { color:var(--brass); } .campenterlink::after { content:""; position:absolute; inset:0; border-radius:16px; } /* the whole card enters the tabletop */
+.campmember { position:relative; z-index:1; }
+.campenterhead { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; } .campenterhead strong { font:700 1.7rem var(--display); color:var(--brass); flex-basis:100%; }
+.campenterhead .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; opacity:.7; }
+.campnow { list-style:none; padding:0; margin:12px 0; display:flex; flex-direction:column; gap:4px; }
+.campparty { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; margin-top:12px; }
+.campmember { display:grid; grid-template-columns:44px 1fr; grid-template-rows:auto auto auto auto; column-gap:10px; align-items:center; padding:8px 10px; border-radius:12px; background:var(--bg); border:1px solid var(--line); color:inherit; text-decoration:none; }
+.campmember > img, .campmember > .pcinit { grid-row:1 / span 4; width:44px; height:44px; border-radius:50%; object-fit:cover; }
+.campmname { font-weight:700; } .campmember .hpbar { margin:3px 0 0; } .campmhp { opacity:.75; }
+.campmap { margin:8px 0 20px; } .campmap img { max-width:100%; border-radius:12px; border:1px solid var(--line); display:block; }
+.campform fieldset { border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin:10px 0; } .campform legend { padding:0 6px; font-weight:600; }
+.campform > label { display:flex; flex-direction:column; gap:4px; margin:8px 0; } .cpchars { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:2px 12px; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -2250,14 +2275,14 @@ button.vtname.vtsel:hover { color: var(--brass); }
     <a href="#library" data-nav="library">Library</a>
     <a href="#characters" data-nav="characters">Characters</a>
     <a href="#bestiary" data-nav="bestiary">Bestiary</a>
-    <a href="#vtt" data-nav="vtt">Tabletop</a>
+    <a href="#campaigns" data-nav="campaigns">Campaigns</a>
     <a href="#items" data-nav="items">Items</a>
     <a href="#spells" data-nav="spells">Spells</a>
     <a href="#books" data-nav="books">Books</a>
-    <a href="#world" data-nav="world">World</a>
   </nav>
   <details class="navmore" id="navmore"><summary><span class="nmlab">More</span> <span aria-hidden="true">▾</span></summary>
     <div class="nmpop" role="menu">
+      <a href="#world" data-nav="world" role="menuitem">World map</a>
       <a href="#srd" data-nav="srd" role="menuitem">SRD rules</a>
       <a href="#encounters" data-nav="encounters" role="menuitem">Encounters</a>
       <a href="#tags" data-nav="tags" role="menuitem">Tags</a>
@@ -9139,7 +9164,7 @@ async function vttCampAction(a, el) {
     await vSave("vttcamps/" + id, { name, created: new Date().toISOString() });
     const pid = await vNewPage(id, "Page 1", 0);
     await vPatch("vttcamps/" + id, { playerPage: pid });
-    location.hash = "vtt-" + id;
+    location.hash = "camp-" + id;
   } else if (a === "vttrencamp") {
     const c = S.vttCamps.get(el.dataset.id); if (!c) return;
     const name = await vAsk("Rename campaign", "Name", c.name, "Save"); if (name) vPatch("vttcamps/" + el.dataset.id, { name });
@@ -9177,7 +9202,7 @@ function vCurrentPage(camp) {
 }
 function viewVttCamp(camp) {
   const c = S.vttCamps && S.vttCamps.get(camp);
-  if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening the table…"}</p><p><a href="#vtt">All campaigns</a></p></section>`;
+  if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening the table…"}</p><p><a href="#campaigns">All campaigns</a></p></section>`;
   if (!S.vttPages) return `<section class="page"><p class="muted">Opening the table…</p></section>`;
   const pid = vCurrentPage(camp), p = pid && S.vttPages.get(pid);
   const gm = vCanEdit();
@@ -9186,7 +9211,7 @@ function viewVttCamp(camp) {
     : avail.length > 1 ? `<label class="vpsel"><span class="sr">Map</span><select id="vpsel">${avail.map(([id, pg]) => `<option value="${esc(id)}"${id === pid ? " selected" : ""}>${c.playerPage === id ? "★ " : ""}${esc(vFolderPath(c, pg.folder) + (pg.name || "Map"))}</option>`).join("")}</select></label>${pid !== c.playerPage && c.playerPage ? `<button class="btn ghost small" data-act="vttgoparty">★ Back to the party</button>` : ""}`
     : p ? `<span class="vcurpage"><strong>${esc(p.name || "Map")}</strong></span>` : "";
   return `<section class="vtt" data-camp="${esc(camp)}">
-    <div class="vttbar"><a href="#vtt" class="vback">← Campaigns</a><h1>${esc(c.name)}</h1>${p && gm ? `<button class="btn small vtoolsbtn${VTT.toolsOpen ? " on" : ""}" data-act="vtttoolsopen" aria-expanded="${!!VTT.toolsOpen}">🛠 Tools</button>` : ""}${tabs}
+    <div class="vttbar"><a href="#camp-${esc(camp)}" class="vback" title="This campaign's page">← ${esc(c.name || "Campaign")}</a><h1>${esc(c.name)}</h1>${p && gm ? `<button class="btn small vtoolsbtn${VTT.toolsOpen ? " on" : ""}" data-act="vtttoolsopen" aria-expanded="${!!VTT.toolsOpen}">🛠 Tools</button>` : ""}${tabs}
       ${p && gm && !c.workshop ? `<button class="btn ghost small${VTT.initOpen ? " on" : ""}" data-act="vttinitopen" aria-expanded="${!!VTT.initOpen}">⚔ Turn order</button>` : ""}${gm && p && !c.workshop ? `<button class="btn ghost small" data-act="vttcondlib">✦ Conditions</button><button class="btn ghost small${VTT.questOpen ? " on" : ""}" data-act="vttqopen" aria-expanded="${!!VTT.questOpen}">📜 Quests</button>` : ""}
       ${gm && p ? `<div class="vbaracts">${c.workshop ? `<span class="vpill">⛵ Vehicle workshop</span>` : c.playerPage === pid ? `<span class="vpill">★ Players are here</span>` : `<button class="btn small" data-act="vttsend">Send players here</button>`}<button class="btn ghost small" data-act="vttsettings">Page settings</button></div>` : ""}</div>
     ${gm && VTT.mapsOpen ? `<div class="vmaps" id="vmaps">${vMapsHtml(camp)}</div>` : ""}
@@ -12509,6 +12534,93 @@ document.addEventListener("change", ev => {
   if (el.matches("[data-trmph]")) { const v = Number(el.value), m = Object.assign({}, j.mph || {}); if (v > 0) m[el.dataset.trmph] = Math.min(200, v); else delete m[el.dataset.trmph]; return vTrSave(cur, { mph: m }); }
 });
 
+// ===== Campaigns: each campaign's own page, with its map (optional) and the way into its tabletop =====
+// camp.desc   a few words about the campaign
+// camp.map    "" none, "world" the imported world map (Azgaar), or "img:<path>" a picture (a region map, say)
+// camp.party  the characters in it (ids); until it's set, whoever has a token on one of its maps
+const vCampList = () => [...(S.vttCamps || new Map())].filter(([, c]) => !c.workshop).sort((a, b) => String(a[1].name).localeCompare(b[1].name));
+function campParty(id) {
+  const c = S.vttCamps.get(id) || {}, ok = cid => { const ch = S.chars.get(cid); return ch && (!ch.hidden || !READONLY); };
+  if (Array.isArray(c.party)) return c.party.filter(ok);
+  const pages = new Set(vPages(id).map(([pid]) => pid)), out = new Set();
+  for (const [, t] of S.vttTokens || []) if (pages.has(t.page) && t.owner && vPlayerTok(t) && ok(t.owner)) out.add(t.owner);
+  return [...out].sort((a, b) => byName(S.chars.get(a).name || "", S.chars.get(b).name || ""));
+}
+// What's happening at the table right now, in a few short lines.
+function campNow(id) {
+  const c = S.vttCamps.get(id) || {}, out = [], pg = c.playerPage && S.vttPages && S.vttPages.get(c.playerPage);
+  if (pg) out.push(["🗺", `The party is on <strong>${esc(pg.name || "a map")}</strong>`]);
+  for (const [pid, p] of vPages(id)) { const j = p.journey || {}; if (!j.started || !Array.isArray(j.hrs)) continue;
+    const total = j.hrs.reduce((a, b) => a + b, 0), days = Math.max(1, Math.ceil(total / 8 - 1e-9)), d = Number(j.day) || 0;
+    out.push(["🧭", d >= days ? `Arrived at the end of the route on <strong>${esc(p.name)}</strong>` : `Travelling on <strong>${esc(p.name)}</strong>: ${d ? `day ${d} of ${days}` : `setting off, ${days} day${days === 1 ? "" : "s"} to go`}`]); }
+  const I = vInitOf(id); if (I.round) { const e = I.list.find(x => x.id === I.cur); out.push(["⚔", `In a fight: round ${I.round}${e ? `, <strong>${esc(e.name || "?")}</strong>'s turn` : ""}`]); }
+  const q = vQuests(id).filter(x => x.status === "active" && (!x.hidden || vCanEdit())); if (q.length) out.push(["📜", `${q.length} open quest${q.length === 1 ? "" : "s"}: ${q.slice(0, 3).map(x => esc(x.title || "Quest")).join(", ")}${q.length > 3 ? "…" : ""}`]);
+  return out;
+}
+function viewCampaigns() {
+  const camps = vCampList(), gm = vCanEdit();
+  return `<section class="page"><div class="phead"><h1>Campaigns</h1>${gm ? `<button class="btn" data-act="vttnewcamp">+ New campaign</button>` : ""}</div>
+    <p class="muted">${gm ? "Each campaign has its own page, its map if it has one, and its tabletop." : "Pick your campaign."}</p>
+    ${camps.length ? `<div class="campcards">${camps.map(([id, c]) => { const party = campParty(id), now = campNow(id);
+      return `<article class="campcard"><a href="#camp-${esc(id)}" class="campcardlink">
+        <div class="campthumb">${c.map === "world" && S.meta ? worldSvg({ thumb: true }) : String(c.map || "").startsWith("img:") ? `<img src="${esc(c.map.slice(4))}" alt="">` : `<span class="campinit">${esc((c.name || "?")[0])}</span>`}</div>
+        <div class="campcardbody"><h2>${esc(c.name || "Campaign")}</h2>${c.desc ? `<p class="muted small">${esc(String(c.desc).split("\n")[0].replace(/[*_`#>]|\[\[|\]\]/g, "").slice(0, 140))}</p>` : ""}
+          ${party.length ? `<div class="campfaces">${party.slice(0, 8).map(cid => { const ch = S.chars.get(cid); return ch.image ? `<img src="${esc(ch.image)}" alt="${esc(ch.name)}" title="${esc(ch.name)}">` : `<span class="pcinit" title="${esc(ch.name)}">${esc((ch.name || "?")[0])}</span>`; }).join("")}</div>` : ""}
+          ${now[0] ? `<p class="small campnow1">${now[0][0]} ${now[0][1]}</p>` : ""}</div></a>
+        <div class="campcardacts"><a class="btn small" href="#vtt-${esc(id)}">Enter tabletop</a>${gm ? `<button class="btn ghost small" data-act="vttrencamp" data-id="${esc(id)}">Rename</button><button class="btn ghost small danger" data-act="vttdelcamp" data-id="${esc(id)}">Delete</button>` : ""}</div></article>`; }).join("")}</div>`
+      : `<div class="empty">${gm ? "No campaigns yet. Make one to get started." : "The GM hasn't set up a campaign yet."}</div>`}</section>`;
+}
+function viewCampPage(id) {
+  const c = S.vttCamps && S.vttCamps.get(id);
+  if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening the campaign…"}</p><p><a href="#campaigns">All campaigns</a></p></section>`;
+  const gm = vCanEdit(), party = campParty(id), now = S.vttPages ? campNow(id) : [], pages = S.vttPages ? vPages(id) : [];
+  const shown = gm ? pages.length : pages.filter(([pid, p]) => p.open || c.playerPage === pid).length;
+  const faces = party.map(cid => { const ch = S.chars.get(cid); return `<a class="campmember" href="#char-${esc(cid)}">${ch.image ? `<img src="${esc(ch.image)}" alt="">` : `<span class="pcinit">${esc((ch.name || "?")[0])}</span>`}
+      <span class="campmname">${esc(ch.name || "?")}</span><span class="muted small">${esc(charSub(ch) || "")}</span>${hpBar(ch)}<span class="small campmhp">HP ${Number(ch.hp && ch.hp.cur) || 0}/${Number(ch.hp && ch.hp.max) || 0}</span></a>`; }).join("");
+  let map = "";
+  if (c.map === "world") map = S.meta ? `<div class="campmap">${worldSvg({})}<p><a href="#world">Open the world map: ${esc(S.meta.name)} →</a></p></div>` : gm ? `<p class="muted small">This campaign uses the world map, but none is imported yet. Import it from More → World map.</p>` : "";
+  else if (String(c.map || "").startsWith("img:")) map = `<div class="campmap"><a href="${esc(c.map.slice(4))}" target="_blank" rel="noopener"><img src="${esc(c.map.slice(4))}" alt="${esc(c.name)} map"></a></div>`;
+  return `<section class="page camppage">
+    <div class="phead"><div><a href="#campaigns" class="vback">← Campaigns</a><h1>${esc(c.name || "Campaign")}</h1></div>${gm ? `<button class="btn ghost" data-act="campedit" data-id="${esc(id)}">Edit campaign</button>` : ""}</div>
+    ${c.desc ? `<div class="campdesc">${md(c.desc)}</div>` : gm ? `<p class="muted small">Add a few words about this campaign, its map and its party with Edit campaign.</p>` : ""}
+    <div class="campenter">
+      <div class="campenterhead"><span class="eyebrow">Tabletop</span><a class="campenterlink" href="#vtt-${esc(id)}"><strong>Enter the tabletop →</strong></a><span class="muted small">${shown} map${shown === 1 ? "" : "s"}</span></div>
+      ${now.length ? `<ul class="campnow">${now.map(([i, t]) => `<li><span aria-hidden="true">${i}</span> ${t}</li>`).join("")}</ul>` : `<p class="muted small">Nothing under way yet.</p>`}
+      ${party.length ? `<div class="campparty">${faces}</div>` : `<p class="muted small">${gm ? "No party yet: put the players' tokens on a map, or pick them with Edit campaign." : "No party yet."}</p>`}
+    </div>
+    ${map}
+  </section>`;
+}
+function campEdit(id) {
+  const c = S.vttCamps.get(id); if (!c) return;
+  const kind = c.map === "world" ? "world" : String(c.map || "").startsWith("img:") ? "img" : "", img = kind === "img" ? c.map.slice(4) : "";
+  const auto = !Array.isArray(c.party), party = new Set(campParty(id)), chars = [...S.chars].sort((a, b) => byName(a[1].name || "", b[1].name || ""));
+  openModal(`<h2>Edit campaign</h2><form class="campform">
+    <label><span>Name</span><input id="cp-name" type="text" value="${esc(c.name || "")}"></label>
+    <label><span>About it <small class="muted">optional, shown on its page</small></span><textarea id="cp-desc" rows="3">${esc(c.desc || "")}</textarea></label>
+    <fieldset><legend>Map <small class="muted">optional</small></legend>
+      <label class="check"><input type="radio" name="cp-map" value=""${kind === "" ? " checked" : ""}> No map</label>
+      <label class="check"><input type="radio" name="cp-map" value="world"${kind === "world" ? " checked" : ""}${S.meta ? "" : " disabled"}> The world map${S.meta ? `: ${esc(S.meta.name)}` : " <small class=\"muted\">(none imported yet)</small>"}</label>
+      <label class="check"><input type="radio" name="cp-map" value="img"${kind === "img" ? " checked" : ""}> A picture <small class="muted">a region map, say</small></label>
+      <div class="frow" id="cp-imgrow"${kind === "img" ? "" : " hidden"}><input id="cp-img" type="text" value="${esc(img)}" placeholder="Upload one, or paste a link" class="grow">${S.assets ? `<button class="btn ghost small" type="button" id="cp-up">Upload</button>` : ""}</div></fieldset>
+    <fieldset><legend>Party</legend>
+      <label class="check"><input type="checkbox" id="cp-auto"${auto ? " checked" : ""}> Whoever has a token on one of its maps</label>
+      <div class="cpchars" id="cp-chars"${auto ? " hidden" : ""}>${chars.map(([cid, ch]) => `<label class="check"><input type="checkbox" data-cpchar="${esc(cid)}"${party.has(cid) ? " checked" : ""}> ${esc(ch.name || "?")}${ch.hidden ? ` <small class="muted">hidden</small>` : ""}</label>`).join("") || `<p class="muted small">No characters yet.</p>`}</div></fieldset>
+    <div class="acts"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" id="cp-no">Cancel</button></div></form>`, m => {
+    const row = m.querySelector("#cp-imgrow"); m.querySelectorAll("[name=cp-map]").forEach(r => r.onchange = () => { row.hidden = m.querySelector("[name=cp-map]:checked").value !== "img"; });
+    m.querySelector("#cp-auto").onchange = ev => { m.querySelector("#cp-chars").hidden = ev.target.checked; };
+    const up = m.querySelector("#cp-up"); if (up) up.onclick = () => pickImage(res => { m.querySelector("#cp-img").value = assetPath(res); });
+    m.querySelector("#cp-no").onclick = closeModal;
+    m.querySelector("form").onsubmit = ev => {
+      ev.preventDefault(); const kindNow = m.querySelector("[name=cp-map]:checked").value, im = m.querySelector("#cp-img").value.trim();
+      const f = { name: m.querySelector("#cp-name").value.trim() || c.name, desc: m.querySelector("#cp-desc").value.trim(), map: kindNow === "world" ? "world" : kindNow === "img" && im ? "img:" + im : "" };
+      f.party = m.querySelector("#cp-auto").checked ? null : [...m.querySelectorAll("[data-cpchar]:checked")].map(x => x.dataset.cpchar);
+      closeModal(); vPatch("vttcamps/" + id, f);
+    };
+  });
+}
+document.addEventListener("click", ev => { const b = ev.target.closest && ev.target.closest("[data-act=campedit]"); if (b && vCanEdit()) { ev.preventDefault(); campEdit(b.dataset.id); } });
+
 // ---------- DnD Codex ----------
 const TYPES = [
   { id: "creature", label: "Creature", plural: "Creatures", subject: true },
@@ -13039,7 +13151,8 @@ function route() {
   if (h.startsWith("char-")) return { v: "char", id: h.slice(5) };
   if (h.startsWith("spell-")) return { v: "spellpage", id: h.slice(6) };
   if (h.startsWith("vtt-")) return { v: "vttc", id: h.slice(4) };
-  if (["world", "tags", "backup", "bestiary", "library", "items", "books", "home", "characters", "srd", "spells", "encounters", "vtt"].includes(h)) return { v: h };
+  if (h.startsWith("camp-")) return { v: "camp", id: h.slice(5) };
+  if (["world", "tags", "backup", "bestiary", "library", "items", "books", "home", "characters", "srd", "spells", "encounters", "vtt", "campaigns"].includes(h)) return { v: h === "vtt" ? "campaigns" : h };
   return { v: "home" };
 }
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
@@ -13053,7 +13166,7 @@ document.addEventListener("pointerdown", ev => {
 function render() {
   if (LOCAL && !S.db) return;
   const r = route();
-  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (r.v === "town" && a.dataset.nav === "world") || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (["town", "camp", "vttc"].includes(r.v) && a.dataset.nav === (r.v === "town" ? "world" : "campaigns")) || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
   { const nm = document.getElementById("navmore"); if (nm) { const on = nm.querySelector("a.on"); nm.classList.toggle("on", !!on); nm.querySelector(".nmlab").textContent = on ? on.textContent.replace(/ rules$/, "") : "More"; nm.open = false; } }
   { const nav = document.querySelector(".nav"), on = nav && nav.querySelector("a.on"); if (on && nav.scrollWidth > nav.clientWidth) { const l = on.offsetLeft - nav.offsetLeft, r = l + on.offsetWidth; if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth - 28) nav.scrollLeft = Math.max(0, l - 24); } }
   { const q = document.getElementById("q"); if (q && document.activeElement !== q && !q.value) document.body.classList.remove("showsearch"); }
@@ -13084,7 +13197,8 @@ function render() {
   else if (r.v === "bestiary") html = viewBestiary();
   else if (r.v === "characters") html = viewCharacters();
   else if (r.v === "encounters") html = viewEncounters();
-  else if (r.v === "vtt") html = viewVtt();
+  else if (r.v === "campaigns") html = viewCampaigns();
+  else if (r.v === "camp") html = viewCampPage(r.id);
   else if (r.v === "vttc") html = viewVttCamp(r.id);
   else if (r.v === "srd") html = viewSrd();
   else if (r.v === "spells") html = viewSpells();
