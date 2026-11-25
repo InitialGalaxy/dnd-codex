@@ -1827,7 +1827,13 @@ function vRoofHoles(p, viewers, L) {
   let d = "";
   const seen = new Set();
   (p.areas || []).filter(a => a.level === L).forEach(a => {
-    const under = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = vTokSz(t) / 2; return [t.x + s, t.y + s]; }).filter(([x, y]) => vInArea(a, x, y));
+    const below = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = vTokSz(t) / 2; return [t.x + s, t.y + s]; });
+    const under = below.filter(([x, y]) => vInArea(a, x, y));
+    // Inside a building but not right under this floor (in an open hall beside a loft): this floor lifts away too, all of
+    // it, when the roof (or a floor) over where they stand covers part of it — a floor that's only over some rooms.
+    if (!under.length && Array.isArray(a.cells)) { const mine = new Set(a.cells.map(c => c[0] + "," + c[1]));
+      const inside = below.find(([x, y]) => (p.areas || []).some(b => b !== a && (b.level || 0) > L && Array.isArray(b.cells) && vInArea(b, x, y) && b.cells.some(c => mine.has(c[0] + "," + c[1]))));
+      if (inside) { a.cells.forEach(c => { const k = c[0] + "," + c[1]; if (seen.has(k)) return; seen.add(k); d += `M${c[0] * VCELL} ${c[1] * VCELL}h${VCELL}v${VCELL}h${-VCELL}z`; }); return; } }
     if (!under.length) return;
     if (!Array.isArray(a.cells)) { d += "M" + a.pts.map(q => q[0] * VCELL + " " + q[1] * VCELL).join("L") + "Z"; return; }
     const has = new Set(a.cells.map(c => c[0] + "," + c[1]));
