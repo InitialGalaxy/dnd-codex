@@ -14089,7 +14089,7 @@ document.addEventListener("click", async ev => {
 // Squares are 5 ft. Buildings are the building generator's own, each turned to face its road.
 
 const VG = { o: null };
-const VGT = { GRASS: 0, ROAD: 1, LANE: 2, WATER: 3, ROCK: 4, WOOD: 5, FIELD: 6, MEADOW: 7, GREEN: 8, PLOT: 9, BUILD: 10, BRIDGE: 11, YARD: 12, POND: 13, SPOIL: 14, PASTURE: 15 };
+const VGT = { GRASS: 0, ROAD: 1, LANE: 2, WATER: 3, ROCK: 4, WOOD: 5, FIELD: 6, MEADOW: 7, GREEN: 8, PLOT: 9, BUILD: 10, BRIDGE: 11, YARD: 12, POND: 13, SPOIL: 14, PASTURE: 15, PATH: 16 };
 const VG_SIZES = { hamlet: { W: 96, H: 76, n: [5, 8], R: 16 }, village: { W: 136, H: 104, n: [12, 18], R: 24 }, large: { W: 176, H: 136, n: [22, 30], R: 32 } };
 const vgDefaults = () => ({ seed: genSeed(), size: "village", layout: "auto", river: "auto", land: "auto", woods: "some", mine: "auto", furn: true, name: "" });
 
@@ -14188,7 +14188,7 @@ function genVillage(o) {
         for (let y = Math.floor(py - hw); y <= py + hw; y++) for (let x = Math.floor(px - hw); x <= px + hw; x++) if (Math.hypot(x + 0.5 - px, y + 0.5 - py) <= hw + 0.2) set(x, y, VGT.WATER); } }
   }
   // Keep the heart on dry, open ground.
-  const clearAt = c => at(c[0], c[1]) === VGT.GRASS && [3, 7, 11].every(d => Array.from({ length: 16 }, (_, i) => i * Math.PI / 8).every(a => { const t = at(Math.round(c[0] + Math.cos(a) * d), Math.round(c[1] + Math.sin(a) * d)); return t !== VGT.ROCK && t !== VGT.WATER && t !== 255; }));
+  const clearAt = c => at(c[0], c[1]) === VGT.GRASS && [3, 7, 11, 13].every(d => Array.from({ length: 16 }, (_, i) => i * Math.PI / 8).every(a => { const t = at(Math.round(c[0] + Math.cos(a) * d), Math.round(c[1] + Math.sin(a) * d)); return t !== VGT.ROCK && t !== VGT.WATER && t !== 255; }));
   for (let k = 0; k < 120 && !clearAt(C); k++) C = [Math.round(W / 2 + (r() - 0.5) * W * 0.4), Math.round(H / 2 + (r() - 0.5) * H * 0.4)];
   V.C = C;
   // Woods: patches toward the edges, away from the village.
@@ -14234,7 +14234,7 @@ function genVillage(o) {
       for (let k = 0; k < 24; k++) { const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.12, p = toEdge(a), t = at(p[0], p[1]); if (t !== VGT.ROCK && t !== VGT.WATER && !exits.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 12)) { exits.push(p); break; } } }
     void freeEdges;
     if (centre === "ring") { // a ring road round a small green, the roads running into it
-      const ringR = 7, ctl = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, q = ringR + (rr() - 0.5) * 0.6; return [Math.round((C[0] + 0.5 + Math.cos(a) * q) * 2) / 2, Math.round((C[1] + 0.5 + Math.sin(a) * q) * 2) / 2]; });
+      const ringR = 9, ctl = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, q = ringR + (rr() - 0.5) * 0.6; return [Math.round((C[0] + 0.5 + Math.cos(a) * q) * 2) / 2, Math.round((C[1] + 0.5 + Math.sin(a) * q) * 2) / 2]; });
       addRoad(mkRoad(ctl, true, "road")); V.ring = [C[0] + 0.5, C[1] + 0.5, ringR];
       for (let y = C[1] - ringR; y <= C[1] + ringR; y++) for (let x = C[0] - ringR; x <= C[0] + ringR; x++) if (Math.hypot(x + 0.5 - V.ring[0], y + 0.5 - V.ring[1]) < ringR - VG_RW - 0.8 && at(x, y) !== VGT.ROAD) set(x, y, VGT.GREEN);
     }
@@ -14288,10 +14288,14 @@ function genVillage(o) {
   allRoads().forEach(rd => addFronts(rd, rd.kind === "lane" ? 0.9 : 1));
   if (V.green) { const [gx, gy] = V.green; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GREEN) continue;
       [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => { const t = at(x + dx, y + dy); if (t !== VGT.GREEN && t !== VGT.ROAD && (dx * (x - gx) + dy * (y - gy)) > 0) fronts.push({ x, y, n: [dx, dy], hw: 0.5, w: 0.7, green: 1 }); }); } }
+  // Which way to turn a building so its front door faces the road (the door may be on any side of the plan).
+  const kFace = (B, n) => { const L0 = B.levels.find(L => L.level === 0), fk = L0 && L0.front && [...L0.front][0]; if (!fk) return kFor(n);
+    const [o0, x, y] = fk.split(","), side = o0 === "h" ? [0, Number(y) >= B.H / 2 ? 1 : -1] : [Number(x) >= B.W / 2 ? 1 : -1, 0], want = [-n[0], -n[1]];
+    let d = side; for (let k = 0; k < 4; k++) { if (d[0] === want[0] && d[1] === want[1]) return k; d = [-d[1], d[0]]; } return kFor(n); };
   const kFor = n => n[1] === -1 ? 0 : n[1] === 1 ? 2 : n[0] === -1 ? 3 : 1; // the building's front faces back along n (toward the road)
   // Place a building of this kind at a front: its rect (turned to face the road), set back from the road, and its croft behind.
   const place = (o2, f, extra, B) => {
-    const k = extra && extra.k != null ? extra.k : kFor(f.n), bw = k % 2 ? B.H : B.W, bh = k % 2 ? B.W : B.H, sb = extra && extra.setback != null ? extra.setback : 1 + Math.floor(r() * 2), hw = Math.ceil(f.hw);
+    const k = extra && extra.k != null ? extra.k : kFace(B, f.n), bw = k % 2 ? B.H : B.W, bh = k % 2 ? B.W : B.H, sb = extra && extra.setback != null ? extra.setback : 1 + Math.floor(r() * 2), hw = Math.ceil(f.hw);
     let x, y, sb2 = sb; const [nx, ny] = f.n, m = 2, at2 = q => { if (ny === -1) { y = f.y - hw - q - bh + 1; x = f.x - Math.floor(bw / 2); } else if (ny === 1) { y = f.y + hw + q; x = f.x - Math.floor(bw / 2); }
       else if (nx === -1) { x = f.x - hw - q - bw + 1; y = f.y - Math.floor(bh / 2); } else { x = f.x + hw + q; y = f.y - Math.floor(bh / 2); } return rectFree(x - m, y - m, bw + m * 2, bh + m * 2); };
     for (;; sb2++) { if (at2(sb2)) break; if (sb2 >= sb + (f.diag ? 6 : 2)) return null; }
@@ -14378,6 +14382,41 @@ function genVillage(o) {
   else if (!V.green && V.roads.length >= 3) { const sp = [[3, 3], [-4, 3], [3, -4], [-4, -4]].find(([a, b]) => at(C[0] + a, C[1] + b) === VGT.GRASS); if (sp) V.features.push({ k: "cross", x: C[0] + sp[0], y: C[1] + sp[1] }); }
   // What the road editor shows: the roads and lanes (not the mill's lane or the mine track: those follow the mill and mine).
   V.ctl = allRoads().filter(rd => rd.kind === "road" || rd.kind === "lane").map(rd => ({ pts: rd.ctl.map(p => [Math.round(p[0] * 2) / 2, Math.round(p[1] * 2) / 2]), loop: rd.loop || undefined }));
+  // ----- Footpaths -----
+  // The way people actually walk (desire paths): from whichever door is nearest the road, by the shortest easy way, round
+  // buildings and never through water. A path that meets another path joins it rather than running beside it, so they
+  // branch like real tracks; a little noise in the cost makes them wander, and the drawn line wobbles and varies in width.
+  V.paths = []; { const pn = vgNoise((Number(o.seed) || 1) * 13 + 1), nearB = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) if (T[i] === VGT.BUILD) { const x = i % W, y = (i / W) | 0; for (let b2 = -1; b2 <= 1; b2++) for (let a2 = -1; a2 <= 1; a2++) { const nx = x + a2, ny = y + b2; if (nx >= 0 && ny >= 0 && nx < W && ny < H) nearB[ny * W + nx] = 1; } }
+    const bad = t => t === VGT.BUILD || t === VGT.WATER || t === VGT.ROCK || t === VGT.POND || t === VGT.BRIDGE || t === 255;
+    const pcost = (x, y) => { const t = at(x, y); if (bad(t)) return Infinity; if (t === VGT.PATH) return 0.6; return (nearB[y * W + x] ? 3 : 1) + pn(x / 5, y / 5, 2) * 1.4 + (t === VGT.WOOD ? 1.5 : 0); };
+    const goal = i => T[i] === VGT.ROAD || T[i] === VGT.PATH;
+    // The outside squares of a building's doors (the front door first), in map squares.
+    const doorsOf = b => { const L0 = b.B.levels.find(L => L.level === 0); if (!L0) return []; const inB = (x, y) => L0.rooms.some(rm => x >= rm.x && x < rm.x + rm.w && y >= rm.y && y < rm.y + rm.h), tf = vgTurn(b.k, b.B.W, b.B.H), out = [];
+      const add = (cx, cy, ax, ay, fr) => { const [p1, p2] = tf(cx + 0.5, cy + 0.5), [q1, q2] = tf(ax, ay); out.push({ st: [Math.floor(b.x + p1), Math.floor(b.y + p2)], at: [b.x + q1, b.y + q2], fr }); };
+      const fr = [...(L0.front || [])].map(k => k.split(",").map(Number)); if (fr.length) { const xs = fr.map(k => k[1]), y = fr[0][2], mx = Math.floor((Math.min(...xs) + Math.max(...xs)) / 2), ax = (Math.min(...xs) + Math.max(...xs) + 1) / 2;
+        const pr = L0.rooms.find(rm => rm.porch && mx >= rm.x && mx < rm.x + rm.w && (rm.y === y || rm.y + rm.h === y)); // through the porch to its open end
+        if (pr) { if (pr.y === y) add(mx, pr.y + pr.h, ax, pr.y + pr.h, 1); else add(mx, pr.y - 1, ax, pr.y, 1); }
+        else add(mx, inB(mx, y) ? y - 1 : y, ax, y, 1); }
+      [...(L0.doors || [])].forEach(k => { if (L0.front && L0.front.has(k)) return; const [, x, y] = k.split(",").map(Number); if (k[0] === "h") { const up = inB(x, y - 1), dn = inB(x, y); if (up !== dn) add(x, up ? y : y - 1, x + 0.5, y); } else { const lf = inB(x - 1, y), rt = inB(x, y); if (lf !== rt) add(lf ? x : x - 1, y, x, y + 0.5); } });
+      return out; };
+    const cost = path => path.reduce((a, [x, y]) => a + pcost(x, y), 0);
+    // Nearest the road first, so later paths can join earlier ones.
+    V.buildings.forEach(b => { b.doors = doorsOf(b); });
+    const jobs = V.buildings.map(b => ({ b, ds: b.doors.filter(d => isFinite(pcost(d.st[0], d.st[1]))) })).filter(j => j.ds.length);
+    jobs.forEach(j => { j.d0 = Math.min(...j.ds.map(d => { let m = Infinity; for (let y = d.st[1] - 12; y <= d.st[1] + 12; y++) for (let x = d.st[0] - 12; x <= d.st[0] + 12; x++) if (at(x, y) === VGT.ROAD) m = Math.min(m, Math.hypot(x - d.st[0], y - d.st[1])); return m; })); });
+    jobs.sort((a, b) => a.d0 - b.d0);
+    jobs.forEach(({ b, ds }) => { let best = null;
+      ds.forEach(d => { const p = vgPath(W, H, pcost, d.st, C, goal); if (!p || p.length > 34) return; const c = cost(p) - (d.fr ? 8 : 0); if (!best || c < best.c) best = { c, p, d }; });
+      if (!best) return; b.door = best.d.st; const raw = [best.d.at].concat(best.p.map(([x, y]) => [x + 0.5, y + 0.5]));
+      best.p.forEach(([x, y]) => { if (at(x, y) !== VGT.ROAD) set(x, y, VGT.PATH); });
+      // Smooth it, then let it wander a little side to side (more in the middle than at the ends).
+      let d = vgCurve(vgSimplify(raw, 0.8), false, 0.5); const n = d.length, sd = r() * 50;
+      d = d.map(([x, y], i) => { const a2 = d[Math.max(0, i - 2)], c2 = d[Math.min(n - 1, i + 2)], tx = c2[0] - a2[0], ty = c2[1] - a2[1], l = Math.hypot(tx, ty) || 1, w = (pn(sd + i * 0.09, 3.7, 2) - 0.5) * 1.1 * Math.sin(Math.PI * Math.min(1, i / Math.max(1, n - 1)));
+        return [x - ty / l * w, y + tx / l * w]; });
+      const okP = P => P.every(([x, y], i) => { const t = at(Math.floor(x), Math.floor(y)); return !(t === VGT.WATER || t === VGT.POND || t === VGT.BRIDGE || (t === VGT.BUILD && i > 1)); });
+      if (!okP(d)) d = vgCurve(vgSimplify(raw, 0.8), false, 0.5); if (!okP(d)) d = raw;
+      V.paths.push(d); }); }
   // Meadow by the water, then the open fields in furlongs of strips (three great fields round the village: one fallow),
   // common pasture where they run out, and the rest left to grass and trees.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GRASS) continue; let near = false; for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (at(x + dx, y + dy) === VGT.WATER) { near = true; break; }
@@ -14421,17 +14460,28 @@ function genVillage(o) {
     else if (t === VGT.GREEN && r() < 0.006) tr(x + 0.5, y + 0.5, 1.2 + r() * 0.5, 0);
     else if (t === VGT.ROCK && r() < 0.01) tr(x + r(), y + r(), 0.7 + r() * 0.4, 1); }
   V.plots.forEach(p => { if (!p.b || p.b.kind === "mill") return; if (r() < 0.35) for (let i = 0; i < 2 + Math.floor(r() * 4); i++) { const x = p.x + 1 + r() * (p.w - 2), y = p.y + 1 + r() * (p.h - 2); if (at(Math.floor(x), Math.floor(y)) === VGT.PLOT) tr(x, y, 0.7 + r() * 0.3, 2); } });
-  // Footpaths: from each front door to the nearest road or lane, walked round any building in the way.
-  V.paths = []; { const nearB = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) if (T[i] === VGT.BUILD) { const x = i % W, y = (i / W) | 0; for (let b2 = -1; b2 <= 1; b2++) for (let a2 = -1; a2 <= 1; a2++) { const nx = x + a2, ny = y + b2; if (nx >= 0 && ny >= 0 && nx < W && ny < H) nearB[ny * W + nx] = 1; } }
-    const pcost = (x, y) => { const t = at(x, y); if (t === VGT.BUILD || t === VGT.WATER || t === VGT.ROCK || t === VGT.POND || t === 255) return Infinity; return nearB[y * W + x] ? 4 : 1; };
-    V.buildings.forEach(b => { const L0 = b.B.levels.find(L => L.level === 0); if (!L0 || !L0.front || !L0.front.size) return; const ks = [...L0.front].map(k => k.split(",").map(Number));
-      const xs = ks.map(k => k[1]), dy = ks[0][2], tf = vgTurn(b.k, b.B.W, b.B.H), mx = (Math.min(...xs) + Math.max(...xs) + 1) / 2;
-      const [ax, ay] = tf(mx, dy), [ox, oy] = tf(mx, dy + 0.5), a = [b.x + ax, b.y + ay], st = [Math.floor(b.x + ox), Math.floor(b.y + oy)];
-      if (!isFinite(pcost(st[0], st[1]))) return;
-      const path = vgPath(W, H, pcost, st, C, i => T[i] === VGT.ROAD || T[i] === VGT.BRIDGE); if (!path || path.length > 30) return;
-      const raw = [a].concat(path.map(([x, y]) => [x + 0.5, y + 0.5]));
-      let d = vgEase(vgCurve(vgSimplify(raw, 0.7), false, 0.5), false, 2, 3); if (d.some(([x, y]) => at(Math.floor(x), Math.floor(y)) === VGT.BUILD && !(Math.hypot(x - a[0], y - a[1]) < 0.8))) d = raw;
-      V.paths.push(d); }); }
+  // ----- Everything within reach of a 2-square beast -----
+  // Livestock is mostly 2x2: from the roads, a 2x2 creature must reach every door, every furlong, the well and the mine.
+  // Anything cut off (a furlong over the river, say) gets a farm track to it, with a little bridge where it crosses water;
+  // a furlong no track can reach is given up.
+  V.tracks = []; { const walk = t => t !== VGT.BUILD && t !== VGT.WATER && t !== VGT.ROCK && t !== VGT.POND && t !== 255;
+    const pos = (x, y) => walk(at(x, y)) && walk(at(x + 1, y)) && walk(at(x, y + 1)) && walk(at(x + 1, y + 1));
+    let R2 = null; const flood = () => { R2 = new Uint8Array(W * H); const q = []; for (let i = 0; i < W * H; i++) { const x = i % W, y = (i / W) | 0; if ((T[i] === VGT.ROAD) && pos(x, y)) { R2[i] = 1; q.push(i); } }
+      for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i / W) | 0; for (const [a2, b2] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) { const nx = x + a2, ny = y + b2; if (nx < 0 || ny < 0 || nx >= W - 1 || ny >= H - 1) continue; const j = ny * W + nx; if (R2[j] || !pos(nx, ny)) continue; if (a2 && b2 && !pos(x + a2, y) && !pos(x, y + b2)) continue; R2[j] = 1; q.push(j); } } }; // 8 ways, but no squeezing round a corner
+    const reaches = cells => cells.some(([x, y]) => [[0, 0], [-1, 0], [0, -1], [-1, -1]].some(([a2, b2]) => { const X = x + a2, Y = y + b2; return X >= 0 && Y >= 0 && R2[Y * W + X]; }));
+    // A track: 2x2 positions over open ground, or over water (which becomes a bridge); never through buildings or rock.
+    const tcost = (x, y) => { if (x >= W - 1 || y >= H - 1) return Infinity; let wet = false; for (const [a2, b2] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const t = at(x + a2, y + b2); if (t === VGT.BUILD || t === VGT.ROCK || t === VGT.POND || t === 255) return Infinity; if (t === VGT.WATER) wet = true; } return wet ? 10 : (at(x, y) === VGT.FIELD ? 2 : 1); };
+    const link = cells => { let st = null; for (const [x, y] of cells) { for (const [a2, b2] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) if (isFinite(tcost(x + a2, y + b2))) { st = [x + a2, y + b2]; break; } if (st) break; } if (!st) return false; const p = vgPath(W, H, tcost, st, C, i => R2[i] === 1); if (!p) return false;
+      const steps = []; p.forEach(([x, y], i) => { if (i) { const [px, py] = p[i - 1]; if (px !== x && py !== y) steps.push([x, py]); } steps.push([x, y]); }); // diagonal steps widened so the beast never squeezes a corner
+      steps.forEach(([x, y]) => { for (const [a2, b2] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const t = at(x + a2, y + b2); if (t === VGT.WATER) set(x + a2, y + b2, VGT.BRIDGE); else if (t !== VGT.ROAD && t !== VGT.BRIDGE && t !== VGT.FIELD && t !== VGT.BUILD && t !== VGT.ROCK && t !== VGT.POND && t !== 255) set(x + a2, y + b2, VGT.PATH); } });
+      V.tracks.push(vgEase(vgCurve(vgSimplify(p.map(([x, y]) => [x + 1, y + 1]), 0.8), false, 0.5), false, 2, 3)); flood(); return true; };
+    flood();
+    V.buildings.forEach(b => { const ds = b.door ? [b.door] : (b.doors || []).map(d => d.st); if (!ds.length) return; if (!reaches(ds)) link(ds); });
+    if (V.well && !reaches([V.well])) link([V.well]);
+    if (V.mineAt) { const near = []; for (let y = V.mineAt[1] - 6; y <= V.mineAt[1] + 6; y++) for (let x = V.mineAt[0] - 6; x <= V.mineAt[0] + 6; x++) if (walk(at(x, y))) near.push([x, y]); if (near.length && !reaches(near)) link(near); }
+    V.furlongs = V.furlongs.filter(f => { if (reaches(f.cells)) return true; const mid = f.cells.slice().sort((a, b) => Math.hypot(a[0] - C[0], a[1] - C[1]) - Math.hypot(b[0] - C[0], b[1] - C[1])); if (link(mid.slice(0, 40))) return true;
+      f.cells.forEach(([x, y]) => set(x, y, VGT.GRASS)); return false; });
+    V.reach2 = { flood: () => { flood(); return R2; }, reaches: c => reaches(c) }; }
   V.counts = V.buildings.reduce((m, b) => (m[b.kind] = (m[b.kind] || 0) + 1, m), {});
   return V;
 }
@@ -14444,8 +14494,12 @@ function vgTerrainSvg(V, s, vb, opts) {
   const out = [], cell = (x, y, c) => out.push(`<rect x="${x * s}" y="${y * s}" width="${s + 0.5}" height="${s + 0.5}" fill="${c}"/>`);
   const nz = vgNoise(31), shade = (x, y, base, amp) => { const v = nz(x / 7, y / 7, 3); const [h, sat, l] = base; return `hsl(${h} ${sat}% ${(l + (v - 0.5) * amp).toFixed(1)}%)`; };
   const COL = { [VGT.GRASS]: [95, 32, 42], [VGT.WOOD]: [100, 30, 30], [VGT.MEADOW]: [90, 36, 45], [VGT.GREEN]: [100, 40, 45], [VGT.PLOT]: [95, 32, 42], [VGT.PASTURE]: [86, 28, 43], [VGT.FIELD]: [95, 32, 42], [VGT.ROCK]: [30, 6, 52], [VGT.SPOIL]: [30, 5, 45], [VGT.BUILD]: [95, 32, 42], [VGT.YARD]: [95, 32, 42], [VGT.ROAD]: [36, 30, 46], [VGT.LANE]: [38, 28, 48], [VGT.BRIDGE]: [205, 38, 34], [VGT.WATER]: [205, 38, 34], [VGT.POND]: [200, 40, 36] };
-  for (let y = Math.max(0, Math.floor(box[1]) - 1); y < Math.min(H, box[1] + box[3] + 1); y++) for (let x = Math.max(0, Math.floor(box[0]) - 1); x < Math.min(W, box[0] + box[2] + 1); x++) {
-    const t = at(x, y), c = COL[t] || COL[VGT.GRASS]; cell(x, y, t === VGT.ROAD || t === VGT.LANE || t === VGT.WATER || t === VGT.POND || t === VGT.BRIDGE ? shade(x, y, COL[VGT.MEADOW], 6) : shade(x, y, c, t === VGT.ROCK ? 14 : 8)); }
+  // The ground: one colour per square, then blurred together so grass, meadow, pasture and woodland floor blend smoothly.
+  out.push(`<rect x="${(box[0] - 2) * s}" y="${(box[1] - 2) * s}" width="${(box[2] + 4) * s}" height="${(box[3] + 4) * s}" fill="hsl(95 32% 42%)"/>`);
+  out.push(`<filter id="vgbl" filterUnits="userSpaceOnUse" x="${(box[0] - 8) * s}" y="${(box[1] - 8) * s}" width="${(box[2] + 16) * s}" height="${(box[3] + 16) * s}"><feGaussianBlur stdDeviation="${(s * 1.8).toFixed(2)}"/></filter><g filter="url(#vgbl)">`);
+  for (let y = Math.max(0, Math.floor(box[1]) - 7); y < Math.min(H, box[1] + box[3] + 7); y++) for (let x = Math.max(0, Math.floor(box[0]) - 7); x < Math.min(W, box[0] + box[2] + 7); x++) {
+    const t = at(x, y), c = COL[t] || COL[VGT.GRASS]; cell(x, y, t === VGT.ROAD || t === VGT.LANE || t === VGT.WATER || t === VGT.POND || t === VGT.BRIDGE || t === VGT.PATH ? shade(x, y, COL[VGT.MEADOW], 6) : shade(x, y, c, t === VGT.ROCK ? 14 : 8)); }
+  out.push(`</g>`);
   for (let y = Math.max(0, Math.floor(box[1]) - 1); y < Math.min(H, box[1] + box[3] + 1); y++) for (let x = Math.max(0, Math.floor(box[0]) - 1); x < Math.min(W, box[0] + box[2] + 1); x++) if (at(x, y) === VGT.POND) out.push(`<circle cx="${(x + 0.5) * s}" cy="${(y + 0.5) * s}" r="${s * 0.85}" fill="#3d6f8f"/>`);
   // Fields: strips (selions) across each furlong; wheat, barley or fallow by great field.
   const crop = { wheat: ["#c9a94a", "#b8963c"], barley: ["#a9b45a", "#98a24c"], fallow: ["#8a7048", "#7a6240"] };
@@ -14478,13 +14532,17 @@ function vgTerrainSvg(V, s, vb, opts) {
   const fx = (box[0] - 12) * s, fy = (box[1] - 12) * s, fw = (box[2] + 24) * s, fh = (box[3] + 24) * s;
   out.push(`<filter id="vgrd" filterUnits="userSpaceOnUse" x="${fx}" y="${fy}" width="${fw}" height="${fh}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${(s * 1.3).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 16 -7.5"/></filter>`);
   // Footpaths from the front doors out to the road, under the road's edge.
-  if (V.paths && V.paths.length) out.push(`<path d="${V.paths.map(pd).join("")}" stroke="#9c845a" stroke-width="${s * 1.1}" fill="none" stroke-linecap="round" opacity=".8"/>`);
+  { const sp = genRng(99), blobs = [], ln = []; // worn and uneven: the line plus scuffed patches along it, blurred and cut back
+    const add = (d, wd) => { ln.push(`<path d="${pd(d)}" stroke-width="${(s * wd).toFixed(1)}"/>`); for (let i = 3; i < d.length - 2; i += 3) if (sp() < 0.55) blobs.push(`<circle cx="${((d[i][0] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" cy="${((d[i][1] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" r="${(s * wd * (0.45 + sp() * 0.3)).toFixed(1)}"/>`); };
+    (V.paths || []).forEach(d => add(d, 0.95)); (V.tracks || []).forEach(d => add(d, 1.9));
+    if (ln.length) out.push(`<filter id="vgpt" filterUnits="userSpaceOnUse" x="${(box[0] - 8) * s}" y="${(box[1] - 8) * s}" width="${(box[2] + 16) * s}" height="${(box[3] + 16) * s}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${(s * 0.3).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 9 -4"/></filter><g filter="url(#vgpt)" opacity=".85"><g fill="none" stroke="#9c845a" stroke-linecap="round" stroke-linejoin="round">${ln.join("")}</g><g fill="#9c845a">${blobs.join("")}</g></g>`); }
   out.push(`<g filter="url(#vgrd)" opacity=".75"><path d="${all.join("")}" stroke="#4e4128" stroke-width="${ww + s * 0.7}" ${rl}/></g><g filter="url(#vgrd)"><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/></g>`);
   out.push(`<path d="${RS.map(rd => pd(rd.d)).join("")}" stroke="rgba(70,55,30,.28)" stroke-width="${Math.max(1, s * 0.16)}" ${rl} stroke-dasharray="${s * 1.4} ${s * 0.9}"/>`);
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
-  { const runs = []; RS.map(rd => rd.d).concat(V.fillets || []).forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
-    const bd = runs.filter(rn => rn.length > 1).map(rn => { const a = rn[0], b = rn[rn.length - 1], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, e = 1.2; return pd([[a[0] - dx / l * e, a[1] - dy / l * e]].concat(rn, [[b[0] + dx / l * e, b[1] + dy / l * e]])); }).join("");
-    if (bd) out.push(`<path d="${bd}" stroke="#3b2a1a" stroke-width="${ww + s * 0.7}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#8a6038" stroke-width="${ww}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#5e4027" stroke-width="${ww}" fill="none" stroke-linecap="butt" stroke-dasharray="${Math.max(1, s * 0.08)} ${s * 0.5}"/>`); }
+  { const deck = (lines, wd) => { const runs = []; lines.forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
+      const bd = runs.filter(rn => rn.length > 1).map(rn => { const a = rn[0], b = rn[rn.length - 1], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, e = 1.2; return pd([[a[0] - dx / l * e, a[1] - dy / l * e]].concat(rn, [[b[0] + dx / l * e, b[1] + dy / l * e]])); }).join("");
+      if (bd) out.push(`<path d="${bd}" stroke="#3b2a1a" stroke-width="${wd + s * 0.7}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#8a6038" stroke-width="${wd}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#5e4027" stroke-width="${wd}" fill="none" stroke-linecap="butt" stroke-dasharray="${Math.max(1, s * 0.08)} ${s * 0.5}"/>`); };
+    deck(RS.map(rd => rd.d).concat(V.fillets || []), ww); deck(V.tracks || [], s * 2.4); }
 
   // Mountains: rock with ridges and boulders; spoil heaps and the mine's adit.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const t = at(x, y); if (!inBox(x, y)) continue;
