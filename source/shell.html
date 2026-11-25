@@ -2268,7 +2268,8 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .gencard { display:flex; flex-direction:column; gap:6px; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:inherit; text-decoration:none; position:relative; transition:transform .12s, border-color .12s; }
 a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gencard, a.gencard:hover, a.gencard * { text-decoration:none; } .gencard strong { font:700 1.15rem var(--display); } .genicon { font-size:2rem; line-height:1; }
 .gencard.soon { opacity:.5; } .gensoon { position:absolute; top:10px; right:10px; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
-.genlayout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; } @media (max-width:860px) { .genlayout { grid-template-columns:1fr; } }
+.genlayout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; } @media (max-width:860px) { .genlayout { grid-template-columns:1fr; } .genopts { position:static !important; } .genfloors img { max-width:100%; padding:6px; } }
+@media (max-height:760px) { .genopts { position:static !important; } }
 .genopts { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); position:sticky; top:70px; }
 .genopts label { display:flex; flex-direction:column; gap:4px; } .genopts hr { border:0; border-top:1px solid var(--line); width:100%; margin:4px 0; } .genopts .acts { display:flex; flex-wrap:wrap; gap:6px; }
 .genfloors { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; } .genfloors figure { margin:0; } .genfloors img { display:block; max-width:min(520px, 100%); border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.4); background:#7d9a5c; padding:10px; }
