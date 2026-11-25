@@ -529,6 +529,7 @@ function route() {
   if (h.startsWith("spell-")) return { v: "spellpage", id: h.slice(6) };
   if (h.startsWith("vtt-")) return { v: "vttc", id: h.slice(4) };
   if (h.startsWith("camp-")) return { v: "camp", id: h.slice(5) };
+  if (h.startsWith("gen-")) { const [camp, kind, type] = h.slice(4).split("/"); return { v: "gen", camp, kind: kind || "", type: type || "" }; }
   if (["world", "tags", "backup", "bestiary", "library", "items", "books", "home", "characters", "srd", "spells", "encounters", "vtt", "campaigns"].includes(h)) return { v: h === "vtt" ? "campaigns" : h };
   return { v: "home" };
 }
@@ -543,7 +544,7 @@ document.addEventListener("pointerdown", ev => {
 function render() {
   if (LOCAL && !S.db) return;
   const r = route();
-  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (["town", "camp", "vttc"].includes(r.v) && a.dataset.nav === (r.v === "town" ? "world" : "campaigns")) || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
+  document.querySelectorAll(".top [data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === r.v || (r.v === "entry" && a.dataset.nav === ({ creature: "bestiary", item: "items", spell: "spells" }[(S.entries.get(r.id) || {}).type] || "library")) || (["town", "camp", "vttc", "gen"].includes(r.v) && a.dataset.nav === (r.v === "town" ? "world" : "campaigns")) || (r.v === "tag" && a.dataset.nav === "tags") || ((r.v === "book" || r.v === "bookedit") && a.dataset.nav === "books") || (r.v === "char" && a.dataset.nav === "characters") || (r.v === "spellpage" && a.dataset.nav === "spells") || (r.v === "vttc" && a.dataset.nav === "vtt")));
   { const nm = document.getElementById("navmore"); if (nm) { const on = nm.querySelector("a.on"); nm.classList.toggle("on", !!on); nm.querySelector(".nmlab").textContent = on ? on.textContent.replace(/ rules$/, "") : "More"; nm.open = false; } }
   { const nav = document.querySelector(".nav"), on = nav && nav.querySelector("a.on"); if (on && nav.scrollWidth > nav.clientWidth) { const l = on.offsetLeft - nav.offsetLeft, r = l + on.offsetWidth; if (l < nav.scrollLeft || r > nav.scrollLeft + nav.clientWidth - 28) nav.scrollLeft = Math.max(0, l - 24); } }
   { const q = document.getElementById("q"); if (q && document.activeElement !== q && !q.value) document.body.classList.remove("showsearch"); }
@@ -576,6 +577,7 @@ function render() {
   else if (r.v === "encounters") html = viewEncounters();
   else if (r.v === "campaigns") html = viewCampaigns();
   else if (r.v === "camp") html = viewCampPage(r.id);
+  else if (r.v === "gen") html = viewGen(r.camp, r.kind, r.type);
   else if (r.v === "vttc") html = viewVttCamp(r.id);
   else if (r.v === "srd") html = viewSrd();
   else if (r.v === "spells") html = viewSpells();

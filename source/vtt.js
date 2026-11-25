@@ -670,6 +670,7 @@ function vFog(pid, p, toks) {
 // Tokens on the map show on the floors the party is looking at; tokens aboard a ship, on the deck its picker shows.
 function vFloorHide(viewers) {
   const floors = new Set(viewers.filter(([, t]) => !t.ship).map(([, t]) => vTokFloor(t)));
+  vDoorFloors(viewers, floors);
   document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (!t || t.layer === "gm") return;
     if (t.ship && vIsShip(S.vttTokens.get(t.ship))) { el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); return; }
     el.classList.toggle("vflooroff", floors.size > 0 && !floors.has(vTokFloor(t))); });
@@ -1797,6 +1798,31 @@ function vTokLevel(delta) {
 }
 // Players standing (or flying) under a level's raised squares see through that level's pictures:
 // the pictures are cut away over the connected patch of squares they're under, so they see the room below.
+// Players see the door and window markers of the floor they're on, and only where nothing above covers them: from
+// outside a building that's its front door, not every door inside it through the roof.
+function vDoorFloors(viewers, floors) {
+  const cur = vPageNow(), p = cur && cur.p; if (!p) return;
+  const cover = new Map(); // square → the lowest level drawn over it (a roof, or the floor above), ignoring where the party is under it
+  const levels = [...new Set((p.areas || []).map(a => a.level || 0))].filter(l => l > Math.min(0, ...floors));
+  levels.forEach(L => { const holes = vRoofCells(p, viewers, L); (p.areas || []).filter(a => (a.level || 0) === L && Array.isArray(a.cells)).forEach(a => a.cells.forEach(([x, y]) => { const k = x + "," + y; if (!holes.has(k) && !(cover.get(k) <= L)) cover.set(k, L); })); });
+  document.querySelectorAll(".vdoor").forEach(el => {
+    const l = Number(el.dataset.lvl) || 0, x = Number(el.dataset.x), y = Number(el.dataset.y);
+    let show = !floors.size || floors.has(l);
+    if (show && cover.size) { const across = Number.isInteger(y) && !Number.isInteger(x), sq = across ? [[Math.floor(x), y - 1], [Math.floor(x), y]] : [[x - 1, Math.floor(y)], [x, Math.floor(y)]];
+      show = sq.some(([a, b]) => { const c = cover.get(a + "," + b); return c == null || c <= l; }); }
+    el.classList.toggle("vflooroff", !show);
+  });
+}
+// The squares of raised level L the party is under (they see in there, so it isn't covering anything for them).
+function vRoofCells(p, viewers, L) {
+  const out = new Set();
+  (p.areas || []).filter(a => (a.level || 0) === L && Array.isArray(a.cells)).forEach(a => {
+    const has = new Set(a.cells.map(c => c[0] + "," + c[1]));
+    viewers.filter(([, t]) => vHeight(t) < L).forEach(([, t]) => { const s = vTokSz(t) / 2, start = Math.floor(t.x + s) + "," + Math.floor(t.y + s); if (!has.has(start) || out.has(start)) return;
+      const todo = [start]; out.add(start); while (todo.length) { const [cx, cy] = todo.pop().split(",").map(Number); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const n = (cx + dx) + "," + (cy + dy); if (has.has(n) && !out.has(n)) { out.add(n); todo.push(n); } } } });
+  });
+  return out;
+}
 function vRoofHoles(p, viewers, L) {
   let d = "";
   const seen = new Set();
@@ -2354,8 +2380,8 @@ function vDoorMarks(p, gm) {
     const x = (w[0] + w[2]) / 2, y = (w[1] + w[3]) / 2, lvl = w[4] || 0, other = gm && lvl !== VTT.lvl; if (gm && vLvlHid(lvl)) return "";
     const label = m.k === "window" ? "Window · climb through" : m.locked && !gm ? "Locked" : m.open ? "Close door" : "Open door";
     const icon = m.k === "window" ? "🪟" : m.locked ? "🔒" : m.open ? "🚪" : "🚪";
-    if (m.k === "window") return `<div class="vdoor window${other ? " otherlvl" : ""}" data-x="${x}" data-y="${y}" style="left:${x * C}px;top:${y * C}px" title="Window: you can see through it, and climb through"><span class="vdi">🪟</span><span class="vdl">Window · climb through</span></div>`;
-    return `<button class="vdoor ${m.k}${m.open ? " open" : ""}${m.clear ? " clear" : ""}${m.locked ? " locked" : ""}${m.secret ? " secret" : ""}${other ? " otherlvl" : ""}" data-door="${esc(m.id)}" data-x="${x}" data-y="${y}" style="left:${x * C}px;top:${y * C}px" title="${esc(label + (gm && m.secret ? " (secret: players see a wall)" : "") + (gm && m.locked ? " (locked for players)" : ""))}"><span class="vdi">${icon}</span><span class="vdl">${esc(gm && m.secret ? "Secret door" : label)}</span></button>`; }).join("")}</div>`;
+    if (m.k === "window") return `<div class="vdoor window${other ? " otherlvl" : ""}" data-x="${x}" data-y="${y}" data-lvl="${lvl}" style="left:${x * C}px;top:${y * C}px" title="Window: you can see through it, and climb through"><span class="vdi">🪟</span><span class="vdl">Window · climb through</span></div>`;
+    return `<button class="vdoor ${m.k}${m.open ? " open" : ""}${m.clear ? " clear" : ""}${m.locked ? " locked" : ""}${m.secret ? " secret" : ""}${other ? " otherlvl" : ""}" data-door="${esc(m.id)}" data-x="${x}" data-y="${y}" data-lvl="${lvl}" style="left:${x * C}px;top:${y * C}px" title="${esc(label + (gm && m.secret ? " (secret: players see a wall)" : "") + (gm && m.locked ? " (locked for players)" : ""))}"><span class="vdi">${icon}</span><span class="vdl">${esc(gm && m.secret ? "Secret door" : label)}</span></button>`; }).join("")}</div>`;
 }
 async function vDoorClick(id) {
   const cur = vPageNow(); if (!cur) return;

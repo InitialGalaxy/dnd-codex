@@ -45,7 +45,7 @@ function viewCampPage(id) {
   if (c.map === "world") map = S.meta ? `<div class="campmap">${worldSvg({})}<p><a href="#world">Open the world map: ${esc(S.meta.name)} →</a></p></div>` : gm ? `<p class="muted small">This campaign uses the world map, but none is imported yet. Import it from More → World map.</p>` : "";
   else if (String(c.map || "").startsWith("img:")) map = `<div class="campmap"><a href="${esc(c.map.slice(4))}" target="_blank" rel="noopener"><img src="${esc(c.map.slice(4))}" alt="${esc(c.name)} map"></a></div>`;
   return `<section class="page camppage">
-    <div class="phead"><div><a href="#campaigns" class="vback">← Campaigns</a><h1>${esc(c.name || "Campaign")}</h1></div>${gm ? `<button class="btn ghost" data-act="campedit" data-id="${esc(id)}">Edit campaign</button>` : ""}</div>
+    <div class="phead"><div><a href="#campaigns" class="vback">← Campaigns</a><h1>${esc(c.name || "Campaign")}</h1></div>${gm ? `<div class="campacts"><a class="btn" href="#gen-${esc(id)}">🏗 Generator</a><button class="btn ghost" data-act="campedit" data-id="${esc(id)}">Edit campaign</button></div>` : ""}</div>
     ${c.desc ? `<div class="campdesc">${md(c.desc)}</div>` : gm ? `<p class="muted small">Add a few words about this campaign, its map and its party with Edit campaign.</p>` : ""}
     <div class="campenter">
       <div class="campenterhead"><span class="eyebrow">Tabletop</span><a class="campenterlink" href="#vtt-${esc(id)}"><strong>Enter the tabletop →</strong></a><span class="muted small">${shown} map${shown === 1 ? "" : "s"}</span></div>
