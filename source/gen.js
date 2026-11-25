@@ -14,7 +14,7 @@ const GEN_FLOOR = {
   tile: { base: [40, 30, 78], line: "#a99a7a" }, rug: { base: [36, 42, 63], line: "#8f6d45" }, porch: { base: [33, 36, 58], line: "#80633f" }
 };
 const GEN_KIND = { living: "wood", bed: "wood", kitchen: "stone", store: "earth", cellar: "earth", shop: "wood", work: "wood", forge: "stone", tavern: "wood",
-  hall: "stone", office: "wood", meet: "rug", library: "wood", temple: "tile", sanctum: "rug", landing: "wood", porch: "porch", bath: "tile", pit: "earth", vault: "stone" };
+  hall: "stone", privy: "wood", office: "wood", meet: "rug", library: "wood", temple: "tile", sanctum: "rug", landing: "wood", porch: "porch", bath: "tile", pit: "earth", vault: "stone" };
 // Each type: its footprint (frontage × depth, squares) and floors by size, the shapes it comes in (with weights) and how often
 // it has a porch or a cellar, and the rooms on each floor. A room: n name, k kind, w how much space it wants, opt the chance
 // it's there at all, front it faces the street, entry the front door's in it, back it likes the back wall.
@@ -25,7 +25,7 @@ const GEN_BUILDINGS = [
     shapes: { rect: 3, L: 2, long: 1, U: 0.4 }, porch: 0.4,
     ground: [{ n: "Main room", k: "living", w: 3, front: 1, entry: 1 }, { n: "Kitchen", k: "kitchen", w: 1.6, back: 1 }, { n: "Pantry", k: "store", w: 0.7, opt: 0.5 }],
     single: [{ n: "Bedroom", k: "bed", w: 1.5 }],
-    upper: [{ n: "Bedroom", k: "bed", w: 2 }, { n: "Bedroom", k: "bed", w: 1.4 }, { n: "Bedroom", k: "bed", w: 1.2, opt: 0.5 }, { n: "Storage", k: "store", w: 0.6, opt: 0.35 }],
+    upper: [{ n: "Privy", k: "privy", w: 0.35, opt: 0.4 }, { n: "Bedroom", k: "bed", w: 2 }, { n: "Bedroom", k: "bed", w: 1.4 }, { n: "Bedroom", k: "bed", w: 1.2, opt: 0.5 }, { n: "Storage", k: "store", w: 0.6, opt: 0.35 }],
     under: [{ n: "Cellar", k: "cellar", w: 1 }],
     rare: [{ n: "Nursery", k: "bed", w: 1, at: "upper", p: 0.15 }, { n: "Hidden study", k: "library", w: 0.8, at: "upper", p: 0.06, secret: 1 }, { n: "Shrine nook", k: "sanctum", w: 0.6, at: "ground", p: 0.08 },
       { n: "Workshop", k: "work", w: 1.2, at: "ground", p: 0.12 }, { n: "Wine cellar", k: "cellar", w: 1, at: "under", p: 0.2 }, { n: "Smuggler's hole", k: "cellar", w: 0.6, at: "under", p: 0.07, secret: 1 }] },
@@ -58,7 +58,7 @@ const GEN_BUILDINGS = [
     shapes: { rect: 2, L: 2, U: 1.2 }, porch: 0.35,
     ground: [{ n: "Common room", k: "tavern", w: 4, front: 1, entry: 1 }, { n: "Kitchen", k: "kitchen", w: 1.4, back: 1 }, { n: "Bar store", k: "store", w: 0.7 }, { n: "Private room", k: "living", w: 1, opt: 0.5 }],
     single: [{ n: "Keeper's room", k: "bed", w: 1.2 }, { n: "Guest room", k: "bed", w: 1 }],
-    upper: [{ n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1, opt: 0.7 }, { n: "Guest room", k: "bed", w: 1, opt: 0.5 }, { n: "Keeper's room", k: "bed", w: 1.4 }],
+    upper: [{ n: "Privy", k: "privy", w: 0.35, opt: 0.4 }, { n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1 }, { n: "Guest room", k: "bed", w: 1, opt: 0.7 }, { n: "Guest room", k: "bed", w: 1, opt: 0.5 }, { n: "Keeper's room", k: "bed", w: 1.4 }],
     under: [{ n: "Beer cellar", k: "cellar", w: 1.6 }, { n: "Store", k: "cellar", w: 0.8, opt: 0.6 }],
     rare: [{ n: "Gambling den", k: "meet", w: 1.2, at: "ground", p: 0.15 }, { n: "Bathhouse", k: "bath", w: 1.2, at: "ground", p: 0.1 }, { n: "Bridal suite", k: "bed", w: 1.4, at: "upper", p: 0.12 },
       { n: "Fighting pit", k: "pit", w: 1.4, at: "under", p: 0.1 }, { n: "Smuggler's tunnel", k: "cellar", w: 0.6, at: "under", p: 0.08, secret: 1 }] },
@@ -67,7 +67,7 @@ const GEN_BUILDINGS = [
     shapes: { rect: 2, U: 1.5, L: 1 }, porch: 0.2,
     ground: [{ n: "Great hall", k: "hall", w: 4, front: 1, entry: 1 }, { n: "Reception", k: "office", w: 1 }, { n: "Office", k: "office", w: 1 }, { n: "Archive", k: "store", w: 1, back: 1 }],
     single: [{ n: "Guildmaster's study", k: "office", w: 1.4 }],
-    upper: [{ n: "Meeting room", k: "meet", w: 2 }, { n: "Guildmaster's study", k: "office", w: 1.5 }, { n: "Office", k: "office", w: 1 }, { n: "Office", k: "office", w: 1 }, { n: "Library", k: "library", w: 1.5, opt: 0.6 }],
+    upper: [{ n: "Privy", k: "privy", w: 0.35, opt: 0.4 }, { n: "Meeting room", k: "meet", w: 2 }, { n: "Guildmaster's study", k: "office", w: 1.5 }, { n: "Office", k: "office", w: 1 }, { n: "Office", k: "office", w: 1 }, { n: "Library", k: "library", w: 1.5, opt: 0.6 }],
     under: [{ n: "Vault", k: "vault", w: 1 }, { n: "Store", k: "cellar", w: 1, opt: 0.6 }],
     rare: [{ n: "Trophy hall", k: "hall", w: 1.4, at: "ground", p: 0.15 }, { n: "Training room", k: "pit", w: 1.4, at: "ground", p: 0.15 }, { n: "Map room", k: "library", w: 1, at: "upper", p: 0.15 },
       { n: "Inner sanctum", k: "sanctum", w: 0.8, at: "upper", p: 0.08, secret: 1 }, { n: "Secret vault", k: "vault", w: 0.6, at: "under", p: 0.1, secret: 1 }] },
@@ -156,7 +156,7 @@ function genShare(r, F, rooms, filler) {
 function genBuilding(o) {
   let B = null;
   for (let attempt = 0; attempt < 12; attempt++) { B = genBuildingTry(o, attempt); if (B.ok) break; }
-  genHearths(o, B); return B;
+  genHearths(o, B); if (typeof genFurnish === "function") genFurnish(o, B); return B;
 }
 function genBuildingTry(o, attempt) {
   const T = genType(o.type), r = genRng(attempt ? (Number(o.seed) || 1) + attempt * 100003 : o.seed), S = T.size[o.size] || T.size.medium;
@@ -286,13 +286,27 @@ function genHearths(o, B) {
     const cellEdges = (x, y) => sides.map(s => s[3](x, y));
     const stepSq = new Set((L.stairs || []).flatMap(t => genStairEntry(L, t).cells)); // keep the stairs' landings clear
     const blocked = (x, y) => stairSq.has(x + "," + y) || stepSq.has(x + "," + y) || cellEdges(x, y).some(k => L.doors.has(k)) || used.has(x + "," + y);
+    const fronts = new Set(); // the squares in front of fires, kept clear
+    const FD = { t: [0, 1], b: [0, -1], l: [1, 0], r: [-1, 0] };
+    // Would a hearth (or flue) on (x, y) still leave its room's doors, stair ends and fires all reachable from each other?
+    const roomOk = (i, x, y, side, fire) => { const rm = L.rooms[i], inR = (a, b) => a >= rm.x && b >= rm.y && a < rm.x + rm.w && b < rm.y + rm.h, K = (a, b) => a + "," + b;
+      const block = new Set([...stairSq, ...used, K(x, y)]), need = new Set();
+      [...L.doors].forEach(k => { const [d, a, b] = k.split(",").map((v, j) => j ? Number(v) : v); (d === "h" ? [[a, b - 1], [a, b]] : [[a - 1, b], [a, b]]).forEach(([cx, cy]) => { if (inR(cx, cy)) need.add(K(cx, cy)); }); });
+      stepSq.forEach(c => { const [a, b] = c.split(",").map(Number); if (inR(a, b)) need.add(c); }); fronts.forEach(c => { const [a, b] = c.split(",").map(Number); if (inR(a, b)) need.add(c); });
+      if (fire) { const fx = x + FD[side][0], fy = y + FD[side][1]; if (!inR(fx, fy) || block.has(K(fx, fy))) return false; need.add(K(fx, fy)); }
+      if ([...need].some(c => block.has(c))) return false; const list = [...need]; if (!list.length) return true;
+      const seen = new Set([list[0]]), q = [list[0]];
+      while (q.length) { const [a, b] = q.pop().split(",").map(Number); for (const [da, db] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { const k = K(a + da, b + db); if (!inR(a + da, b + db) || seen.has(k) || block.has(k)) continue; seen.add(k); q.push(k); } }
+      return list.every(c => seen.has(c)); };
     // Stacks from the floors below come up through this one.
     stacks.forEach(st => { const i = L.own(st.x, st.y); if (i < 0 || L.rooms[i].porch) return; st.top = L.level;
-      if (stairSq.has(st.x + "," + st.y)) return; used.add(st.x + "," + st.y);
-      const rm = L.rooms[i], fire = !rm._fire && r() < (GEN_FIRE[rm.k] || 0); if (fire) rm._fire = 1;
+      if (blocked(st.x, st.y) || !roomOk(i, st.x, st.y, st.side, false)) return; // in a doorway or at the stairs it stays inside the wall
+      const rm = L.rooms[i]; let fire = !rm._fire && r() < (GEN_FIRE[rm.k] || 0); if (fire && !roomOk(i, st.x, st.y, st.side, true)) fire = false;
+      used.add(st.x + "," + st.y); if (fire) { rm._fire = 1; fronts.add((st.x + FD[st.side][0]) + "," + (st.y + FD[st.side][1])); }
       L.hearths.push({ x: st.x, y: st.y, side: st.side, fire, k: rm.k }); });
     L.rooms.forEach((rm, i) => { if (rm._fire || rm.porch || rm.circ || !(r() < (GEN_FIRE[rm.k] || 0))) return;
-      let best = null;
+      if (rm.w * rm.h < 6 && rm.k !== "kitchen" && rm.k !== "forge") return; // no room for a fire and anything else
+      const cands = [];
       for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) sides.forEach(([sd, dx, dy, key]) => {
         const nx = x + dx, ny = y + dy; if (L.own(nx, ny) === i || blocked(x, y)) return; const k = key(x, y); if (L.wins.has(k) || L.doors.has(k)) return;
         const nb = L.own(nx, ny); if (nb >= 0 && L.rooms[nb].porch) return;
@@ -301,8 +315,9 @@ function genHearths(o, B) {
         let sc = (ext(L, nx, ny) ? 3 : 0) + mid * 1.5 + r() * 0.6;
         if (L.hearths.some(h => h.fire && h.x === nx && h.y === ny)) sc += 5; // back to back with the fire next door
         if (rm.k === "kitchen" || rm.k === "forge") sc += ext(L, nx, ny) ? 1 : 0;
-        if (!best || sc > best.sc) best = { sc, x, y, side: sd }; });
-      if (!best) return; rm._fire = 1; used.add(best.x + "," + best.y);
+        cands.push({ sc, x, y, side: sd }); });
+      const best = cands.sort((a, b) => b.sc - a.sc).find(c => roomOk(i, c.x, c.y, c.side, true));
+      if (!best) return; rm._fire = 1; used.add(best.x + "," + best.y); fronts.add((best.x + FD[best.side][0]) + "," + (best.y + FD[best.side][1]));
       L.hearths.push({ x: best.x, y: best.y, side: best.side, fire: true, k: rm.k }); stacks.push({ x: best.x, y: best.y, side: best.side, top: L.level }); });
     L.rooms.forEach(rm => delete rm._fire);
   });
@@ -422,7 +437,8 @@ function genFloorDetail(r, rm, kind, P) {
 }
 // Floors are drawn with a square of margin all round (GEN_PAD) so a grand front door's step and pillars can stand outside.
 const GEN_PAD = 1;
-function genFloorSvg(B, L, labels, seed, overlay) {
+// part: "base" (the floor without names or the overlay), "top" (only those, to lay over furniture), or everything.
+function genFloorSvg(B, L, labels, seed, overlay, part) {
   const P = GEN_PX, W = B.W, H = B.H, r = genRng((Number(seed) || 1) * 31 + L.level * 7 + 5);
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
   const clips = L.rooms.map(rm => `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`).join("");
@@ -499,7 +515,7 @@ function genFloorSvg(B, L, labels, seed, overlay) {
     return [x, y]; };
   const lab = labels ? L.rooms.map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
   const pd = GEN_PAD * P;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}"><defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${grand}${lab}${over}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}">${part === "top" ? `${lab}${over}` : `<defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${grand}${part === "base" ? "" : lab + over}`}</svg>`;
 }
 // A hipped roof on every wing (and a lean-to over a porch), shingles each their own shade, maybe a chimney or two.
 function genRoofSvg(B, seed) {
@@ -554,6 +570,8 @@ function genPage(o) {
   objs.push({ id: id(), layer: "map", level: 0, x: 0, y: 0, w: W, h: H, img: genUrl(genYardSvg(W, H, { x: ox + fx - 0.25, y: pathTop, w: fw + 0.5 }, o.seed)) });
   B.levels.forEach(L => {
     objs.push({ id: id(), layer: "map", level: L.level, x: ox - GEN_PAD, y: oy - GEN_PAD, w: B.W + GEN_PAD * 2, h: B.H + GEN_PAD * 2, img: genUrl(genFloorSvg(B, L, false, o.seed)) });
+    // The furniture: each piece its own object on the map layer, on the grid, so you can move, turn or delete it.
+    genFurnBoxes(L).forEach(f => objs.push(Object.assign({ id: id(), layer: "map", level: L.level, x: ox + f.x, y: oy + f.y, w: f.w, h: f.h, img: f.src, name: f.a.name, furn: 1 }, f.rot ? { rot: f.rot } : {})));
     objs.push({ id: id(), layer: "gm", level: L.level, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${L.rooms.map(rm => `<text x="${(rm.x + rm.w / 2) * P}" y="${(rm.y + rm.h / 2) * P}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " (secret)" : ""}</text>`).join("")}</svg>`) });
     genEdges(L, B.W, B.H).forEach(e => { const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
       walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); });
@@ -585,7 +603,7 @@ function genMergeWalls(walls) {
 // #gen-<camp>/building/<type> the building generator
 const GEN = { o: null };
 function genDefaults(type) { return { type, seed: genSeed(), size: "medium", floors: "auto", cellar: "auto", shape: "auto", porch: "auto", name: "", tags: [] }; }
-const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", name: o.name, tags: o.tags || [] });
+const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", furn: o.furn !== false, name: o.name, tags: o.tags || [] });
 function viewGen(camp, kind, type) {
   const c = S.vttCamps && S.vttCamps.get(camp); if (!vCanEdit()) return `<section class="page"><p class="muted">Only the GM can use the generators.</p></section>`;
   if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening…"}</p></section>`;
@@ -593,8 +611,9 @@ function viewGen(camp, kind, type) {
   if (!kind) {
     const card = (k, icon, t, d, ready) => ready ? `<a class="gencard" href="#gen-${esc(camp)}/${k}"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span></a>` : `<div class="gencard soon" aria-disabled="true"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span><span class="gensoon">Coming later</span></div>`;
     return `<section class="page">${back}<h1>Generator</h1><p class="muted">Make maps for ${esc(c.name || "this campaign")}, ready to play on the tabletop.</p>
-      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("village", "🏡", "Villages", "A road and a few dozen buildings.")}${card("town", "🏘", "Towns", "Streets, districts and walls.")}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
+      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "A road and a few dozen buildings.")}${card("town", "🏘", "Towns", "Streets, districts and walls.")}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
   }
+  if (kind === "furniture") return genFurnView(camp, back);
   if (kind === "building" && !type) {
     const saved = vPages(VGEN).filter(([, p]) => p.gen), tagSet = new Set(saved.flatMap(([, p]) => p.gen.tags || [])), tf = GEN.tag || "";
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
@@ -618,6 +637,7 @@ function viewGen(camp, kind, type) {
         <label><span>Cellar</span>${seg("cellar", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
         <label><span>Shape</span>${seg("shape", [["auto", "Any"], ...Object.keys(T.shapes).map(k => [k, ({ rect: "Box", L: "L", U: "U", long: "Long" })[k]])])}</label>
         <label><span>Porch</span>${seg("porch", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
+        <label class="genchk"><input type="checkbox" data-act="genchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">each piece movable on the tabletop · <a href="#gen-${esc(camp)}/furniture">the pieces</a></small></span></label>
         <label class="genchk"><input type="checkbox" data-act="genchk" data-k="overlay"${o.overlay ? " checked" : ""}> <span>Show grid, walls, doors &amp; windows <small class="muted">as the tabletop will use them</small></span></label>
         <button class="btn" data-act="genroll">🎲 New layout</button>
         <label><span>Seed <small class="muted">the same seed makes the same building</small></span><input id="gen-seed" type="number" value="${o.seed}"></label>
@@ -631,8 +651,11 @@ function viewGen(camp, kind, type) {
 }
 function genPreviewHtml(o) {
   const B = genBuilding(o), levels = B.levels.slice().sort((a, b) => b.level - a.level), rooms = B.levels.reduce((a, L) => a + L.rooms.filter(x => !x.circ && !x.porch).length, 0);
-  return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms</span>${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
-    <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure><img src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay))}" alt="${esc(L.name)}"><figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
+  const lib = genFurnLib(), nF = B.levels.reduce((a, L) => a + (L.furn || []).length, 0), TW = B.W + GEN_PAD * 2, TH = B.H + GEN_PAD * 2;
+  // A floor: its picture, the furniture on it (each piece its own picture, turned, as on the tabletop), then names and the overlay.
+  const floor = L => `<div class="genflw" style="width:min(${TW * GEN_PX + 20}px, 100%)"><div class="genfl" style="aspect-ratio:${TW} / ${TH}"><img src="${genUrl(genFloorSvg(B, L, false, o.seed, false, "base"))}" alt="${esc(L.name)}">${genFurnBoxes(L, lib).map(f => `<img class="genfp" src="${esc(f.src)}" alt="" title="${esc(f.a.name)}" style="left:${((f.x + GEN_PAD) / TW * 100).toFixed(3)}%;top:${((f.y + GEN_PAD) / TH * 100).toFixed(3)}%;width:${(f.w / TW * 100).toFixed(3)}%;height:${(f.h / TH * 100).toFixed(3)}%${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("")}<img class="genfp gentop" src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay, "top"))}" alt=""></div></div>`;
+  return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms${o.furn !== false ? ` · ${nF} pieces of furniture` : ""}</span>${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
+    <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure>${floor(L)}<figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
 }
 const genRefresh = () => { const el = document.getElementById("genpreview"); if (el && GEN.o) el.innerHTML = genPreviewHtml(GEN.o); };
 const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.getElementById("gen-name"), t = document.getElementById("gen-tags"); if (n) o.name = n.value.trim(); if (t) o.tags = t.value.split(",").map(x => x.trim()).filter(Boolean); };
@@ -640,15 +663,16 @@ const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.
 // few small links instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
 async function genStoreImages(page) {
   if (!S.assets || !S.assets.upload) return page;
-  toast("Drawing the building…");
+  toast("Drawing the building…"); const done = new Map(); // the same picture (a chair, say) is uploaded once
   for (const o of page.objs) {
     if (!String(o.img).startsWith("data:image/svg")) continue;
+    if (done.has(o.img)) { o.img = done.get(o.img); continue; } const was = o.img;
     try {
       const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = o.img; });
       const cv = document.createElement("canvas"); cv.width = Math.round(o.w * GEN_PX); cv.height = Math.round(o.h * GEN_PX); cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
       const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.88)); if (!blob) continue;
       const type = blob.type || "image/png", res = await S.assets.upload(new File([blob], "generated." + (type.includes("webp") ? "webp" : "png"), { type }));
-      o.img = assetPath(res); cv.width = cv.height = 0;
+      o.img = assetPath(res); done.set(was, o.img); cv.width = cv.height = 0;
     } catch (e) { /* keep the drawing in the map */ }
   }
   return page;
