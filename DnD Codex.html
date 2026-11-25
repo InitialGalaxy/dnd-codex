@@ -2272,7 +2272,7 @@ a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gen
 .genlayout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; } @media (max-width:860px) { .genlayout { grid-template-columns:1fr; } .genopts { position:static !important; } .genfloors img { max-width:100%; padding:6px; } }
 @media (max-height:760px) { .genopts { position:static !important; } }
 .genopts { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); position:sticky; top:70px; }
-.genopts label { display:flex; flex-direction:column; gap:4px; } .genopts hr { border:0; border-top:1px solid var(--line); width:100%; margin:4px 0; } .genopts .acts { display:flex; flex-wrap:wrap; gap:6px; }
+.genopts label { display:flex; flex-direction:column; gap:4px; } .genopts label.genchk { flex-direction:row; align-items:flex-start; gap:8px; cursor:pointer; } .genopts label.genchk input { width:18px; height:18px; margin-top:2px; flex:none; } .genopts hr { border:0; border-top:1px solid var(--line); width:100%; margin:4px 0; } .genopts .acts { display:flex; flex-wrap:wrap; gap:6px; }
 .genrare { color:var(--brass); font-weight:600; }
 .genfloors { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; } .genfloors figure { margin:0; } .genfloors img { display:block; max-width:min(520px, 100%); border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.4); background:#7d9a5c; padding:10px; }
 .genfloors figcaption { text-align:center; font-size:.85rem; margin-top:4px; opacity:.8; }
@@ -12876,7 +12876,42 @@ function genBuilding(o) {
   levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
   // The unusual rooms that made it in (one upstairs needs an upstairs, one below a cellar).
   const placed = [...new Set(levels.flatMap(L => L.rooms.filter(x => x.rare).map(x => x.n)))];
-  return { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs, levels, rare: placed };
+  const B = { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs, levels, rare: placed };
+  genHearths(o, B); return B;
+}
+// Fireplaces: the rooms that would have a fire get a hearth against a wall, an outside wall if they can (that's where the
+// chimney goes), or back to back with a neighbour's fire so the two share a stack. A stack rises through every floor above
+// (a flue on floors that don't use it, a fireplace on ones that do) and comes out of the roof as a chimney.
+const GEN_FIRE = { kitchen: 1, forge: 1, tavern: 1, living: 0.9, hall: 0.8, library: 0.5, meet: 0.5, work: 0.4, office: 0.3, bed: 0.35, sanctum: 0.2 };
+function genHearths(o, B) {
+  const r = genRng((Number(o.seed) || 1) * 13 + 9), stacks = [];
+  const ext = (L, nx, ny) => { const i = L.own(nx, ny); return i < 0; };
+  B.levels.slice().sort((a, b) => a.level - b.level).forEach(L => {
+    L.hearths = []; if (L.level < 0 || !L.own) return;
+    const stairSq = new Set(); (L.stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) stairSq.add(x + "," + y); });
+    const used = new Set(), sides = [["t", 0, -1, (x, y) => `h,${x},${y}`], ["b", 0, 1, (x, y) => `h,${x},${y + 1}`], ["l", -1, 0, (x, y) => `v,${x},${y}`], ["r", 1, 0, (x, y) => `v,${x + 1},${y}`]];
+    const cellEdges = (x, y) => sides.map(s => s[3](x, y));
+    const blocked = (x, y) => stairSq.has(x + "," + y) || cellEdges(x, y).some(k => L.doors.has(k)) || used.has(x + "," + y);
+    // Stacks from the floors below come up through this one.
+    stacks.forEach(st => { const i = L.own(st.x, st.y); if (i < 0 || L.rooms[i].porch) return; st.top = L.level;
+      if (stairSq.has(st.x + "," + st.y)) return; used.add(st.x + "," + st.y);
+      const rm = L.rooms[i], fire = !rm._fire && r() < (GEN_FIRE[rm.k] || 0); if (fire) rm._fire = 1;
+      L.hearths.push({ x: st.x, y: st.y, side: st.side, fire, k: rm.k }); });
+    L.rooms.forEach((rm, i) => { if (rm._fire || rm.porch || rm.circ || !(r() < (GEN_FIRE[rm.k] || 0))) return;
+      let best = null;
+      for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) sides.forEach(([sd, dx, dy, key]) => {
+        const nx = x + dx, ny = y + dy; if (L.own(nx, ny) === i || blocked(x, y)) return; const k = key(x, y); if (L.wins.has(k) || L.doors.has(k)) return;
+        const nb = L.own(nx, ny); if (nb >= 0 && L.rooms[nb].porch) return;
+        const along = dx ? rm.h : rm.w, pos = dx ? y - rm.y : x - rm.x, mid = 1 - Math.abs(pos - (along - 1) / 2) / Math.max(1, along / 2);
+        let sc = (ext(L, nx, ny) ? 3 : 0) + mid * 1.5 + r() * 0.6;
+        if (L.hearths.some(h => h.fire && h.x === nx && h.y === ny)) sc += 5; // back to back with the fire next door
+        if (rm.k === "kitchen" || rm.k === "forge") sc += ext(L, nx, ny) ? 1 : 0;
+        if (!best || sc > best.sc) best = { sc, x, y, side: sd }; });
+      if (!best) return; rm._fire = 1; used.add(best.x + "," + best.y);
+      L.hearths.push({ x: best.x, y: best.y, side: best.side, fire: true, k: rm.k }); stacks.push({ x: best.x, y: best.y, side: best.side, top: L.level }); });
+    L.rooms.forEach(rm => delete rm._fire);
+  });
+  B.chimneys = stacks;
 }
 // Where a stair (two squares) goes in a room: along one of its walls, best with its long side to the wall, clear of the
 // front door's row, not on or right beside other stairs, near the middle line if asked. Its "toward" end is the one at a wall.
@@ -12986,7 +13021,9 @@ function genFloorDetail(r, rm, kind, P) {
   const stains = Math.floor(r() * (1 + rm.w * rm.h / 12)); for (let i = 0; i < stains; i++) d += `<ellipse cx="${(X + r() * W).toFixed(1)}" cy="${(Y + r() * H).toFixed(1)}" rx="${(P * (0.3 + r() * 0.8)).toFixed(1)}" ry="${(P * (0.2 + r() * 0.5)).toFixed(1)}" fill="#3a2a18" opacity="${(0.05 + r() * 0.07).toFixed(2)}"/>`;
   return `<g clip-path="url(#gc${rm._i})">${d}</g>`;
 }
-function genFloorSvg(B, L, labels, seed) {
+// Floors are drawn with a square of margin all round (GEN_PAD) so a grand front door's step and pillars can stand outside.
+const GEN_PAD = 1;
+function genFloorSvg(B, L, labels, seed, overlay) {
   const P = GEN_PX, W = B.W, H = B.H, r = genRng((Number(seed) || 1) * 31 + L.level * 7 + 5);
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
   const clips = L.rooms.map(rm => `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`).join("");
@@ -13002,11 +13039,46 @@ function genFloorSvg(B, L, labels, seed) {
     stairs += `<defs><linearGradient id="${gid}" x1="${along ? (toB ? 0 : 1) : 0}" y1="${along ? 0 : (toB ? 0 : 1)}" x2="${along ? (toB ? 1 : 0) : 0}" y2="${along ? 0 : (toB ? 1 : 0)}"><stop offset="0" stop-color="${near}"/><stop offset="1" stop-color="${far}"/></linearGradient></defs>
       ${steps}<rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#3a2c1c" stroke-width="2"/><text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${t.dir === "up" ? "#3a2c1c" : "#f1e6cf"}" stroke="${t.dir === "up" ? "#f3ead6" : "#000"}" stroke-width="2" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${t.dir === "up" ? "▲" : "▼"}</text>`;
   });
+  // Fireplaces (a stone hearth against the wall, a fire in it) and plain flues where a chimney passes through.
+  const hearth = (L.hearths || []).map(h => { const X = h.x * P, Y = h.y * P, d = 0.42 * P, s = 0.1 * P, horiz = h.side === "t" || h.side === "b";
+    const box = h.side === "t" ? [X + s, Y, P - 2 * s, d] : h.side === "b" ? [X + s, Y + P - d, P - 2 * s, d] : h.side === "l" ? [X, Y + s, d, P - 2 * s] : [X + P - d, Y + s, d, P - 2 * s];
+    if (!h.fire) return `<rect x="${box[0]}" y="${box[1]}" width="${box[2]}" height="${box[3]}" fill="#8d8478" stroke="#2b2520" stroke-width="2"/>`;
+    const apron = h.side === "t" ? [X + s / 2, Y + d - 2, P - s, P * 0.22] : h.side === "b" ? [X + s / 2, Y + P - d - P * 0.22 + 2, P - s, P * 0.22] : h.side === "l" ? [X + d - 2, Y + s / 2, P * 0.22, P - s] : [X + P - d - P * 0.22 + 2, Y + s / 2, P * 0.22, P - s];
+    const fb = [box[0] + (horiz ? P * 0.14 : 4), box[1] + (horiz ? 4 : P * 0.14), box[2] - (horiz ? P * 0.28 : 8), box[3] - (horiz ? 8 : P * 0.28)], fx = fb[0] + fb[2] / 2, fy = fb[1] + fb[3] / 2, big = h.k === "forge" ? 1.4 : 1;
+    return `<rect x="${apron[0]}" y="${apron[1]}" width="${apron[2]}" height="${apron[3]}" fill="#9d968a" stroke="#2b2520" stroke-width="1.5"/>
+      <rect x="${box[0]}" y="${box[1]}" width="${box[2]}" height="${box[3]}" fill="#7d7266" stroke="#2b2520" stroke-width="2"/><rect x="${fb[0]}" y="${fb[1]}" width="${fb[2]}" height="${fb[3]}" fill="#1e1a16"/>
+      <circle cx="${fx}" cy="${fy}" r="${P * 0.13 * big}" fill="#e0762a" opacity=".9"/><circle cx="${fx}" cy="${fy}" r="${P * 0.07 * big}" fill="#ffd36b"/>`; }).join("");
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
+  // Outside walls are twice as thick as inside ones. Doors to the outside get stone jambs; the front door a grand entrance.
+  const WI = 5, WE = 10, front = L.front || new Set();
   const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
-    if (L.doors.has(e.k) && !L.secret.has(e.k)) return ln(e.ext ? 6 : 4, "#8a6a44", "butt", ` opacity=".9"`);
-    if (L.wins.has(e.k)) return ln(9, "#2b2520", "square") + ln(3, "#bfe3f2", "butt");
-    return ln(e.ext ? 9 : 5, "#2b2520", "square"); }).join("");
+    if (front.has(e.k)) return "";
+    if (L.doors.has(e.k) && !L.secret.has(e.k)) { if (!e.ext) return ln(4, "#8a6a44", "butt", ` opacity=".9"`);
+      const h = e.y1 === e.y2, j = (x, y) => `<rect x="${x * P - 6}" y="${y * P - 6}" width="12" height="12" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`;
+      return ln(WE, "#3b2a1a", "butt") + ln(6, "#7a4a26", "butt") + j(e.x1, e.y1) + j(e.x2, e.y2); }
+    if (L.wins.has(e.k)) return ln(WE, "#2b2520", "square") + ln(3, "#bfe3f2", "butt");
+    return ln(e.ext ? WE : WI, "#2b2520", "square"); }).join("");
+  // The front door: double doors under a stone lintel, a pillar each side and a broad step outside.
+  let grand = "";
+  if (front.size) { const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
+    const pr = P * 0.25, pillar = cx => `<circle cx="${cx + 2}" cy="${y + P * 0.3 + 3}" r="${pr + 1}" fill="rgba(0,0,0,.35)"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr}" fill="#d8d0c0" stroke="#2b2520" stroke-width="2.5"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr * 0.7}" fill="none" stroke="rgba(43,37,32,.35)" stroke-width="1.5"/><circle cx="${cx - pr * 0.3}" cy="${y + P * 0.3 - pr * 0.3}" r="${pr * 0.35}" fill="#f4efe4"/>`;
+    grand = `<rect x="${x0 - P * 0.6}" y="${y + P * 0.45}" width="${x1 - x0 + P * 1.2}" height="${P * 0.45}" rx="3" fill="#958d80" stroke="#2b2520" stroke-width="2"/>
+      <rect x="${x0 - P * 0.85}" y="${y}" width="${x1 - x0 + P * 1.7}" height="${P * 0.55}" rx="3" fill="#aea697" stroke="#2b2520" stroke-width="2"/>
+      <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="${WE + 8}" fill="#6e5c48" stroke="#2b2520" stroke-width="2.5"/>
+      <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="3" fill="rgba(255,255,255,.18)"/>
+      <rect x="${x0 + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><rect x="${mx + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/>
+      <circle cx="${mx - 5}" cy="${y}" r="2" fill="#e8c27a"/><circle cx="${mx + 5}" cy="${y}" r="2" fill="#e8c27a"/>
+      ${pillar(x0 - P * 0.45)}${pillar(x1 + P * 0.45)}`; }
+  // What the tabletop will treat as walls, doors and windows, in its own colours.
+  let over = "";
+  if (overlay) {
+    over = edges.map(e => { const isD = L.doors.has(e.k), isW = L.wins.has(e.k), sec = L.secret.has(e.k);
+      const c = sec ? "#b06ad6" : isD ? "#c98b4a" : isW ? "#7fd0ff" : "#ff9a3c", dash = isW ? ` stroke-dasharray="10 4"` : "";
+      return `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${isD || isW ? 5 : 3}"${dash}/>`; }).join("");
+    over += edges.filter(e => L.doors.has(e.k) || L.wins.has(e.k)).map(e => { const sec = L.secret.has(e.k), isW = L.wins.has(e.k), cx = (e.x1 + e.x2) / 2 * P, cy = (e.y1 + e.y2) / 2 * P;
+      return `<circle cx="${cx}" cy="${cy}" r="${isW ? 6 : 8}" fill="rgba(12,14,19,.85)" stroke="${sec ? "#b06ad6" : isW ? "#7fd0ff" : "#e8c27a"}" stroke-width="2"${sec ? ` stroke-dasharray="3 2"` : ""}/>`; }).join("");
+    over += (L.stairs || []).map(t => `<rect x="${t.x * P + 2}" y="${t.y * P + 2}" width="${t.w * P - 4}" height="${t.h * P - 4}" fill="none" stroke="#ffd23c" stroke-width="2.5" stroke-dasharray="6 4"/>`).join("");
+  }
   const posts = porchI >= 0 ? (rm => { const pts = [[rm.x, rm.y + rm.h], [rm.x + rm.w, rm.y + rm.h]]; for (let x = rm.x + 2; x < rm.x + rm.w - 1; x += 2) pts.push([x, rm.y + rm.h]); return pts.map(([x, y]) => `<rect x="${x * P - 5}" y="${y * P - 5}" width="10" height="10" fill="#5a4330" stroke="#2b2520" stroke-width="2"/>`).join(""); })(L.rooms[porchI]) : "";
   // A room's name goes in its middle, or beside the stairs if they're in the way.
   const labAt = rm => { let x = rm.x + rm.w / 2, y = rm.y + rm.h / 2; const t = (L.stairs || []).find(q => x > q.x - 1 && x < q.x + q.w + 1 && y > q.y - 0.6 && y < q.y + q.h + 0.6 && q.x >= rm.x && q.x < rm.x + rm.w && q.y >= rm.y && q.y < rm.y + rm.h);
@@ -13015,7 +13087,8 @@ function genFloorSvg(B, L, labels, seed) {
       if (best === leftRoom) x = rm.x + leftRoom / 2; else if (best === rightRoom) x = t.x + t.w + rightRoom / 2; else if (best === upRoom) y = rm.y + upRoom / 2; else y = t.y + t.h + downRoom / 2; }
     return [x, y]; };
   const lab = labels ? L.rooms.map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W * P} ${H * P}" width="${W * P}" height="${H * P}"><defs>${clips}</defs>${rooms}${stairs}${walls}${posts}${lab}</svg>`;
+  const pd = GEN_PAD * P;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}"><defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${grand}${lab}${over}</svg>`;
 }
 // A hipped roof on every wing (and a lean-to over a porch), shingles each their own shade, maybe a chimney or two.
 function genRoofSvg(B, seed) {
@@ -13028,9 +13101,14 @@ function genRoofSvg(B, seed) {
   let out = F.wings.map(roof).join("");
   if (F.porch) { const g = F.porch, X = g.x * P, Y = g.y * P, W = g.w * P, H = g.h * P; let ln = ""; for (let y = Y + 6; y < Y + H; y += 7) ln += `<line x1="${X}" y1="${y}" x2="${X + W}" y2="${y}" stroke="rgba(0,0,0,.3)" stroke-width="1.2"/>`;
     out += `<rect x="${X}" y="${Y}" width="${W}" height="${H}" fill="${genHsl(hue[0], hue[1], hue[2] + 6, 0, r)}" stroke="#2b2520" stroke-width="4"/>${ln}`; }
-  const nch = r() < 0.75 ? 1 + (r() < 0.3 ? 1 : 0) : 0;
-  for (let i = 0; i < nch; i++) { const g = F.wings[Math.floor(r() * F.wings.length)], cx = (g.x + 0.7 + r() * (g.w - 1.4)) * P, cy = (g.y + 0.7 + r() * (g.h - 1.4)) * P;
-    out += `<rect x="${cx - P * .35}" y="${cy - P * .35}" width="${P * .7}" height="${P * .7}" fill="#7d7266" stroke="#2b2520" stroke-width="3"/><rect x="${cx - P * .18}" y="${cy - P * .18}" width="${P * .36}" height="${P * .36}" fill="#1e1a16"/>`; }
+  // A chimney over each fireplace stack, at the wall the hearth is against; two fires back to back share one wide chimney.
+  const off = { t: [0, -0.15], b: [0, 0.15], l: [-0.15, 0], r: [0.15, 0] }, pts = [];
+  (B.chimneys || []).forEach(st => { const [dx, dy] = off[st.side], px = st.x + 0.5 + dx, py = st.y + 0.5 + dy, near = pts.find(q => Math.hypot(q.x - px, q.y - py) < 0.5);
+    if (near) { near.x = (near.x + px) / 2; near.y = (near.y + py) / 2; near.n = 2; near.wide = st.side === "l" || st.side === "r" ? "y" : "x"; } else pts.push({ x: px, y: py, n: 1, side: st.side }); });
+  pts.forEach(q => { const w = q.n > 1 && q.wide === "y" ? 0.7 : q.n > 1 ? 1.1 : 0.7, h = q.n > 1 && q.wide === "y" ? 1.1 : 0.7, cx = q.x * P, cy = q.y * P;
+    const pots = q.n > 1 ? (q.wide === "y" ? [[0, -0.25], [0, 0.25]] : [[-0.25, 0], [0.25, 0]]) : [[0, 0]];
+    out += `<rect x="${cx - w * P / 2 + 3}" y="${cy - h * P / 2 + 4}" width="${w * P}" height="${h * P}" fill="rgba(0,0,0,.35)"/><rect x="${cx - w * P / 2}" y="${cy - h * P / 2}" width="${w * P}" height="${h * P}" fill="#7d7266" stroke="#2b2520" stroke-width="3"/>` +
+      pots.map(([a, b]) => `<rect x="${cx + a * P - P * .14}" y="${cy + b * P - P * .14}" width="${P * .28}" height="${P * .28}" fill="#1e1a16"/>`).join(""); });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${out}</svg>`;
 }
 // The yard: patchy grass with tufts, and a rough path from the door to the edge of the map with grass poking through.
@@ -13064,7 +13142,7 @@ function genPage(o) {
   const pathTop = oy + (F.porch ? F.porch.y + F.porch.h : F.main.y + F.main.h);
   objs.push({ id: id(), layer: "map", level: 0, x: 0, y: 0, w: W, h: H, img: genUrl(genYardSvg(W, H, { x: ox + fx - 0.25, y: pathTop, w: fw + 0.5 }, o.seed)) });
   B.levels.forEach(L => {
-    objs.push({ id: id(), layer: "map", level: L.level, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(genFloorSvg(B, L, false, o.seed)) });
+    objs.push({ id: id(), layer: "map", level: L.level, x: ox - GEN_PAD, y: oy - GEN_PAD, w: B.W + GEN_PAD * 2, h: B.H + GEN_PAD * 2, img: genUrl(genFloorSvg(B, L, false, o.seed)) });
     objs.push({ id: id(), layer: "gm", level: L.level, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${L.rooms.map(rm => `<text x="${(rm.x + rm.w / 2) * P}" y="${(rm.y + rm.h / 2) * P}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " (secret)" : ""}</text>`).join("")}</svg>`) });
     genEdges(L, B.W, B.H).forEach(e => { const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
       walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); });
@@ -13129,6 +13207,7 @@ function viewGen(camp, kind, type) {
         <label><span>Cellar</span>${seg("cellar", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
         <label><span>Shape</span>${seg("shape", [["auto", "Any"], ...Object.keys(T.shapes).map(k => [k, ({ rect: "Box", L: "L", U: "U", long: "Long" })[k]])])}</label>
         <label><span>Porch</span>${seg("porch", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
+        <label class="genchk"><input type="checkbox" data-act="genchk" data-k="overlay"${o.overlay ? " checked" : ""}> <span>Show walls, doors &amp; windows <small class="muted">as the tabletop will use them</small></span></label>
         <button class="btn" data-act="genroll">🎲 New layout</button>
         <label><span>Seed <small class="muted">the same seed makes the same building</small></span><input id="gen-seed" type="number" value="${o.seed}"></label>
         <hr>
@@ -13142,7 +13221,7 @@ function viewGen(camp, kind, type) {
 function genPreviewHtml(o) {
   const B = genBuilding(o), levels = B.levels.slice().sort((a, b) => b.level - a.level), rooms = B.levels.reduce((a, L) => a + L.rooms.filter(x => !x.circ && !x.porch).length, 0);
   return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms</span>${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
-    <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure><img src="${genUrl(genFloorSvg(B, L, true, o.seed))}" alt="${esc(L.name)}"><figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
+    <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure><img src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay))}" alt="${esc(L.name)}"><figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
 }
 const genRefresh = () => { const el = document.getElementById("genpreview"); if (el && GEN.o) el.innerHTML = genPreviewHtml(GEN.o); };
 const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.getElementById("gen-name"), t = document.getElementById("gen-tags"); if (n) o.name = n.value.trim(); if (t) o.tags = t.value.split(",").map(x => x.trim()).filter(Boolean); };
@@ -13178,6 +13257,7 @@ async function genPlace(camp, o) {
 document.addEventListener("click", async ev => {
   const b = ev.target.closest && ev.target.closest("[data-act^=gen]"); if (!b || !vCanEdit()) return; const a = b.dataset.act;
   if (a === "genopt" && GEN.o) { GEN.o[b.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); genRefresh(); return; }
+  if (a === "genchk" && GEN.o) { GEN.o[b.dataset.k] = b.checked; genRefresh(); return; }
   if (a === "genroll" && GEN.o) { GEN.o.seed = genSeed(); const s = document.getElementById("gen-seed"); if (s) s.value = GEN.o.seed; genRefresh(); return; }
   if (a === "gentagf") { GEN.tag = b.dataset.v; render(); return; }
   if (a === "gensave" && GEN.o) { genReadForm(); b.disabled = true; GEN.o.pid = await genSaveLib(GEN.o); b.disabled = false; b.textContent = "Save changes"; toast("Saved to your buildings."); return; }
