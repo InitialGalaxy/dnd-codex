@@ -12830,28 +12830,75 @@ function genBuilding(o) {
   let gRooms = []; F.wings.forEach((g, i) => { gRooms = gRooms.concat(genSlice(r, g, share[i], minD)); });
   if (F.porch) gRooms.push(Object.assign({ n: "Porch", k: "porch", porch: 1 }, F.porch));
   const entry = gRooms.find(x => x.entry) || gRooms[0];
-  // Stairs: two squares at the back of the entry room, as near the middle of the main block as it allows.
-  const longX = M.w >= M.h; let st = null;
-  if (floors > 1 || cellar) {
-    const sw = longX ? 2 : 1, sh = longX ? 1 : 2, left = r() < 0.5, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-    if (entry.w >= sw + 1 && entry.h >= sh + 1) st = longX ? { x: left ? entry.x : entry.x + entry.w - sw, y: clamp(M.y + Math.floor(M.h / 2) - (r() < 0.5 ? 1 : 0), entry.y, entry.y + entry.h - 2), w: sw, h: sh }
-      : { x: clamp(M.x + Math.floor(M.w / 2) - (r() < 0.5 ? 1 : 0), entry.x, entry.x + entry.w - 1), y: entry.y, w: sw, h: sh };
-    else st = { x: left ? M.x : M.x + M.w - sw, y: M.y, w: sw, h: sh };
+  // Stairs, after the guides on house plans: each run of stairs goes along a wall, starts and ends where people walk (the
+  // entry, a landing, the kitchen), keeps clear of doors, and each one joins just two floors. The way up from the ground floor
+  // is in the entry room near the middle of the main block (so the landing upstairs runs down the middle); each floor's way
+  // up is at the far end of its landing from the stairs that arrived there; the way down to the cellar starts in the kitchen
+  // or a store, away from the other stairs. A stair: { lo, x, y, w, h, toward } — it joins floors lo and lo + 1, and on the
+  // floor it was placed on you walk toward its "a" (left or top) or "b" end.
+  const longX = M.w >= M.h, stairs = [], fw = T.wide ? 2 : 1, frontY = M.y + M.h, mid = longX ? M.y + Math.floor(M.h / 2) - 1 : M.x + Math.floor(M.w / 2) - 1;
+  const cellsOf = t => { const out = []; for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) out.push(x + "," + y); return out; };
+  const near = t => { const out = new Set(); cellsOf(t).forEach(k => { const [x, y] = k.split(",").map(Number); for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) out.add((x + dx) + "," + (y + dy)); }); return out; };
+  let upFrom = null; // the stairs arriving on the floor being laid out
+  if (floors > 1) { const s0 = genStairSpot(r, entry, { longX, within: M, mid, frontY, avoid: new Set(), near: new Set() }) || genStairSpot(r, M, { longX, within: M, mid, avoid: new Set(), near: new Set() });
+    if (s0) { s0.lo = 0; stairs.push(s0); upFrom = s0; } }
+  let down = null;
+  if (cellar) {
+    const busy = new Set(stairs.flatMap(cellsOf)), nearBusy = new Set(stairs.flatMap(t => [...near(t)])), inM = rm => rm.x >= M.x && rm.y >= M.y && rm.x + rm.w <= M.x + M.w && rm.y + rm.h <= M.y + M.h;
+    const service = gRooms.filter(x => inM(x) && ["kitchen", "store", "work", "forge"].includes(x.k)).sort((a, b) => (a.k === "kitchen" ? 0 : 1) - (b.k === "kitchen" ? 0 : 1));
+    for (const rm of service.concat(gRooms.filter(x => inM(x) && !x.porch && !service.includes(x)))) { down = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: M, frontY, avoid: busy, near: nearBusy }); if (down) break; }
+    if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); }
   }
   levels.push({ level: 0, rooms: gRooms, name: "Ground floor" });
   for (let f = 1; f < floors; f++) {
     let rooms = genPick(r, T.upper).concat(f === 1 ? at("upper") : []); if (!rooms.length) rooms = [{ n: "Upstairs room", k: "living", w: 1 }];
     const sh = genShare(r, F, rooms, { n: "Storage", k: "store" }); let list = [];
-    F.wings.forEach((g, i) => { list = list.concat(i === 0 ? genUpper(r, g, st, sh[i], minD, T.hall || 1) : genSlice(r, g, sh[i], minD)); });
+    F.wings.forEach((g, i) => { list = list.concat(i === 0 ? genUpper(r, g, upFrom, sh[i], minD, T.hall || 1) : genSlice(r, g, sh[i], minD)); });
     levels.push({ level: f, rooms: list, name: f === 1 ? "First floor" : f === 2 ? "Second floor" : `Floor ${f + 1}` });
+    if (f < floors - 1 && upFrom) { // the next way up: the far end of this floor's landing
+      const c = list.find(x => x.circ), arr = upFrom; let nx = null;
+      if (c) { const lx = arr.w >= arr.h; const t = lx ? { x: (arr.x - c.x < c.x + c.w - arr.x - arr.w) ? c.x + c.w - arr.w : c.x, y: arr.y, w: arr.w, h: arr.h } : { x: arr.x, y: (arr.y - c.y < c.y + c.h - arr.y - arr.h) ? c.y + c.h - arr.h : c.y, w: arr.w, h: arr.h };
+        if (!cellsOf(t).some(k => cellsOf(arr).includes(k))) nx = Object.assign(t, { toward: lx ? (t.x + t.w === c.x + c.w ? "b" : "a") : (t.y + t.h === c.y + c.h ? "b" : "a") }); }
+      if (!nx) { const big = list.filter(x => !x.circ).sort((a, b) => b.w * b.h - a.w * a.h)[0]; nx = big && genStairSpot(r, big, { longX, within: M, avoid: new Set(cellsOf(arr)), near: near(arr) }); }
+      if (!nx) nx = Object.assign({}, arr); // nowhere else: right above the last ones
+      nx.lo = f; stairs.push(nx); upFrom = nx;
+    }
   }
-  if (cellar) { const rooms = genPick(r, T.under).concat(at("under")); levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, st, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0] || { n: "Cellar", k: "cellar" }, M)], name: "Cellar" }); }
+  if (cellar) { const rooms = genPick(r, T.under).concat(at("under")); levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0] || { n: "Cellar", k: "cellar" }, M)], name: "Cellar" }); }
+  // Each floor's stairs: going up the ones from this floor, going down the ones arriving from below... and which way you walk.
+  levels.forEach(L => { L.stairs = stairs.filter(t => t.lo === L.level || t.lo + 1 === L.level).map(t => { const onPlaced = t.placedUpper ? L.level === t.lo + 1 : L.level === t.lo;
+    return Object.assign({}, t, { dir: L.level === t.lo ? "up" : "down", toward: onPlaced ? t.toward : (t.toward === "a" ? "b" : "a") }); }); });
   // Doors (a tree from the room with the stairs or the front door, so every room can be reached) and windows.
-  const fw = T.wide ? 2 : 1, front = { x: Math.max(entry.x, Math.min(entry.x + entry.w - fw, (F.porch ? Math.max(entry.x, F.porch.x) + Math.floor((Math.min(entry.x + entry.w, F.porch.x + F.porch.w) - Math.max(entry.x, F.porch.x) - fw) / 2) : entry.x + Math.floor((entry.w - fw) / 2)))), w: fw, y: M.y + M.h };
-  levels.forEach(L => genOpenings(r, L, F, st, L.level === 0 ? front : null));
+  const stairCols = new Set(levels.find(L => L.level === 0).stairs.filter(t => t.y + t.h >= frontY).flatMap(t => Array.from({ length: t.w }, (_, i) => t.x + i)));
+  let fx0 = F.porch ? Math.max(entry.x, F.porch.x) + Math.floor((Math.min(entry.x + entry.w, F.porch.x + F.porch.w) - Math.max(entry.x, F.porch.x) - fw) / 2) : entry.x + Math.floor((entry.w - fw) / 2);
+  fx0 = Math.max(entry.x, Math.min(entry.x + entry.w - fw, fx0)); for (let k = 0; k < entry.w && [...Array(fw).keys()].some(i => stairCols.has(fx0 + i)); k++) fx0 = entry.x + ((fx0 - entry.x + 1) % Math.max(1, entry.w - fw + 1));
+  const front = { x: fx0, w: fw, y: frontY };
+  levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
   // The unusual rooms that made it in (one upstairs needs an upstairs, one below a cellar).
   const placed = [...new Set(levels.flatMap(L => L.rooms.filter(x => x.rare).map(x => x.n)))];
-  return { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs: st, levels, rare: placed };
+  return { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs, levels, rare: placed };
+}
+// Where a stair (two squares) goes in a room: along one of its walls, best with its long side to the wall, clear of the
+// front door's row, not on or right beside other stairs, near the middle line if asked. Its "toward" end is the one at a wall.
+function genStairSpot(r, room, o) {
+  const sw = o.longX ? 2 : 1, sh = o.longX ? 1 : 2; let best = null;
+  for (let y = room.y; y <= room.y + room.h - sh; y++) for (let x = room.x; x <= room.x + room.w - sw; x++) {
+    if (o.within && (x < o.within.x || y < o.within.y || x + sw > o.within.x + o.within.w || y + sh > o.within.y + o.within.h)) continue;
+    const cells = []; for (let a = 0; a < sw; a++) for (let b = 0; b < sh; b++) cells.push((x + a) + "," + (y + b));
+    if (cells.some(c => o.avoid && o.avoid.has(c))) continue;
+    const T = y === room.y, Bo = y + sh === room.y + room.h, Le = x === room.x, Ri = x + sw === room.x + room.w;
+    const longSide = o.longX ? (T || Bo) : (Le || Ri), endSide = o.longX ? (Le || Ri) : (T || Bo);
+    if (!longSide && !endSide) continue;
+    if (room.w <= sw || room.h <= sh) { /* a room only as big as the stairs: fine */ }
+    let sc = (longSide ? 3 : 0) + (endSide ? 2 : 0) + r() * 0.8;
+    if (o.mid != null) sc -= Math.abs((o.longX ? y : x) - o.mid) * 2.2; // a landing down the middle upstairs, not along an outside wall
+    if (o.frontY != null && y + sh >= o.frontY - 1) sc -= 4;
+    if (cells.some(c => o.near && o.near.has(c))) sc -= 3;
+    if (!best || sc > best.sc) { const cx = room.x + room.w / 2, cy = room.y + room.h / 2;
+      const toward = o.longX ? (Le && !Ri ? "a" : Ri && !Le ? "b" : (Math.abs(x - cx) > Math.abs(x + sw - cx) ? "a" : "b")) : (T && !Bo ? "a" : Bo && !T ? "b" : (Math.abs(y - cy) > Math.abs(y + sh - cy) ? "a" : "b"));
+      best = { sc, x, y, w: sw, h: sh, toward }; }
+  }
+  if (!best) return null; delete best.sc; return best;
 }
 // The main block upstairs (or a busy cellar): a landing or corridor through the stairs, with rooms either side of it.
 function genUpper(r, R, st, rooms, minD, cw, landName) {
@@ -12870,24 +12917,27 @@ function genUpper(r, R, st, rooms, minD, cw, landName) {
   return [Object.assign({ n: landName || (cw > 1 ? "Corridor" : "Landing"), k: "landing", circ: 1 }, c)].concat(...bands.map((b, i) => genStrip(r, b, parts[i], minD)));
 }
 // Unit wall edges: "h,x,y" is the edge along the top of square (x, y); "v,x,y" along its left side.
-function genOpenings(r, L, F, st, front) {
+function genOpenings(r, L, F, stairs, front) {
   const W = F.W, H = F.H, own = (x, y) => { if (x < 0 || y < 0 || x >= W || y >= H) return -1; return L.rooms.findIndex(rm => x >= rm.x && x < rm.x + rm.w && y >= rm.y && y < rm.y + rm.h); };
   L.own = own; L.doors = new Set(); L.wins = new Set(); L.front = new Set(); L.secret = new Set();
   const isPorch = i => i >= 0 && L.rooms[i].porch;
   const shared = (a, b) => { const out = []; L.rooms.forEach((rm, i) => { if (i !== a) return;
       for (let x = rm.x; x < rm.x + rm.w; x++) { if (own(x, rm.y - 1) === b) out.push(`h,${x},${rm.y}`); if (own(x, rm.y + rm.h) === b) out.push(`h,${x},${rm.y + rm.h}`); }
       for (let y = rm.y; y < rm.y + rm.h; y++) { if (own(rm.x - 1, y) === b) out.push(`v,${rm.x},${y}`); if (own(rm.x + rm.w, y) === b) out.push(`v,${rm.x + rm.w},${y}`); } }); return out; };
-  const n = L.rooms.length, inStairs = rm => st && st.x >= rm.x && st.x < rm.x + rm.w && st.y >= rm.y && st.y < rm.y + rm.h;
+  const st = (stairs || [])[0], n = L.rooms.length, inStairs = rm => st && st.x >= rm.x && st.x < rm.x + rm.w && st.y >= rm.y && st.y < rm.y + rm.h;
+  const stairSq = new Set(); (stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) stairSq.add(x + "," + y); });
+  const onStairs = k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); return d === "h" ? stairSq.has(x + "," + (y - 1)) || stairSq.has(x + "," + y) : stairSq.has((x - 1) + "," + y) || stairSq.has(x + "," + y); };
   let root = L.rooms.findIndex(x => x.circ); if (root < 0) root = L.level === 0 ? L.rooms.findIndex(x => x.entry) : L.rooms.findIndex(inStairs); if (root < 0) root = 0;
   if (L.rooms[root] && L.rooms[root].secret) L.rooms[root].secret = 0; // the stairs are never in a secret room
   // A tree of doors from the root through the ordinary rooms; then each secret room gets one secret door from a room already
   // reached; then anything left (only reachable through a secret room) carries on from there.
   const seen = new Set([root]);
-  const connect = secretPass => { const q = [...seen]; while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
-      if (seen.has(b) || isPorch(b) || !!L.rooms[b].secret !== secretPass) continue; const e = shared(a, b); if (!e.length) continue;
+  const connect = (secretPass, byStairs) => { const q = [...seen]; while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
+      if (seen.has(b) || isPorch(b) || !!L.rooms[b].secret !== secretPass) continue; let e = shared(a, b); if (!e.length) continue;
+      const clear = e.filter(k => !onStairs(k)); if (clear.length) e = clear; else if (!byStairs) continue; // doors don't open onto the stairs, unless there's no other way
       const mid = e.filter((_, i) => e.length < 3 || (i > 0 && i < e.length - 1)), list = mid.length ? mid : e, pick = list[Math.floor(r() * list.length)];
       L.doors.add(pick); if (secretPass) L.secret.add(pick); seen.add(b); if (!secretPass) q.push(b); } } };
-  connect(false); connect(true); connect(false);
+  connect(false, false); connect(false, true); connect(true, false); connect(true, true); connect(false, false); connect(false, true);
   if (front) for (let i = 0; i < front.w; i++) { const k = `h,${front.x + i},${front.y}`; L.doors.add(k); L.front.add(k); }
   if (L.level === 0) { const back = L.rooms.find(x => x.back && own(x.x + Math.floor(x.w / 2), x.y - 1) < 0); if (back && r() < 0.55) L.doors.add(`h,${back.x + Math.floor(back.w / 2)},${back.y}`); }
   if (L.level < 0) return; // cellars have no windows
@@ -12941,18 +12991,16 @@ function genFloorSvg(B, L, labels, seed) {
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
   const clips = L.rooms.map(rm => `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`).join("");
   const rooms = L.rooms.map(rm => genFloorDetail(r, rm, GEN_KIND[rm.k] || "wood", P)).join("");
-  // Stairs on every floor they reach. It's one staircase: its low end (the left, or the top) is darker on every floor, ▲ marks
-  // the end you walk to to go up and ▼ the end to go down.
-  let stairs = ""; const st = B.stairs, lo = B.cellar ? -1 : 0, hi = B.floors - 1;
-  if (st && L.level >= lo && L.level <= hi && hi > lo) {
-    const along = st.w >= st.h, n = 6, X = st.x * P, Y = st.y * P, Wd = st.w * P, Hd = st.h * P, gid = "gst" + (L.level + 5);
-    const up = L.level < hi, down = L.level > lo;
-    const steps = Array.from({ length: n - 1 }, (_, i) => along ? `<line x1="${X + Wd * (i + 1) / n}" y1="${Y}" x2="${X + Wd * (i + 1) / n}" y2="${Y + Hd}" stroke="#4a3a28" stroke-width="1.6"/>` : `<line x1="${X}" y1="${Y + Hd * (i + 1) / n}" x2="${X + Wd}" y2="${Y + Hd * (i + 1) / n}" stroke="#4a3a28" stroke-width="1.6"/>`).join("");
-    const mark = (t, atHigh) => { const cx = along ? (atHigh ? X + Wd - P * 0.28 : X + P * 0.28) : X + Wd / 2, cy = along ? Y + Hd / 2 : (atHigh ? Y + Hd - P * 0.28 : Y + P * 0.28);
-      return `<text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${atHigh ? "#3a2c1c" : "#f1e6cf"}" text-anchor="middle" dominant-baseline="central">${t}</text>`; };
-    stairs = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="${along ? 1 : 0}" y2="${along ? 0 : 1}"><stop offset="0" stop-color="#6b5640"/><stop offset="1" stop-color="#eadfc6"/></linearGradient></defs>
-      <rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#4a3a28" stroke-width="2"/>${steps}${up ? mark("▲", true) : ""}${down ? mark("▼", false) : ""}`;
-  }
+  // This floor's stairs. Going up they get lighter towards the end you walk to (▲ there); going down, darker (▼).
+  let stairs = "";
+  (L.stairs || []).forEach((t, i) => {
+    const along = t.w >= t.h, n = 6, X = t.x * P, Y = t.y * P, Wd = t.w * P, Hd = t.h * P, gid = `gst${L.level + 5}_${i}`, toB = t.toward === "b";
+    const near = t.dir === "up" ? "#8c7458" : "#eadfc6", far = t.dir === "up" ? "#f3ead6" : "#4e3d2b";
+    const steps = Array.from({ length: n - 1 }, (_, j) => along ? `<line x1="${X + Wd * (j + 1) / n}" y1="${Y}" x2="${X + Wd * (j + 1) / n}" y2="${Y + Hd}" stroke="#4a3a28" stroke-width="1.6"/>` : `<line x1="${X}" y1="${Y + Hd * (j + 1) / n}" x2="${X + Wd}" y2="${Y + Hd * (j + 1) / n}" stroke="#4a3a28" stroke-width="1.6"/>`).join("");
+    const cx = along ? (toB ? X + Wd - P * 0.28 : X + P * 0.28) : X + Wd / 2, cy = along ? Y + Hd / 2 : (toB ? Y + Hd - P * 0.28 : Y + P * 0.28);
+    stairs += `<defs><linearGradient id="${gid}" x1="${along ? (toB ? 0 : 1) : 0}" y1="${along ? 0 : (toB ? 0 : 1)}" x2="${along ? (toB ? 1 : 0) : 0}" y2="${along ? 0 : (toB ? 1 : 0)}"><stop offset="0" stop-color="${near}"/><stop offset="1" stop-color="${far}"/></linearGradient></defs>
+      <rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#4a3a28" stroke-width="2"/>${steps}<text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${t.dir === "up" ? "#3a2c1c" : "#f1e6cf"}" text-anchor="middle" dominant-baseline="central">${t.dir === "up" ? "▲" : "▼"}</text>`;
+  });
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
   const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
     if (L.doors.has(e.k) && !L.secret.has(e.k)) return ln(e.ext ? 6 : 4, "#8a6a44", "butt", ` opacity=".9"`);
@@ -12960,7 +13008,7 @@ function genFloorSvg(B, L, labels, seed) {
     return ln(e.ext ? 9 : 5, "#2b2520", "square"); }).join("");
   const posts = porchI >= 0 ? (rm => { const pts = [[rm.x, rm.y + rm.h], [rm.x + rm.w, rm.y + rm.h]]; for (let x = rm.x + 2; x < rm.x + rm.w - 1; x += 2) pts.push([x, rm.y + rm.h]); return pts.map(([x, y]) => `<rect x="${x * P - 5}" y="${y * P - 5}" width="10" height="10" fill="#5a4330" stroke="#2b2520" stroke-width="2"/>`).join(""); })(L.rooms[porchI]) : "";
   // A room's name goes in its middle, or beside the stairs if they're in the way.
-  const labAt = rm => { let x = rm.x + rm.w / 2, y = rm.y + rm.h / 2; const t = st && stairs ? st : null;
+  const labAt = rm => { let x = rm.x + rm.w / 2, y = rm.y + rm.h / 2; const t = (L.stairs || []).find(q => x > q.x - 1 && x < q.x + q.w + 1 && y > q.y - 0.6 && y < q.y + q.h + 0.6 && q.x >= rm.x && q.x < rm.x + rm.w && q.y >= rm.y && q.y < rm.y + rm.h);
     if (t && x > t.x - 1 && x < t.x + t.w + 1 && y > t.y - 0.6 && y < t.y + t.h + 0.6) {
       const leftRoom = t.x - rm.x, rightRoom = rm.x + rm.w - (t.x + t.w), upRoom = t.y - rm.y, downRoom = rm.y + rm.h - (t.y + t.h), best = Math.max(leftRoom, rightRoom, upRoom, downRoom);
       if (best === leftRoom) x = rm.x + leftRoom / 2; else if (best === rightRoom) x = t.x + t.w + rightRoom / 2; else if (best === upRoom) y = rm.y + upRoom / 2; else y = t.y + t.h + downRoom / 2; }
@@ -13027,7 +13075,8 @@ function genPage(o) {
   objs.push({ id: id(), layer: "map", level: roofLvl, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(genRoofSvg(B, o.seed)) });
   areas.push({ id: vid("a"), level: roofLvl, cells: cells(F.body) });
   if (porchCells.length) areas.push({ id: vid("a"), level: roofLvl, cells: cells(new Set(porchCells)) }); // its own roof: stepping onto the porch lifts only that
-  if (B.stairs) { const lo = B.cellar ? -1 : 0, lv = []; for (let l = lo; l <= B.floors - 1; l++) lv.push(l); if (lv.length > 1) links.push({ id: vid("l"), kind: "stairs", x: ox + B.stairs.x, y: oy + B.stairs.y, w: B.stairs.w, h: B.stairs.h, levels: lv }); }
+  // One stairs link per staircase: each joins its two floors only.
+  (B.stairs || []).forEach(t => links.push({ id: vid("l"), kind: "stairs", x: ox + t.x, y: oy + t.y, w: t.w, h: t.h, levels: [t.lo, t.lo + 1] }));
   return { B, page: { w: W, h: H, bg: "#6f8f4f", grid: true, light: false, fogMem: true, objs, walls: genMergeWalls(walls), areas, links, levelNames: names, minLevel: B.cellar ? -1 : 0, maxLevel: roofLvl } };
 }
 function genMergeWalls(walls) {
