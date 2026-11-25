@@ -212,7 +212,11 @@ function genBuilding(o) {
   levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
   // The unusual rooms that made it in (one upstairs needs an upstairs, one below a cellar).
   const placed = [...new Set(levels.flatMap(L => L.rooms.filter(x => x.rare).map(x => x.n)))];
-  const B = { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs, levels, rare: placed };
+  // How fine the front door is: a plain door for a small cottage or shop, a framed one for a solid house, a grand entrance
+  // with pillars for a big house, a large tavern, a guild hall or a temple.
+  const doorScore = ({ small: 0, medium: 1, large: 2 })[o.size] ?? 1, doorBonus = ({ guild: 1, temple: 1, tavern: 0.5, blacksmith: -0.5, tailor: -0.5, general: -0.5 })[T.id] || 0;
+  const doorTier = doorScore + doorBonus >= 2 ? "grand" : doorScore + doorBonus >= 1 ? "framed" : "plain";
+  const B = { type: T.id, W: F.W, H: F.H, F, floors, cellar, stairs, levels, rare: placed, doorTier };
   genHearths(o, B); return B;
 }
 // Fireplaces: the rooms that would have a fire get a hearth against a wall, an outside wall if they can (that's where the
@@ -238,6 +242,7 @@ function genHearths(o, B) {
       for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) sides.forEach(([sd, dx, dy, key]) => {
         const nx = x + dx, ny = y + dy; if (L.own(nx, ny) === i || blocked(x, y)) return; const k = key(x, y); if (L.wins.has(k) || L.doors.has(k)) return;
         const nb = L.own(nx, ny); if (nb >= 0 && L.rooms[nb].porch) return;
+        if (L.front && L.front.size && sd === "b" && [...L.front].some(fk => { const [, fx, fy] = fk.split(",").map(Number); return fy === y + 1 && Math.abs(fx - x) <= 2; })) return; // clear of the front door's frame
         const along = dx ? rm.h : rm.w, pos = dx ? y - rm.y : x - rm.x, mid = 1 - Math.abs(pos - (along - 1) / 2) / Math.max(1, along / 2);
         let sc = (ext(L, nx, ny) ? 3 : 0) + mid * 1.5 + r() * 0.6;
         if (L.hearths.some(h => h.fire && h.x === nx && h.y === ny)) sc += 5; // back to back with the fire next door
@@ -396,15 +401,24 @@ function genFloorSvg(B, L, labels, seed, overlay) {
     return ln(e.ext ? WE : WI, "#2b2520", "square"); }).join("");
   // The front door: double doors under a stone lintel, a pillar each side and a broad step outside.
   let grand = "";
-  if (front.size) { const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
-    const pr = P * 0.25, pillar = cx => `<circle cx="${cx + 2}" cy="${y + P * 0.3 + 3}" r="${pr + 1}" fill="rgba(0,0,0,.35)"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr}" fill="#d8d0c0" stroke="#2b2520" stroke-width="2.5"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr * 0.7}" fill="none" stroke="rgba(43,37,32,.35)" stroke-width="1.5"/><circle cx="${cx - pr * 0.3}" cy="${y + P * 0.3 - pr * 0.3}" r="${pr * 0.35}" fill="#f4efe4"/>`;
+  if (front.size) { const tier = B.doorTier || "grand"; const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
+    const leaves = tier === "grand" || x1 - x0 > P * 1.5
+      ? `<rect x="${x0 + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><rect x="${mx + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${mx - 5}" cy="${y}" r="2" fill="#e8c27a"/><circle cx="${mx + 5}" cy="${y}" r="2" fill="#e8c27a"/>`
+      : `<rect x="${x0 + 2}" y="${y - 4}" width="${x1 - x0 - 4}" height="8" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${x1 - 8}" cy="${y}" r="1.8" fill="${tier === "plain" ? "#3a3530" : "#c9a45e"}"/>`;
+    if (tier === "plain") // a plain door: a timber frame in the wall and one rough doorstep
+      grand = `<rect x="${x0 - P * 0.12}" y="${y}" width="${x1 - x0 + P * 0.24}" height="${P * 0.3}" rx="4" fill="#9a9283" stroke="#2b2520" stroke-width="1.5"/>
+        <rect x="${x0 - 4}" y="${y - WE / 2}" width="${x1 - x0 + 8}" height="${WE}" fill="#5a4330" stroke="#2b2520" stroke-width="1.5"/>${leaves}`;
+    else if (tier === "framed") { // a framed door: a heavy lintel, a squared post each side and a stone step
+      const post = cx => `<rect x="${cx - P * 0.13}" y="${y - P * 0.13}" width="${P * 0.26}" height="${P * 0.26}" fill="#6e5236" stroke="#2b2520" stroke-width="2"/><rect x="${cx - P * 0.13}" y="${y - P * 0.13}" width="${P * 0.26}" height="3" fill="rgba(255,255,255,.18)"/>`;
+      grand = `<rect x="${x0 - P * 0.4}" y="${y}" width="${x1 - x0 + P * 0.8}" height="${P * 0.42}" rx="3" fill="#a8a092" stroke="#2b2520" stroke-width="2"/>
+        <rect x="${x0 - P * 0.3}" y="${y - WE / 2 - 2}" width="${x1 - x0 + P * 0.6}" height="${WE + 4}" fill="#5f4630" stroke="#2b2520" stroke-width="2"/>${leaves}${post(x0 - P * 0.17)}${post(x1 + P * 0.17)}`; }
+    else {    const pr = P * 0.25, pillar = cx => `<circle cx="${cx + 2}" cy="${y + P * 0.3 + 3}" r="${pr + 1}" fill="rgba(0,0,0,.35)"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr}" fill="#d8d0c0" stroke="#2b2520" stroke-width="2.5"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr * 0.7}" fill="none" stroke="rgba(43,37,32,.35)" stroke-width="1.5"/><circle cx="${cx - pr * 0.3}" cy="${y + P * 0.3 - pr * 0.3}" r="${pr * 0.35}" fill="#f4efe4"/>`;
     grand = `<rect x="${x0 - P * 0.6}" y="${y + P * 0.45}" width="${x1 - x0 + P * 1.2}" height="${P * 0.45}" rx="3" fill="#958d80" stroke="#2b2520" stroke-width="2"/>
       <rect x="${x0 - P * 0.85}" y="${y}" width="${x1 - x0 + P * 1.7}" height="${P * 0.55}" rx="3" fill="#aea697" stroke="#2b2520" stroke-width="2"/>
       <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="${WE + 8}" fill="#6e5c48" stroke="#2b2520" stroke-width="2.5"/>
       <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="3" fill="rgba(255,255,255,.18)"/>
-      <rect x="${x0 + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><rect x="${mx + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/>
-      <circle cx="${mx - 5}" cy="${y}" r="2" fill="#e8c27a"/><circle cx="${mx + 5}" cy="${y}" r="2" fill="#e8c27a"/>
-      ${pillar(x0 - P * 0.45)}${pillar(x1 + P * 0.45)}`; }
+      ${leaves}
+      ${pillar(x0 - P * 0.45)}${pillar(x1 + P * 0.45)}`; } }
   // What the tabletop will treat as walls, doors and windows, in its own colours.
   let over = "";
   if (overlay) {
