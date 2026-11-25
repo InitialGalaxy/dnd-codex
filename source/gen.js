@@ -277,17 +277,31 @@ function genFloorSvg(B, L, labels, seed) {
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
   const clips = L.rooms.map(rm => `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`).join("");
   const rooms = L.rooms.map(rm => genFloorDetail(r, rm, GEN_KIND[rm.k] || "wood", P)).join("");
-  let stairs = ""; const st = B.stairs;
-  if (st && (L.level < B.floors - 1 || L.level < 0 || (L.level === 0 && B.cellar))) { const along = st.w >= st.h, n = 6;
-    stairs = `<g><rect x="${st.x * P}" y="${st.y * P}" width="${st.w * P}" height="${st.h * P}" fill="#e2d5b8" stroke="#5a4a36" stroke-width="2"/>${Array.from({ length: n - 1 }, (_, i) => along ? `<line x1="${(st.x + st.w * (i + 1) / n) * P}" y1="${st.y * P}" x2="${(st.x + st.w * (i + 1) / n) * P}" y2="${(st.y + st.h) * P}" stroke="#5a4a36" stroke-width="1.5"/>` : `<line x1="${st.x * P}" y1="${(st.y + st.h * (i + 1) / n) * P}" x2="${(st.x + st.w) * P}" y2="${(st.y + st.h * (i + 1) / n) * P}" stroke="#5a4a36" stroke-width="1.5"/>`).join("")}</g>`; }
-  else if (st && L.level > 0) stairs = `<rect x="${st.x * P}" y="${st.y * P}" width="${st.w * P}" height="${st.h * P}" fill="#e2d5b8" stroke="#5a4a36" stroke-width="2" stroke-dasharray="5 4"/>`;
+  // Stairs on every floor they reach. It's one staircase: its low end (the left, or the top) is darker on every floor, ▲ marks
+  // the end you walk to to go up and ▼ the end to go down.
+  let stairs = ""; const st = B.stairs, lo = B.cellar ? -1 : 0, hi = B.floors - 1;
+  if (st && L.level >= lo && L.level <= hi && hi > lo) {
+    const along = st.w >= st.h, n = 6, X = st.x * P, Y = st.y * P, Wd = st.w * P, Hd = st.h * P, gid = "gst" + (L.level + 5);
+    const up = L.level < hi, down = L.level > lo;
+    const steps = Array.from({ length: n - 1 }, (_, i) => along ? `<line x1="${X + Wd * (i + 1) / n}" y1="${Y}" x2="${X + Wd * (i + 1) / n}" y2="${Y + Hd}" stroke="#4a3a28" stroke-width="1.6"/>` : `<line x1="${X}" y1="${Y + Hd * (i + 1) / n}" x2="${X + Wd}" y2="${Y + Hd * (i + 1) / n}" stroke="#4a3a28" stroke-width="1.6"/>`).join("");
+    const mark = (t, atHigh) => { const cx = along ? (atHigh ? X + Wd - P * 0.28 : X + P * 0.28) : X + Wd / 2, cy = along ? Y + Hd / 2 : (atHigh ? Y + Hd - P * 0.28 : Y + P * 0.28);
+      return `<text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${atHigh ? "#3a2c1c" : "#f1e6cf"}" text-anchor="middle" dominant-baseline="central">${t}</text>`; };
+    stairs = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="${along ? 1 : 0}" y2="${along ? 0 : 1}"><stop offset="0" stop-color="#6b5640"/><stop offset="1" stop-color="#eadfc6"/></linearGradient></defs>
+      <rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#4a3a28" stroke-width="2"/>${steps}${up ? mark("▲", true) : ""}${down ? mark("▼", false) : ""}`;
+  }
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
   const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
     if (L.doors.has(e.k) && !L.secret.has(e.k)) return ln(e.ext ? 6 : 4, "#8a6a44", "butt", ` opacity=".9"`);
     if (L.wins.has(e.k)) return ln(9, "#2b2520", "square") + ln(3, "#bfe3f2", "butt");
     return ln(e.ext ? 9 : 5, "#2b2520", "square"); }).join("");
   const posts = porchI >= 0 ? (rm => { const pts = [[rm.x, rm.y + rm.h], [rm.x + rm.w, rm.y + rm.h]]; for (let x = rm.x + 2; x < rm.x + rm.w - 1; x += 2) pts.push([x, rm.y + rm.h]); return pts.map(([x, y]) => `<rect x="${x * P - 5}" y="${y * P - 5}" width="10" height="10" fill="#5a4330" stroke="#2b2520" stroke-width="2"/>`).join(""); })(L.rooms[porchI]) : "";
-  const lab = labels ? L.rooms.map(rm => `<text x="${(rm.x + rm.w / 2) * P}" y="${(rm.y + rm.h / 2) * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
+  // A room's name goes in its middle, or beside the stairs if they're in the way.
+  const labAt = rm => { let x = rm.x + rm.w / 2, y = rm.y + rm.h / 2; const t = st && stairs ? st : null;
+    if (t && x > t.x - 1 && x < t.x + t.w + 1 && y > t.y - 0.6 && y < t.y + t.h + 0.6) {
+      const leftRoom = t.x - rm.x, rightRoom = rm.x + rm.w - (t.x + t.w), upRoom = t.y - rm.y, downRoom = rm.y + rm.h - (t.y + t.h), best = Math.max(leftRoom, rightRoom, upRoom, downRoom);
+      if (best === leftRoom) x = rm.x + leftRoom / 2; else if (best === rightRoom) x = t.x + t.w + rightRoom / 2; else if (best === upRoom) y = rm.y + upRoom / 2; else y = t.y + t.h + downRoom / 2; }
+    return [x, y]; };
+  const lab = labels ? L.rooms.map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W * P} ${H * P}" width="${W * P}" height="${H * P}"><defs>${clips}</defs>${rooms}${stairs}${walls}${posts}${lab}</svg>`;
 }
 // A hipped roof on every wing (and a lean-to over a porch), shingles each their own shade, maybe a chimney or two.
