@@ -603,7 +603,7 @@ function genMergeWalls(walls) {
 // #gen-<camp>/building/<type> the building generator
 const GEN = { o: null };
 function genDefaults(type) { return { type, seed: genSeed(), size: "medium", floors: "auto", cellar: "auto", shape: "auto", porch: "auto", name: "", tags: [] }; }
-const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", furn: o.furn !== false, name: o.name, tags: o.tags || [] });
+const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", furn: o.furn !== false, furnRe: o.furnRe || {}, name: o.name, tags: o.tags || [] });
 function viewGen(camp, kind, type) {
   const c = S.vttCamps && S.vttCamps.get(camp); if (!vCanEdit()) return `<section class="page"><p class="muted">Only the GM can use the generators.</p></section>`;
   if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening…"}</p></section>`;
@@ -653,8 +653,8 @@ function genPreviewHtml(o) {
   const B = genBuilding(o), levels = B.levels.slice().sort((a, b) => b.level - a.level), rooms = B.levels.reduce((a, L) => a + L.rooms.filter(x => !x.circ && !x.porch).length, 0);
   const lib = genFurnLib(), nF = B.levels.reduce((a, L) => a + (L.furn || []).length, 0), TW = B.W + GEN_PAD * 2, TH = B.H + GEN_PAD * 2;
   // A floor: its picture, the furniture on it (each piece its own picture, turned, as on the tabletop), then names and the overlay.
-  const floor = L => `<div class="genflw" style="width:min(${TW * GEN_PX + 20}px, 100%)"><div class="genfl" style="aspect-ratio:${TW} / ${TH}"><img src="${genUrl(genFloorSvg(B, L, false, o.seed, false, "base"))}" alt="${esc(L.name)}">${genFurnBoxes(L, lib).map(f => `<img class="genfp" src="${esc(f.src)}" alt="" title="${esc(f.a.name)}" style="left:${((f.x + GEN_PAD) / TW * 100).toFixed(3)}%;top:${((f.y + GEN_PAD) / TH * 100).toFixed(3)}%;width:${(f.w / TW * 100).toFixed(3)}%;height:${(f.h / TH * 100).toFixed(3)}%${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("")}<img class="genfp gentop" src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay, "top"))}" alt=""></div></div>`;
-  return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms${o.furn !== false ? ` · ${nF} pieces of furniture` : ""}</span>${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
+  const floor = L => `<div class="genflw" style="width:min(${TW * GEN_PX + 20}px, 100%)"><div class="genfl" style="aspect-ratio:${TW} / ${TH}"><img src="${genUrl(genFloorSvg(B, L, false, o.seed, false, "base"))}" alt="${esc(L.name)}">${genFurnBoxes(L, lib).map(f => `<img class="genfp" src="${esc(f.src)}" alt="" title="${esc(f.a.name)}" style="left:${((f.x + GEN_PAD) / TW * 100).toFixed(3)}%;top:${((f.y + GEN_PAD) / TH * 100).toFixed(3)}%;width:${(f.w / TW * 100).toFixed(3)}%;height:${(f.h / TH * 100).toFixed(3)}%${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("")}<img class="genfp gentop" src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay, "top"))}" alt="">${o.furn !== false ? L.rooms.map((rm, i) => (rm.circ && rm.n !== "Cellar stairs") ? "" : `<button class="genreroom" data-act="genreroom" data-k="${L.level}:${i}" title="New furniture for the ${esc(rm.n.toLowerCase())}" aria-label="New furniture for the ${esc(rm.n.toLowerCase())}" style="left:${((rm.x + GEN_PAD + 0.12) / TW * 100).toFixed(3)}%;top:${((rm.y + GEN_PAD + 0.12) / TH * 100).toFixed(3)}%">🎲</button>`).join("") : ""}</div></div>`;
+  return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms${o.furn !== false ? ` · ${nF} pieces of furniture` : ""}</span>${o.furn !== false ? `<br><span class="muted">🎲 on a room gives it new furniture${Object.keys(o.furnRe || {}).length ? ` · <button class="linkbtn" data-act="genrereset">put every room back as it was</button>` : ""}</span>` : ""}${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
     <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure>${floor(L)}<figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
 }
 const genRefresh = () => { const el = document.getElementById("genpreview"); if (el && GEN.o) el.innerHTML = genPreviewHtml(GEN.o); };
@@ -691,13 +691,15 @@ async function genPlace(camp, o) {
 }
 document.addEventListener("click", async ev => {
   const b = ev.target.closest && ev.target.closest("[data-act^=gen]"); if (!b || !vCanEdit()) return; const a = b.dataset.act;
-  if (a === "genopt" && GEN.o) { GEN.o[b.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); genRefresh(); return; }
+  if (a === "genopt" && GEN.o) { GEN.o[b.dataset.k] = b.dataset.v; GEN.o.furnRe = {}; b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); genRefresh(); return; }
   if (a === "genchk" && GEN.o) { GEN.o[b.dataset.k] = b.checked; genRefresh(); return; }
-  if (a === "genroll" && GEN.o) { GEN.o.seed = genSeed(); const s = document.getElementById("gen-seed"); if (s) s.value = GEN.o.seed; genRefresh(); return; }
+  if (a === "genreroom" && GEN.o) { const re = Object.assign({}, GEN.o.furnRe); re[b.dataset.k] = (re[b.dataset.k] || 0) + 1; GEN.o.furnRe = re; genRefresh(); return; }
+  if (a === "genrereset" && GEN.o) { GEN.o.furnRe = {}; genRefresh(); return; }
+  if (a === "genroll" && GEN.o) { GEN.o.furnRe = {}; GEN.o.seed = genSeed(); const s = document.getElementById("gen-seed"); if (s) s.value = GEN.o.seed; genRefresh(); return; }
   if (a === "gentagf") { GEN.tag = b.dataset.v; render(); return; }
   if (a === "gensave" && GEN.o) { genReadForm(); b.disabled = true; GEN.o.pid = await genSaveLib(GEN.o); b.disabled = false; b.textContent = "Save changes"; toast("Saved to your buildings."); return; }
   if (a === "genplace") { ev.preventDefault(); let o = GEN.o; if (b.dataset.id) { const p = S.vttPages.get(b.dataset.id); if (!p || !p.gen) return; o = Object.assign({}, p.gen, { name: p.name }); } else genReadForm(); if (o) genPlace(b.dataset.camp, o); return; }
   if (a === "genedit") { const p = S.vttPages.get(b.dataset.id); if (p && p.gen) GEN.o = Object.assign({}, p.gen, { name: p.name, pid: b.dataset.id, camp: (route() || {}).camp }); return; }
   if (a === "gendel") { const p = S.vttPages.get(b.dataset.id); if (!p) return; if (await confirmBox(`Delete “${p.name}” from your buildings?`, "Delete")) await vDel("vttpages/" + b.dataset.id); return; }
 });
-document.addEventListener("change", ev => { if (ev.target && ev.target.id === "gen-seed" && GEN.o) { GEN.o.seed = Math.max(1, Math.round(Number(ev.target.value)) || 1); genRefresh(); } });
+document.addEventListener("change", ev => { if (ev.target && ev.target.id === "gen-seed" && GEN.o) { GEN.o.furnRe = {}; GEN.o.seed = Math.max(1, Math.round(Number(ev.target.value)) || 1); genRefresh(); } });

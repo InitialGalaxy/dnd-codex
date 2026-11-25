@@ -196,9 +196,12 @@ const GENF_FRONT = [[0, 1], [-1, 0], [0, -1], [1, 0]]; // turn k: which way the 
 function genFurnish(o, B) {
   B.levels.forEach(L => { L.furn = []; });
   if (o.furn === false) return;
-  const lib = genFurnLib(), r = genRng((Number(o.seed) || 1) * 17 + 11);
+  // Each room is furnished from its own seed (the building's, the floor, the room, and how many times you've rerolled it), so
+  // rerolling one room changes only that room.
+  const lib = genFurnLib(), re = o.furnRe || {}, seed = Number(o.seed) || 1;
+  const rngFor = (lv, i) => genRng((((seed * 31 + 11) ^ ((lv + 3) * 7919) ^ (i * 104729) ^ ((re[lv + ":" + i] || 0) * 15485863)) >>> 0) || 1);
   B.levels.forEach(L => { const edges = new Set(genEdges(L, B.W, B.H).map(e => e.k));
-    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs") return; genFurnRoom(r, B, L, rm, i, lib, edges); }); });
+    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs") return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
 }
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   const name = GEN_FURN_ROOMS[rm.n] || lib.some(a => a.rooms && a.rooms[rm.n]) ? rm.n : GEN_FURN_KIND[rm.k] || rm.n;
