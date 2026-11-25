@@ -2269,6 +2269,13 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .gencard { display:flex; flex-direction:column; gap:6px; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:inherit; text-decoration:none; position:relative; transition:transform .12s, border-color .12s; }
 a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gencard, a.gencard:hover, a.gencard * { text-decoration:none; } .gencard strong { font:700 1.15rem var(--display); } .genicon { font-size:2rem; line-height:1; }
 .gencard.soon { opacity:.5; } .gensoon { position:absolute; top:10px; right:10px; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+.vgview { position:relative; height:min(72vh, 820px); overflow:hidden; background:#1c2416; border-radius:10px; touch-action:none; cursor:grab; user-select:none; } .vgview:active { cursor:grabbing; }
+.vgstage { position:absolute; left:0; top:0; transform-origin:0 0; } .vgland { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none; }
+.vgbs, .vgb { position:absolute; } .vgbs { inset:0; pointer-events:none; } .vgb > img { position:absolute; left:0; top:0; width:100%; height:100%; display:block; } .vgb > img.vgfp { width:auto; height:auto; } .vgb.dim { opacity:.35; }
+.vgedit { position:absolute; inset:0; width:100%; height:100%; overflow:visible; } .vgehit { fill:none; stroke:transparent; pointer-events:stroke; cursor:copy; }
+.vgeline { fill:none; stroke:#ffd54a; pointer-events:none; stroke-linecap:round; stroke-linejoin:round; } .vgeline.on { stroke:#ff9d2e; } .vgeline.add { stroke:#7fd3ff; }
+.vgeh { fill:#ffd54a; stroke:#1e1a16; cursor:move; } .vgeh.end { fill:#fff; } .vgeh.on { fill:#ff6a2e; } .vgeh.add { fill:#7fd3ff; pointer-events:none; }
+.vgbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0; } .vgzoom { display:inline-flex; gap:4px; } .vgebar { padding:6px 8px; border-radius:8px; background:rgba(255,213,74,.08); }
 .vgprev { overflow:auto; border-radius:10px; background:#24301c; } .vgprev img { display:block; max-width:100%; height:auto; }
 .genlayout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; } @media (max-width:860px) { .genlayout { grid-template-columns:1fr; } .genopts { position:static !important; } .genfloors img { max-width:100%; padding:6px; } }
 @media (max-height:760px) { .genopts { position:static !important; } }
@@ -14095,18 +14102,49 @@ function vgNoise(seed) {
   return (x, y, oct = 4) => { let s = 0, amp = 1, f = 1, tot = 0; for (let i = 0; i < oct; i++) { s += v(x * f, y * f) * amp; tot += amp; amp *= 0.5; f *= 2; } return s / tot; };
 }
 // Least-cost path over the grid (8 ways), for roads: cost(x, y) per square (Infinity = impassable).
-function vgPath(W, H, cost, from, to) {
+function vgPath(W, H, cost, from, to, goal) {
   const N = W * H, g = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N), heap = [];
   const push = (i, f) => { heap.push([f, i]); let c = heap.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = c * 2 + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
   const s = from[1] * W + from[0], t = to[1] * W + to[0]; g[s] = 0; push(s, 0);
   const hz = i => Math.hypot(i % W - to[0], Math.floor(i / W) - to[1]);
-  while (heap.length) { const [, i] = pop(); if (done[i]) continue; done[i] = 1; if (i === t) break; const x = i % W, y = Math.floor(i / W);
+  while (heap.length) { const [, i] = pop(); if (done[i]) continue; done[i] = 1; if (i === t) break; if (goal && i !== s && goal(i)) { prev[t] = -1; return vgTrace(prev, s, i, W); } const x = i % W, y = Math.floor(i / W);
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const j = ny * W + nx; if (done[j]) continue; const c = cost(nx, ny); if (!isFinite(c)) continue; const ng = g[i] + c * (dx && dy ? 1.414 : 1); if (ng < g[j]) { g[j] = ng; prev[j] = i; push(j, ng + hz(j)); } } }
-  if (prev[t] < 0 && s !== t) return null; const out = []; for (let i = t; i >= 0; i = prev[i]) { out.push([i % W, Math.floor(i / W)]); if (i === s) break; } return out.reverse();
+  if (prev[t] < 0 && s !== t) return null; return vgTrace(prev, s, t, W);
 }
-// A smooth line through points (Catmull-Rom as cubic Béziers), for drawing roads and the river.
+function vgTrace(prev, s, t, W) { const out = []; for (let i = t; i >= 0; i = prev[i]) { out.push([i % W, Math.floor(i / W)]); if (i === s) break; } return out.reverse();
+}
+// Roads: 5 squares wide, and every bend and junction swept by a wagon 3 squares wide and 6 long, so a vehicle that size
+// gets everywhere a road goes.
+const VG_RW = 2.5, VG_CAR = [6, 3];
+function vgSimplify(P, tol) { // Douglas–Peucker
+  if (P.length < 3) return P.slice(); const keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1; const st = [[0, P.length - 1]];
+  while (st.length) { const [a, b] = st.pop(), [ax, ay] = P[a], [bx, by] = P[b], L = Math.hypot(bx - ax, by - ay) || 1; let md = 0, mi = -1;
+    for (let i = a + 1; i < b; i++) { const d = Math.abs((bx - ax) * (ay - P[i][1]) - (ax - P[i][0]) * (by - ay)) / L; if (d > md) { md = d; mi = i; } }
+    if (md > tol) { keep[mi] = 1; st.push([a, mi], [mi, b]); } }
+  return P.filter((_, i) => keep[i]);
+}
+// Points every `step` squares along a Catmull-Rom curve through the control points (closed: a loop).
+function vgCurve(ctl, closed, step = 0.5) {
+  const n = ctl.length; if (n < 2) return ctl.map(p => p.slice()); const get = i => closed ? ctl[((i % n) + n) % n] : ctl[Math.max(0, Math.min(n - 1, i))], out = [];
+  for (let i = 0; i < (closed ? n : n - 1); i++) { const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2), m = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / step));
+    for (let j = 0; j < m; j++) { const t = j / m, t2 = t * t, t3 = t2 * t; out.push([0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); } }
+  out.push(closed ? out[0].slice() : ctl[n - 1].slice()); return out;
+}
+// Round off any corner too tight for the wagon: a few passes of a moving average (the ends stay put).
+function vgEase(d, loop, passes = 3, k = 5) { const n = d.length; if (n < 5) return d; for (let p = 0; p < passes; p++) { const o = d.map(q => q.slice()); for (let i = loop ? 0 : 1; i < (loop ? n : n - 1); i++) { let sx = 0, sy = 0, c = 0; for (let j = -k; j <= k; j++) { const m = loop ? ((i + j) % n + n) % n : i + j; if (m < 0 || m >= n) continue; sx += d[m][0]; sy += d[m][1]; c++; } const w = loop ? 1 : Math.min(1, Math.min(i, n - 1 - i) / k); o[i] = [d[i][0] + (sx / c - d[i][0]) * w, d[i][1] + (sy / c - d[i][1]) * w]; } d = o; } if (loop) d[n - 1] = d[0].slice(); return d; }
+function vgResample(P, step = 0.5) { const out = [P[0].slice()]; for (let i = 0; i < P.length - 1; i++) { const [ax, ay] = P[i], [bx, by] = P[i + 1], m = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step)); for (let j = 1; j <= m; j++) out.push([ax + (bx - ax) * j / m, ay + (by - ay) * j / m]); } return out; }
+function vgChaikin(P, it) { for (let k = 0; k < it; k++) { const Q = [P[0]]; for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1]; Q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } Q.push(P[P.length - 1]); P = Q; } return P; }
+// The squares a road covers: its width, and everything the wagon sweeps going along it.
+function vgFoot(d, W, H, loop) {
+  const cells = new Set(), n = d.length, [cl, cw] = VG_CAR;
+  for (let i = 0; i < n; i++) { const a = d[loop ? (i - 2 + n) % n : Math.max(0, i - 2)], b = d[loop ? (i + 2) % n : Math.min(n - 1, i + 2)]; let tx = b[0] - a[0], ty = b[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l; const [px, py] = d[i];
+    for (let y = Math.floor(py - 4); y <= py + 4; y++) for (let x = Math.floor(px - 4); x <= px + 4; x++) { if (x < 0 || y < 0 || x >= W || y >= H) continue; const cx = x + 0.5 - px, cy = y + 0.5 - py, u = cx * tx + cy * ty, v = -cx * ty + cy * tx;
+      if ((Math.abs(u) <= cl / 2 + 0.5 && Math.abs(v) <= cw / 2 + 0.5) || Math.hypot(cx, cy) <= VG_RW + 0.3) cells.add(y * W + x); } }
+  return cells;
+}
+// A smooth line through points (Catmull-Rom as cubic Béziers), for drawing the river.
 function vgSmooth(pts, s) {
   if (pts.length < 2) return ""; const P = pts.map(([x, y]) => [x * s, y * s]); let d = `M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
   for (let i = 0; i < P.length - 1; i++) { const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
@@ -14117,13 +14155,16 @@ const vgThin = (path, step) => path.filter((_, i) => i % step === 0 || i === pat
 
 // ----- The whole village -----
 function genVillage(o) {
-  const r = genRng(Number(o.seed) || 1), pick = (opts, v) => v && v !== "auto" ? v : opts[Math.floor(r() * opts.length)];
+  const r = genRng(Number(o.seed) || 1), rr = genRng((Number(o.seed) || 1) * 31 + 7), pick = (opts, v) => v && v !== "auto" ? v : opts[Math.floor(r() * opts.length)];
   const size = VG_SIZES[o.size] ? o.size : "village", Z = VG_SIZES[size], W = Z.W, H = Z.H, R = Z.R;
-  const layout = pick(["street", "street", "green", "crossroads"], o.layout), river = pick(["none", "stream", "stream", "river"], o.river), land = pick(["open", "open", "hills", "mountains"], o.land);
+  const custom = Array.isArray(o.roads) && o.roads.some(rd => rd && rd.pts && rd.pts.length >= 2);
+  const nRoads = o.nroads && o.nroads !== "auto" ? Math.max(1, Math.min(6, Number(o.nroads) || 2)) : ({ hamlet: [1, 2], village: [2, 3], large: [2, 4] })[size].reduce((a, b) => a + Math.floor(r() * (b - a + 1)));
+  let centre = pick(["junction", "junction", "green", "ring"], o.centre); if (nRoads === 1 && !custom) centre = "ring";
+  const layout = centre, river = pick(["none", "stream", "stream", "river"], o.river), land = pick(["open", "open", "hills", "mountains"], o.land);
   const mine = land === "mountains" && (o.mine === "yes" || (o.mine !== "no" && r() < 0.5));
   const nz = vgNoise((Number(o.seed) || 1) * 7 + 3), nz2 = vgNoise((Number(o.seed) || 1) * 11 + 5);
   const T = new Uint8Array(W * H), at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 255 : T[y * W + x], set = (x, y, v) => { if (x >= 0 && y >= 0 && x < W && y < H) T[y * W + x] = v; };
-  const V = { W, H, R, size, layout, river, land, mine, T, roads: [], lanes: [], trees: [], furlongs: [], buildings: [], plots: [], features: [], bridges: [], riverPath: null, riverW: 0, spoil: [], mineAt: null };
+  const V = { W, H, R, size, layout, centre, nRoads, custom, fillets: [], river, land, mine, T, roads: [], lanes: [], trees: [], furlongs: [], buildings: [], plots: [], features: [], bridges: [], riverPath: null, riverW: 0, spoil: [], mineAt: null };
   // Mountains along one edge (the river, if any, comes down out of them).
   const edges = ["n", "e", "s", "w"], mEdge = land === "mountains" ? edges[Math.floor(r() * 4)] : null;
   if (mEdge) { const depth = Math.round((mEdge === "n" || mEdge === "s" ? H : W) * (0.18 + r() * 0.08));
@@ -14147,50 +14188,110 @@ function genVillage(o) {
         for (let y = Math.floor(py - hw); y <= py + hw; y++) for (let x = Math.floor(px - hw); x <= px + hw; x++) if (Math.hypot(x + 0.5 - px, y + 0.5 - py) <= hw + 0.2) set(x, y, VGT.WATER); } }
   }
   // Keep the heart on dry, open ground.
-  for (let k = 0; k < 60 && (at(C[0], C[1]) !== VGT.GRASS || [[-3, 0], [3, 0], [0, 3], [0, -3]].some(([a, b]) => at(C[0] + a, C[1] + b) !== VGT.GRASS)); k++) C = [Math.round(W / 2 + (r() - 0.5) * W * 0.4), Math.round(H / 2 + (r() - 0.5) * H * 0.4)];
+  const clearAt = c => at(c[0], c[1]) === VGT.GRASS && [3, 7, 11].every(d => Array.from({ length: 16 }, (_, i) => i * Math.PI / 8).every(a => { const t = at(Math.round(c[0] + Math.cos(a) * d), Math.round(c[1] + Math.sin(a) * d)); return t !== VGT.ROCK && t !== VGT.WATER && t !== 255; }));
+  for (let k = 0; k < 120 && !clearAt(C); k++) C = [Math.round(W / 2 + (r() - 0.5) * W * 0.4), Math.round(H / 2 + (r() - 0.5) * H * 0.4)];
   V.C = C;
   // Woods: patches toward the edges, away from the village.
   const wAmt = { few: 0.56, some: 0.5, many: 0.44 }[o.woods] || 0.5;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GRASS) continue; const dc = Math.hypot((x - C[0]) / W, (y - C[1]) / H);
     const v = nz2(x / 22, y / 22, 4) + Math.max(0, dc - 0.34) * 1.1 - Math.max(0, 1 - Math.hypot(x - C[0], y - C[1]) / (R * 2.3)) * 0.7; if (v > wAmt + 0.1) set(x, y, VGT.WOOD); }
   // ----- Roads -----
-  const roadCost = (x, y) => { const t = at(x, y); if (t === VGT.ROCK) return Infinity; if (t === VGT.WATER) return 9; if (t === VGT.ROAD) return 0.35; if (t === VGT.LANE) return 0.5; if (t === VGT.WOOD) return 2.2; if (t === VGT.BUILD || t === VGT.PLOT) return Infinity; return 1 + nz(x / 6, y / 6, 2) * 1.6; };
-  const edgePoint = e => { for (let k = 0; k < 40; k++) { const p = e === "n" ? [Math.floor(W * (0.2 + r() * 0.6)), 0] : e === "s" ? [Math.floor(W * (0.2 + r() * 0.6)), H - 1] : e === "w" ? [0, Math.floor(H * (0.2 + r() * 0.6))] : [W - 1, Math.floor(H * (0.2 + r() * 0.6))]; if (at(p[0], p[1]) !== VGT.ROCK && at(p[0], p[1]) !== VGT.WATER) return p; } return null; };
-  const paint = (path, wide, kind) => { path.forEach(([x, y]) => { for (let dy = -wide; dy <= wide; dy++) for (let dx = -wide; dx <= wide; dx++) { if (Math.hypot(dx, dy) > wide + 0.3) continue; const t = at(x + dx, y + dy);
-    if (t === VGT.WATER || t === VGT.BRIDGE) { set(x + dx, y + dy, VGT.BRIDGE); } else if (t !== VGT.ROCK && t !== 255 && t !== VGT.ROAD && t !== VGT.BUILD && t !== VGT.PLOT) set(x + dx, y + dy, kind); } }); };
-  const freeEdges = edges.filter(e => e !== mEdge), opp = { n: "s", s: "n", e: "w", w: "e" };
-  const through = (e1, e2) => { const a = edgePoint(e1), b = edgePoint(e2); if (!a || !b) return null; const p1 = vgPath(W, H, roadCost, a, C), p2 = vgPath(W, H, roadCost, C, b); if (!p1 || !p2) return null; return p1.concat(p2.slice(1)); };
-  let e1 = freeEdges[Math.floor(r() * freeEdges.length)], e2 = opp[e1] !== mEdge ? opp[e1] : freeEdges.find(e => e !== e1);
-  const main = through(e1, e2); if (main) { V.roads.push(main); paint(main, 1, VGT.ROAD); }
-  if (layout === "crossroads") { const rest = freeEdges.filter(e => e !== e1 && e !== e2); const e3 = rest[0] || e1, e4 = opp[e3] !== mEdge && opp[e3] !== e3 ? opp[e3] : null;
-    const a = edgePoint(e3), p = a && vgPath(W, H, roadCost, a, C); if (p) { V.roads.push(p); paint(p, 1, VGT.ROAD); }
-    if (e4) { const b = edgePoint(e4), q = b && vgPath(W, H, roadCost, C, b); if (q) { V.roads.push(q); paint(q, 1, VGT.ROAD); } } }
+  // Roads are kept as control points (what the road editor moves) and drawn as smooth curves through them. Every road joins
+  // the others: each new road runs to the nearest road near the heart of the village, and at every junction the corners are
+  // rounded off wide enough for a wagon to turn.
+  // Roads keep off the river banks (they cross the water, not run along it).
+  const wetD = new Uint8Array(W * H).fill(9); { const q = []; for (let i = 0; i < W * H; i++) if (T[i] === VGT.WATER) { wetD[i] = 0; q.push(i); } for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i / W) | 0; if (wetD[i] >= 5) continue; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const nx = x + a, ny = y + b; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (wetD[j] > wetD[i] + 1) { wetD[j] = wetD[i] + 1; q.push(j); } } } }
+  const roadCost = (x, y) => { const t = at(x, y); if (t === VGT.ROCK || t === 255) return Infinity; if (t === VGT.WATER) return 9; if (wetD[y * W + x] < 5) return 6; if (t === VGT.ROAD || t === VGT.BRIDGE) return 1.2; if (t === VGT.WOOD) return 2.2; if (t === VGT.BUILD || t === VGT.PLOT) return Infinity; return 1 + nz(x / 6, y / 6, 2) * 1.6; };
+  const carve = cells => cells.forEach(i => { const t = T[i]; T[i] = t === VGT.WATER || t === VGT.BRIDGE ? VGT.BRIDGE : VGT.ROAD; });
+  const hits = (cells, plotsOk) => { let n = 0; cells.forEach(i => { if (T[i] === VGT.BUILD || (!plotsOk && T[i] === VGT.PLOT)) n++; }); return n; };
+  const allRoads = () => V.roads.concat(V.lanes);
+  const mkRoad = (ctl, loop, kind) => ({ ctl, loop: !!loop, kind: kind || "road", d: vgEase(vgCurve(ctl, !!loop), !!loop) });
+  const fromPath = (path, ext) => { let ctl = vgSimplify(path.map(([x, y]) => [x + 0.5, y + 0.5]), 1.6); if (ext) { const [x, y] = ctl[0], out = x <= 1 ? [-3, 0] : x >= W - 2 ? [3, 0] : y <= 1 ? [0, -3] : [0, 3]; ctl = [[x + out[0], y + out[1]]].concat(ctl); } return ctl.map(([x, y]) => [Math.round(x * 2) / 2, Math.round(y * 2) / 2]); };
+  const dirAt = (rd, j, sg) => { const d = rd.d, n = d.length, k = rd.loop ? ((j + sg * 16) % n + n) % n : Math.max(0, Math.min(n - 1, j + sg * 16)); const x = d[k][0] - d[j][0], y = d[k][1] - d[j][1], l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+  const nearestOn = (p, skip) => { let best = null; allRoads().forEach(rd => { if (rd === skip) return; rd.d.forEach((q, j) => { const dd = Math.hypot(q[0] - p[0], q[1] - p[1]); if (!best || dd < best.dd) best = { rd, j, dd }; }); }); return best; };
+  // The rounded corners where this road's ends meet another road.
+  const filletsFor = rd => { const out = []; if (rd.loop) return out;
+    [[0, 1], [rd.d.length - 1, -1]].forEach(([j, sg]) => { const nb = nearestOn(rd.d[j], rd); if (!nb || nb.dd > 3) return; const J = nb.rd.d[nb.j], dE = dirAt(rd, j, sg), last = nb.rd.d.length - 1, ds = [];
+      if (!nb.rd.loop && nb.j < 8) ds.push(dirAt(nb.rd, 0, 1)); else if (!nb.rd.loop && nb.j > last - 8) ds.push(dirAt(nb.rd, last, -1)); else ds.push(dirAt(nb.rd, nb.j, 1), dirAt(nb.rd, nb.j, -1));
+      ds.forEach(dO => { const c = dE[0] * dO[0] + dE[1] * dO[1]; if (c > 0.6) return; const th = Math.acos(Math.max(-1, Math.min(1, c))), Lg = 8 + 8 * Math.max(0, (Math.PI / 2 - th) / (Math.PI / 2));
+        out.push(vgResample(vgChaikin([[J[0] + dE[0] * Lg, J[1] + dE[1] * Lg], J.slice(), [J[0] + dO[0] * Lg, J[1] + dO[1] * Lg]], 4))); }); });
+    return out; };
+  // Add a road: its squares, and its junction corners. dry: only see whether it fits (no buildings or plots in the way).
+  const addRoad = (rd, opts) => { const fl = filletsFor(rd), cells = vgFoot(rd.d, W, H, rd.loop); fl.forEach(f => vgFoot(f, W, H).forEach(i => cells.add(i)));
+    if (opts && opts.strict && hits(cells, opts.plots) > (opts.allow || 0)) return false; carve(cells); (rd.kind === "road" ? V.roads : V.lanes).push(rd); V.fillets.push(...fl); return true; };
+  const nearHeart = R * 0.5, goalRoad = i => (T[i] === VGT.ROAD || T[i] === VGT.BRIDGE) && Math.hypot(i % W - C[0], Math.floor(i / W) - C[1]) < nearHeart;
+  const freeEdges = edges.filter(e => e !== mEdge);
+  if (custom) { // the GM's own roads
+    o.roads.forEach(rd => { if (rd && rd.pts && rd.pts.length >= 2) addRoad(Object.assign(mkRoad(rd.pts.map(p => [Number(p[0]), Number(p[1])]), rd.loop, "road"), { user: 1 })); });
+    // The heart: the road point nearest the middle of them all.
+    const all = V.roads.flatMap(rd => rd.d), mx = all.reduce((a, p) => a + p[0], 0) / all.length, my = all.reduce((a, p) => a + p[1], 0) / all.length;
+    let best = all[0]; all.forEach(p => { if (Math.hypot(p[0] - mx, p[1] - my) < Math.hypot(best[0] - mx, best[1] - my)) best = p; }); C = [Math.round(best[0]), Math.round(best[1])]; V.C = C;
+  } else {
+    // Where the roads leave the map: spread round the village, never into the mountains or the water.
+    const a0 = rr() * Math.PI * 2, exits = [];
+    const toEdge = a => { const dx = Math.cos(a), dy = Math.sin(a); let t = Infinity; if (dx > 0) t = Math.min(t, (W - 1 - C[0]) / dx); if (dx < 0) t = Math.min(t, -C[0] / dx); if (dy > 0) t = Math.min(t, (H - 1 - C[1]) / dy); if (dy < 0) t = Math.min(t, -C[1] / dy); return [Math.round(C[0] + dx * t), Math.round(C[1] + dy * t)]; };
+    for (let i = 0; i < nRoads; i++) { const base = a0 + i * Math.PI * 2 / nRoads + (rr() - 0.5) * 0.5;
+      for (let k = 0; k < 24; k++) { const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.12, p = toEdge(a), t = at(p[0], p[1]); if (t !== VGT.ROCK && t !== VGT.WATER && !exits.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 12)) { exits.push(p); break; } } }
+    void freeEdges;
+    if (centre === "ring") { // a ring road round a small green, the roads running into it
+      const ringR = 7, ctl = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, q = ringR + (rr() - 0.5) * 0.6; return [Math.round((C[0] + 0.5 + Math.cos(a) * q) * 2) / 2, Math.round((C[1] + 0.5 + Math.sin(a) * q) * 2) / 2]; });
+      addRoad(mkRoad(ctl, true, "road")); V.ring = [C[0] + 0.5, C[1] + 0.5, ringR];
+      for (let y = C[1] - ringR; y <= C[1] + ringR; y++) for (let x = C[0] - ringR; x <= C[0] + ringR; x++) if (Math.hypot(x + 0.5 - V.ring[0], y + 0.5 - V.ring[1]) < ringR - VG_RW - 0.8 && at(x, y) !== VGT.ROAD) set(x, y, VGT.GREEN);
+    }
+    exits.forEach((e, i) => { const first = !V.roads.length, path = vgPath(W, H, roadCost, e, C, first ? null : goalRoad); if (!path || path.length < 3) return;
+      addRoad(mkRoad(fromPath(path, true), false, "road")); });
+  }
   // A green: an irregular open space at the heart, with a pond or a well; houses look onto it.
-  if (layout === "green") { const gr = R * 0.32 + r() * 3, gx = C[0] + (r() - 0.5) * 6, gy = C[1] + (r() - 0.5) * 6;
-    for (let y = Math.floor(gy - gr * 1.6); y <= gy + gr * 1.6; y++) for (let x = Math.floor(gx - gr * 1.6); x <= gx + gr * 1.6; x++) { const t = at(x, y); if (t === VGT.ROCK || t === VGT.WATER || t === VGT.BRIDGE || t === 255) continue;
-      if (Math.hypot((x - gx) / 1.25, y - gy) < gr * (0.75 + nz(x / 5, y / 5, 2) * 0.5)) set(x, y, t === VGT.ROAD ? VGT.ROAD : VGT.GREEN); }
+  if (centre === "green") { const gr = R * 0.32 + r() * 3, gx = C[0] + (r() - 0.5) * 6, gy = C[1] + (r() - 0.5) * 6;
+    for (let y = Math.floor(gy - gr * 1.6); y <= gy + gr * 1.6; y++) for (let x = Math.floor(gx - gr * 1.6); x <= gx + gr * 1.6; x++) { const t = at(x, y); if (t === VGT.ROCK || t === VGT.WATER || t === VGT.BRIDGE || t === VGT.ROAD || t === 255) continue;
+      if (Math.hypot((x - gx) / 1.25, y - gy) < gr * (0.75 + nz(x / 5, y / 5, 2) * 0.5)) set(x, y, VGT.GREEN); }
     V.green = [gx, gy, gr]; }
+  // Lanes: a back lane loops out from a road and back to it, so houses can stand along it (no dead ends).
+  const clearMap = () => { const D = new Uint8Array(W * H).fill(9), q = []; for (let i = 0; i < W * H; i++) if (T[i] === VGT.BUILD || T[i] === VGT.PLOT) { D[i] = 0; q.push(i); }
+    for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i / W) | 0; if (D[i] >= 5) continue; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const nx = x + a, ny = y + b; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (D[j] > D[i] + 1) { D[j] = D[i] + 1; q.push(j); } } } return D; };
+  const laneCost = (D, near) => (x, y) => { if (D[y * W + x] < 4 && !(near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 5))) return Infinity; const t = at(x, y); if (t === VGT.ROAD || t === VGT.BRIDGE) return near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 3) ? 1 : 6; return roadCost(x, y); };
+  // A back lane: it leaves a road, runs alongside it some way off, and comes back to it — a loop, never a dead end, and kept
+  // clear of the other roads so lanes don't tangle.
+  const laneCap = ({ hamlet: 1, village: 3, large: 5 })[size];
+  const why = k => { (V.why = V.why || {})[k] = (V.why[k] || 0) + 1; return null; };
+  const growLane = (maxD) => { if (V.lanes.filter(l => l.kind === "lane").length >= laneCap) return null;
+    const pts = []; V.roads.concat(V.lanes).forEach(rd => { if (rd.kind !== "road" && rd.kind !== "lane") return; rd.d.forEach((p, j) => { const d = Math.hypot(p[0] - C[0], p[1] - C[1]); if (d > R * 0.25 && d < maxD && (rd.loop || (j > 16 && j < rd.d.length - 60))) pts.push([rd, j]); }); });
+    if (!pts.length) return null; let [rd, j] = pts[Math.floor(rr() * pts.length)]; const n = rd.d.length, L = Math.round(R * (0.35 + rr() * 0.3)), span = Math.round(L * (1.6 + rr() * 1.4) / 0.5);
+    let j1 = j; if (!rd.loop && j + span >= n - 8) { j1 = j - span; if (j1 < 12) return why('short'); }
+    const idx = k => rd.loop ? (k % n + n) % n : Math.max(0, Math.min(n - 1, k)), j2 = idx(j1 + span); j = j1;
+    const S = rd.d[j], Tt = rd.d[j2], side = rr() < 0.5 ? 1 : -1, nrmAt = k => { const t = dirAt(rd, k, 1); return [-t[1] * side, t[0] * side]; };
+    const ctl = [S.slice()]; const steps = Math.max(2, Math.round(span / 14));
+    for (let q = 0; q <= steps; q++) { const k = idx(j + Math.round(span * q / steps)), nm = nrmAt(k), tg = dirAt(rd, k, 1), end = q === 0 ? 1 : q === steps ? -1 : 0, f = end ? 0.6 : 1; ctl.push([rd.d[k][0] + nm[0] * L * f + tg[0] * L * 0.5 * end, rd.d[k][1] + nm[1] * L * f + tg[1] * L * 0.5 * end]); }
+    ctl.push(Tt.slice());
+    const lane = mkRoad(ctl.map(([x, y]) => [Math.round(x * 2) / 2, Math.round(y * 2) / 2]), false, "lane");
+    if (lane.d.some(([x, y]) => x < 2 || y < 2 || x > W - 3 || y > H - 3)) return why('edge');
+    // Nothing in the way: no buildings, rock or water, and no other road except where it joins.
+    const foot = vgFoot(lane.d, W, H); let wet = 0; for (const i of foot) { const t = T[i], x = i % W, y = (i / W) | 0, nearEnd = Math.hypot(x - S[0], y - S[1]) < 7 || Math.hypot(x - Tt[0], y - Tt[1]) < 7;
+      if (t === VGT.BUILD) return why('plot'); if (t === VGT.ROCK) return why('rockwater'); if (t === VGT.WATER && ++wet > 14) return why('rockwater'); if ((t === VGT.ROAD || t === VGT.BRIDGE) && !nearEnd) return why('road'); }
+    for (let k = 10; k < lane.d.length - 10; k += 2) { const [x, y] = lane.d[k]; for (let b = -5; b <= 5; b++) for (let a2 = -5; a2 <= 5; a2++) { const t = at(Math.floor(x) + a2, Math.floor(y) + b); if ((t === VGT.ROAD || t === VGT.BRIDGE) && Math.hypot(x - S[0], y - S[1]) > 9 && Math.hypot(x - Tt[0], y - Tt[1]) > 9) return why('near'); } }
+    if (!addRoad(lane, { strict: 1, plots: 1 })) return why('fillet'); return lane; };
   // ----- Plots: buildings along the roads, facing them -----
   const occupied = t => t !== VGT.GRASS && t !== VGT.WOOD && t !== VGT.GREEN;
   const rectFree = (x, y, w, h, allowGreen) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const t = at(xx, yy); if (t === 255 || (occupied(t) && !(allowGreen && t === VGT.GREEN)) || (!allowGreen && t === VGT.GREEN)) return false; } return true; };
-  const fill = (x, y, w, h, v) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) set(xx, yy, v); };
+  const fill = (x, y, w, h, v) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const t = at(xx, yy); if (v === VGT.PLOT && (t === VGT.ROAD || t === VGT.BRIDGE || t === VGT.BUILD)) continue; set(xx, yy, v); } };
   // Every spot along a road (or round the green) a building could face: the road square, which side, and which way it faces.
-  const fronts = []; const addFronts = (path, hw, weight) => { for (let i = 3; i < path.length - 3; i += 1) { const [x, y] = path[i], dx = path[i + 3][0] - path[i - 3][0], dy = path[i + 3][1] - path[i - 3][1]; if (Math.abs(Math.abs(dx) - Math.abs(dy)) < 2) continue;
-      const horiz = Math.abs(dx) > Math.abs(dy); (horiz ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]]).forEach(n => fronts.push({ x, y, n, hw, w: weight })); } };
-  V.roads.forEach(p => addFronts(p, 1.5, 1));
+  const fronts = []; const addFronts = (rd, weight) => { const d = rd.d; for (let i = 8; i < d.length - 8; i += 2) { const dx = d[i + 8][0] - d[i - 8][0], dy = d[i + 8][1] - d[i - 8][1];
+      const x = Math.floor(d[i][0]), y = Math.floor(d[i][1]); [[-dy, dx], [dy, -dx]].forEach(([nx, ny]) => { const n = Math.abs(nx) > Math.abs(ny) ? [Math.sign(nx), 0] : [0, Math.sign(ny)]; fronts.push({ x, y, n, hw: VG_RW + 0.75, w: weight, rd, diag: Math.abs(Math.abs(dx) - Math.abs(dy)) < Math.hypot(dx, dy) * 0.5 }); }); } };
+  // Lanes first (in a growing village they come before the houses that line them), then everyone faces a road or lane.
+  if (!custom) for (let i = 0, n = ({ hamlet: 0, village: 2, large: 3 })[size] + (rr() < 0.5 ? 1 : 0); i < n * 12 && V.lanes.length < n; i++) growLane(R * 0.9);
+  allRoads().forEach(rd => addFronts(rd, rd.kind === "lane" ? 0.9 : 1));
   if (V.green) { const [gx, gy] = V.green; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GREEN) continue;
       [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => { const t = at(x + dx, y + dy); if (t !== VGT.GREEN && t !== VGT.ROAD && (dx * (x - gx) + dy * (y - gy)) > 0) fronts.push({ x, y, n: [dx, dy], hw: 0.5, w: 0.7, green: 1 }); }); } }
   const kFor = n => n[1] === -1 ? 0 : n[1] === 1 ? 2 : n[0] === -1 ? 3 : 1; // the building's front faces back along n (toward the road)
   // Place a building of this kind at a front: its rect (turned to face the road), set back from the road, and its croft behind.
   const place = (o2, f, extra, B) => {
     const k = extra && extra.k != null ? extra.k : kFor(f.n), bw = k % 2 ? B.H : B.W, bh = k % 2 ? B.W : B.H, sb = extra && extra.setback != null ? extra.setback : 1 + Math.floor(r() * 2), hw = Math.ceil(f.hw);
-    let x, y; const [nx, ny] = f.n;
-    if (ny === -1) { y = f.y - hw - sb - bh + 1; x = f.x - Math.floor(bw / 2); } else if (ny === 1) { y = f.y + hw + sb; x = f.x - Math.floor(bw / 2); }
-    else if (nx === -1) { x = f.x - hw - sb - bw + 1; y = f.y - Math.floor(bh / 2); } else { x = f.x + hw + sb; y = f.y - Math.floor(bh / 2); }
-    const m = 1; if (!rectFree(x - m, y - m, bw + m * 2, bh + m * 2)) return null;
+    let x, y, sb2 = sb; const [nx, ny] = f.n, m = 1, at2 = q => { if (ny === -1) { y = f.y - hw - q - bh + 1; x = f.x - Math.floor(bw / 2); } else if (ny === 1) { y = f.y + hw + q; x = f.x - Math.floor(bw / 2); }
+      else if (nx === -1) { x = f.x - hw - q - bw + 1; y = f.y - Math.floor(bh / 2); } else { x = f.x + hw + q; y = f.y - Math.floor(bh / 2); } return rectFree(x - m, y - m, bw + m * 2, bh + m * 2); };
+    for (;; sb2++) { if (at2(sb2)) break; if (sb2 >= sb + (f.diag ? 6 : 2)) return null; }
     // The croft runs back from the house, as wide as the toft; shortened where it meets something.
     const cd = extra && extra.croft != null ? extra.croft : 5 + Math.floor(r() * 8), wide = extra && extra.wide != null ? extra.wide : Math.floor(r() * 2); let plot = null;
-    for (let d = cd; d >= 1; d--) { let px, py, pw, ph; if (ny) { px = x - wide; pw = bw + wide * 2; ph = bh + d + sb; py = ny === -1 ? y - d : y - sb; } else { py = y - wide; ph = bh + wide * 2; pw = bw + d + sb; px = nx === -1 ? x - d : x - sb; }
+    for (let d = cd; d >= 1; d--) { let px, py, pw, ph; if (ny) { px = x - wide; pw = bw + wide * 2; ph = bh + d + sb2; py = ny === -1 ? y - d : y - sb2; } else { py = y - wide; ph = bh + wide * 2; pw = bw + d + sb2; px = nx === -1 ? x - d : x - sb2; }
       if (rectFree(px, py, pw, ph, f.green)) { plot = { x: px, y: py, w: pw, h: ph }; break; } }
     if (!plot) plot = { x: x - 1, y: y - 1, w: bw + 2, h: bh + 2 };
     fill(plot.x, plot.y, plot.w, plot.h, VGT.PLOT); fill(x, y, bw, bh, VGT.BUILD);
@@ -14214,7 +14315,7 @@ function genVillage(o) {
       const d = Math.hypot(x - C[0], y - C[1]) + r() * 6; if (!best || d < best.d) best = { x, y, d }; }
     if (best) { V.mineAt = [best.x, best.y]; const out = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] }[mEdge], gate = [best.x + out[0] * 4, best.y + out[1] * 4];
       for (let i = 1; i <= 6; i++) for (let a = -2; a <= 2; a++) { const xx = best.x + out[0] * i + (out[1] ? a : 0), yy = best.y + out[1] * i + (out[0] ? a : 0); if (at(xx, yy) === VGT.WOOD) set(xx, yy, VGT.GRASS); }
-      const p = vgPath(W, H, roadCost, C, gate); if (p) { V.lanes.push(p); paint(p, 0, VGT.LANE); addFronts(p, 1, 0.8); fronts.forEach(f => { if (p.some(([x, y]) => x === f.x && y === f.y)) f.mine = 1; }); }
+      const p = vgPath(W, H, roadCost, gate, C, i => T[i] === VGT.ROAD || T[i] === VGT.BRIDGE); if (p && p.length > 4) { const tr = mkRoad(fromPath(p), false, "mine"); if (addRoad(tr)) { const n0 = fronts.length; addFronts(tr, 0.8); for (let i = n0; i < fronts.length; i++) fronts[i].mine = 1; } }
       for (let i = 0; i < 3 + Math.floor(r() * 3); i++) { const sx = gate[0] + Math.round((r() - 0.5) * 10), sy = gate[1] + Math.round((r() - 0.5) * 10), sr = 1.5 + r() * 1.8;
         for (let y = Math.floor(sy - sr); y <= sy + sr; y++) for (let x = Math.floor(sx - sr); x <= sx + sr; x++) if (Math.hypot(x - sx, y - sy) <= sr && (at(x, y) === VGT.GRASS || at(x, y) === VGT.WOOD)) set(x, y, VGT.SPOIL);
         V.spoil.push([sx, sy, sr]); } } }
@@ -14231,7 +14332,11 @@ function genVillage(o) {
         if (!rectFree(x, y, bw, bh)) continue; fill(x - 1, y - 1, bw + 2, bh + 2, VGT.PLOT); fill(x, y, bw, bh, VGT.BUILD);
         done = { o: o2, B, k, x, y, w: bw, h: bh, plot: { x: x - 1, y: y - 1, w: bw + 2, h: bh + 2 }, kind: "mill" }; V.buildings.push(done); V.plots.push(Object.assign({ b: done }, done.plot));
         const door = [k === 0 ? x + Math.floor(bw / 2) : k === 2 ? x + Math.floor(bw / 2) : k === 1 ? x - 1 : x + bw, k === 0 ? y + bh : k === 2 ? y - 1 : y + Math.floor(bh / 2)];
-        const lp = vgPath(W, H, roadCost, door, C); if (lp) { const cut = lp.findIndex(([px, py]) => at(px, py) === VGT.ROAD); const lane = cut > 0 ? lp.slice(0, cut + 1) : lp; V.lanes.push(lane); paint(lane, 0, VGT.LANE); }
+        // Its lane: from a yard in front of the door to the nearest road, wide enough for the miller's wagon.
+        const out = k === 0 ? [0, 1] : k === 2 ? [0, -1] : k === 1 ? [-1, 0] : [1, 0];
+        for (const st of [3, 4, 5, 6]) { const s0 = [door[0] + out[0] * st, door[1] + out[1] * st]; if (!isFinite(roadCost(s0[0], s0[1]))) continue;
+          const lp = vgPath(W, H, laneCost(clearMap(), [s0, door]), s0, C, i => T[i] === VGT.ROAD || T[i] === VGT.BRIDGE); if (!lp || lp.length < 3) continue;
+          if (addRoad(mkRoad(fromPath(lp), false, "mill"), { strict: 1, allow: 0 })) break; }
         break; }
       return true; }
     const cand = fronts.filter(f => (!wb.miner || f.mine || relax) && (wb.near == null || relax || Math.abs(dC(f) - wb.near) < 0.9)).map(f => ({ f, s: (wb.near != null ? -Math.abs(dC(f) - wb.near) * 3 : 0) + (wb.miner ? 2 : 0) + (f.green ? 0.6 : 0) + r() * 1.4 - (dC(f) > 1.6 ? 3 : 0) }));
@@ -14251,21 +14356,22 @@ function genVillage(o) {
     return true;
   };
   let left = want.filter(wb => !tryPlace(wb));
+  if (!custom) left = left.filter(wb => !tryPlace(wb, true));
   // Not everyone fitted: as in a growing village, a new lane branches off the road and draws houses along it.
-  for (let g = 0; g < 16 && left.length; g++) {
-    const all = V.roads.concat(V.lanes).flat().filter(([x, y]) => { const d = Math.hypot(x - C[0], y - C[1]); return d > R * 0.2 && d < R * (1 + g * 0.05); });
-    if (!all.length) break; const [sx, sy] = all[Math.floor(r() * all.length)], ang = Math.round((Math.atan2(sy - C[1], sx - C[0]) + (r() - 0.5) * 1.6) / (Math.PI / 2)) * (Math.PI / 2), L = R * (0.5 + r() * 0.5);
-    const ex = Math.round(Math.max(2, Math.min(W - 3, sx + Math.cos(ang) * L))), ey = Math.round(Math.max(2, Math.min(H - 3, sy + Math.sin(ang) * L)));
-    if (!isFinite(roadCost(ex, ey))) continue; const p = vgPath(W, H, roadCost, [sx, sy], [ex, ey]); if (!p || p.length < 8) continue;
-    V.lanes.push(p); paint(p, 0, VGT.LANE); addFronts(p, 1, 0.9);
+  for (let g = 0; g < 30 && left.length; g++) {
+    if (custom) break; const lane = growLane(R * (1 + g * 0.06)); if (!lane) continue; addFronts(lane, 0.9);
     left = left.filter(wb => !tryPlace(wb, g >= 1)); }
+  left = left.filter(wb => !tryPlace(wb, true)); // and the rest wherever a road has room, out toward the fields
   V.wanted = want.length; V.unplaced = left.length;
   // ----- Around the village -----
   // A churchyard round the church, the green's well or pond, a wayside cross where roads meet.
   if (V.green) { const [gx, gy] = V.green; if (r() < 0.5) { const pr = 2 + r() * 1.5; for (let y = Math.floor(gy - pr - 1); y <= gy + pr + 1; y++) for (let x = Math.floor(gx - pr * 1.4 - 1); x <= gx + pr * 1.4 + 1; x++) if (at(x, y) === VGT.GREEN && Math.hypot((x - gx) / 1.4, y - gy) < pr * (0.8 + nz(x / 3, y / 3, 2) * 0.4)) set(x, y, VGT.POND); V.features.push({ k: "pond", x: gx, y: gy }); }
     else V.features.push({ k: "well", x: Math.round(gx), y: Math.round(gy) }); }
-  else V.features.push({ k: "well", x: C[0] + 2, y: C[1] + 2 });
-  if (layout === "crossroads") V.features.push({ k: "cross", x: C[0] + 2, y: C[1] - 2 });
+  else if (!V.ring) { const sp = [[4, 4], [-5, 4], [4, -5], [-5, -5], [0, 5], [5, 0]].find(([a, b]) => at(C[0] + a, C[1] + b) === VGT.GRASS); if (sp) V.features.push({ k: "well", x: C[0] + sp[0], y: C[1] + sp[1] }); }
+  if (V.ring) V.features.push({ k: "well", x: C[0], y: C[1] });
+  else if (!V.green && V.roads.length >= 3) { const sp = [[3, 3], [-4, 3], [3, -4], [-4, -4]].find(([a, b]) => at(C[0] + a, C[1] + b) === VGT.GRASS); if (sp) V.features.push({ k: "cross", x: C[0] + sp[0], y: C[1] + sp[1] }); }
+  // What the road editor shows: the roads and lanes (not the mill's lane or the mine track: those follow the mill and mine).
+  V.ctl = allRoads().filter(rd => rd.kind === "road" || rd.kind === "lane").map(rd => ({ pts: rd.ctl.map(p => [Math.round(p[0] * 2) / 2, Math.round(p[1] * 2) / 2]), loop: rd.loop || undefined }));
   // Meadow by the water, then the open fields in furlongs of strips (three great fields round the village: one fallow),
   // common pasture where they run out, and the rest left to grass and trees.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GRASS) continue; let near = false; for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (at(x + dx, y + dy) === VGT.WATER) { near = true; break; }
@@ -14322,10 +14428,16 @@ function vgTerrainSvg(V, s, vb, opts) {
   // Water: the river with its banks, the pond.
   if (V.riverPath) { const d = vgSmooth(V.riverPath, s); out.push(`<path d="${d}" stroke="#5d6b3a" stroke-width="${(V.riverW + 1.2) * s}" fill="none" stroke-linecap="round" opacity=".7"/><path d="${d}" stroke="#3d6f8f" stroke-width="${V.riverW * s}" fill="none" stroke-linecap="round"/><path d="${d}" stroke="#5a8fae" stroke-width="${V.riverW * s * 0.45}" fill="none" stroke-linecap="round" opacity=".6"/>`); }
   // Roads and lanes: worn earth with darker edges and ruts.
-  const road = (p, w, col) => { const d = vgSmooth(vgThin(p, 3).map(([x, y]) => [x + 0.5, y + 0.5]), s); out.push(`<path d="${d}" stroke="#5a4a30" stroke-width="${(w + 0.5) * s}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/><path d="${d}" stroke="${col}" stroke-width="${w * s}" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" stroke="rgba(70,55,30,.35)" stroke-width="${Math.max(1, s * 0.12)}" fill="none" stroke-dasharray="${s * 1.2} ${s * 0.8}"/>`); };
-  V.lanes.forEach(p => road(p, 1.5, "#9c845a")); V.roads.forEach(p => road(p, 3, "#a68c5e"));
-  // Bridges where roads cross water.
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === VGT.BRIDGE && inBox(x, y)) out.push(`<rect x="${x * s}" y="${y * s}" width="${s + 0.5}" height="${s + 0.5}" fill="#8a6038"/><path d="M${x * s} ${(y + 0.5) * s}h${s}M${(x + 0.5) * s} ${y * s}v${s}" stroke="#5e4027" stroke-width="${Math.max(1, s * 0.06)}"/>`);
+  // Roads: all the edges first, then all the surfaces, so where roads meet they run into each other in one piece.
+  const pd = P => "M" + vgThin(P, 2).map(([x, y]) => `${(x * s).toFixed(1)} ${(y * s).toFixed(1)}`).join("L"), RS = V.roads.concat(V.lanes), all = RS.map(rd => pd(rd.d) + (rd.loop ? "Z" : "")).concat((V.fillets || []).map(pd));
+  const ww = VG_RW * 2 * s, rl = `fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  out.push(`<path d="${all.join("")}" stroke="#5a4a30" stroke-width="${ww + s * 0.6}" ${rl} opacity=".55"/><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/>`);
+  out.push(`<path d="${RS.map(rd => pd(rd.d)).join("")}" stroke="rgba(70,55,30,.28)" stroke-width="${Math.max(1, s * 0.16)}" ${rl} stroke-dasharray="${s * 1.4} ${s * 0.9}"/>`);
+  // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
+  { const runs = []; RS.map(rd => rd.d).concat(V.fillets || []).forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
+    const bd = runs.filter(rn => rn.length > 1).map(rn => { const a = rn[0], b = rn[rn.length - 1], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, e = 1.2; return pd([[a[0] - dx / l * e, a[1] - dy / l * e]].concat(rn, [[b[0] + dx / l * e, b[1] + dy / l * e]])); }).join("");
+    if (bd) out.push(`<path d="${bd}" stroke="#3b2a1a" stroke-width="${ww + s * 0.7}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#8a6038" stroke-width="${ww}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#5e4027" stroke-width="${ww}" fill="none" stroke-linecap="butt" stroke-dasharray="${Math.max(1, s * 0.08)} ${s * 0.5}"/>`); }
+
   // Mountains: rock with ridges and boulders; spoil heaps and the mine's adit.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const t = at(x, y); if (!inBox(x, y)) continue;
     if (t === VGT.ROCK) { if ([[0, 1], [1, 0], [0, -1], [-1, 0]].some(([a, b]) => { const u = at(x + a, y + b); return u !== VGT.ROCK && u !== 255; })) out.push(`<rect x="${x * s}" y="${y * s}" width="${s}" height="${s}" fill="rgba(40,36,32,.35)"/>`);
@@ -14389,24 +14501,89 @@ async function vgPlace(camp, o) {
 }
 
 // ----- The village page: #gen-<camp>/village -----
+// The preview is a map you can zoom (wheel, pinch, + and −) and drag around, look into at any floor, and — with the road
+// editor on — reshape: drag road points, tap a road to add a point, draw new roads, join them up; the village regrows round
+// whatever roads you leave it.
 const VG_LABEL = { chapel: "church", manor: "manor house", mill: "mill", blacksmith: "smithy", bakehouse: "bakehouse", tavern: "alehouse", stable: "stable", farmhouse: "farmhouse", barn: "barn", house: "house", cottage: "cottage" };
-function vgPreviewHtml(o) {
-  const t0 = performance.now(), V = genVillage(o), s = Math.max(4, Math.min(8, Math.floor(1100 / V.W))), img = genUrl(vgPreviewSvg(V, s)), ms = Math.round(performance.now() - t0);
+Object.assign(VG, { V: null, view: null, lvl: "roof", edit: false, sel: null, add: null, cache: new Map() });
+const vgClone = rs => rs.map(rd => ({ pts: rd.pts.map(p => p.slice()), loop: rd.loop || undefined }));
+const vgPct = (v, of) => (v / of * 100).toFixed(4) + "%";
+// One building at the chosen floor: its roof, or the floor with its furniture, turned as it stands.
+function vgBuildingHtml(V, b, lvl, o) {
+  const B = b.B, levels = B.levels.map(L => L.level), top = Math.max(...levels), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  let want = lvl === "roof" ? "roof" : lvl === "cellar" ? -1 : lvl === "upper" ? 1 : 0, dim = false;
+  if (want === -1 && !levels.includes(-1)) { want = 0; dim = true; } if (want === 1 && top < 1) want = "roof";
+  const key = [b.o.type, b.o.seed, b.o.size, want, o.furn !== false].join("|"); let inner = VG.cache.get(key), w, h;
+  if (want === "roof") { w = B.W; h = B.H; if (!inner) inner = `<img src="${genUrl(genRoofSvg(B, b.o.seed))}" alt="">`; }
+  else { w = B.W + GEN_PAD * 2; h = B.H + GEN_PAD * 2; if (!inner) { const L = B.levels.find(x => x.level === want);
+      inner = `<img src="${genUrl(genFloorSvg(B, L, false, b.o.seed, false, "base"))}" alt="">` + (o.furn !== false ? genFurnBoxes(L).map(f => `<img class="vgfp" src="${esc(f.src)}" alt="" style="left:${vgPct(f.x + GEN_PAD, w)};top:${vgPct(f.y + GEN_PAD, h)};width:${vgPct(f.w, w)};height:${vgPct(f.h, h)}${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("") : "") + `<img class="vgfp" src="${genUrl(genFloorSvg(B, L, true, b.o.seed, false, "top"))}" alt="" style="left:0;top:0;width:100%;height:100%">`; } }
+  VG.cache.set(key, inner); if (VG.cache.size > 400) VG.cache.delete(VG.cache.keys().next().value);
+  return `<div class="vgb${dim ? " dim" : ""}" style="left:${vgPct(cx - w / 2, V.W)};top:${vgPct(cy - h / 2, V.H)};width:${vgPct(w, V.W)};height:${vgPct(h, V.H)}${b.k ? `;transform:rotate(${b.k * 90}deg)` : ""}">${inner}</div>`;
+}
+// The road editor's layer: every road as a line through its points, with a handle on each point.
+function vgEditSvg(V) {
+  const o = VG.o, rs = o.roads || [], S = (VG.view && VG.view.S) || 8, hr = 9 / S, out = [];
+  rs.forEach((rd, i) => { if (!rd || !rd.pts || rd.pts.length < 2) return; const d = vgEase(vgCurve(rd.pts, !!rd.loop), !!rd.loop), pd = "M" + vgThin(d, 2).map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join("L"), on = VG.sel && VG.sel.r === i;
+    out.push(`<path class="vgehit" d="${pd}" data-r="${i}" stroke-width="${16 / S}"/><path d="${pd}" class="vgeline${on ? " on" : ""}" stroke-width="${(on ? 4 : 2.5) / S}"/>`);
+    rd.pts.forEach(([x, y], j) => out.push(`<circle class="vgeh${on && VG.sel.p === j ? " on" : ""}${j === 0 || j === rd.pts.length - 1 ? " end" : ""}" data-r="${i}" data-p="${j}" cx="${x}" cy="${y}" r="${hr}" stroke-width="${2 / S}"/>`)); });
+  if (VG.add && VG.add.length) { const d = VG.add; out.push(`<path class="vgeline add" d="M${d.map(p => p.join(" ")).join("L")}" stroke-width="${3 / S}"/>`); d.forEach(([x, y]) => out.push(`<circle class="vgeh add" cx="${x}" cy="${y}" r="${hr}" stroke-width="${2 / S}"/>`)); }
+  return `<svg class="vgedit" viewBox="-0.0001 -0.0001 ${V.W} ${V.H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${out.join("")}</svg>`;
+}
+function vgStageHtml(V) {
+  const o = VG.o, s = Math.max(4, Math.min(8, Math.floor(1100 / V.W)));
+  return `<img class="vgland" src="${genUrl(vgTerrainSvg(V, s))}" alt="The village" draggable="false"><div class="vgbs">${V.buildings.map(b => vgBuildingHtml(V, b, VG.lvl, o)).join("")}</div>${VG.edit ? vgEditSvg(V) : ""}`;
+}
+function vgSummary(V) {
   const order = ["chapel", "manor", "mill", "blacksmith", "bakehouse", "tavern", "stable", "farmhouse", "barn", "house", "cottage"];
   const list = order.filter(k => V.counts[k]).map(k => `${V.counts[k] > 1 ? V.counts[k] + " " : ""}${VG_LABEL[k]}${V.counts[k] > 1 ? (VG_LABEL[k].endsWith("h") ? "es" : "s") : ""}`).join(", ");
-  const what = [({ street: "A street village", green: "A green village", crossroads: "A crossroads village" })[V.layout], V.river === "river" ? "on a river" : V.river === "stream" ? "by a stream" : "", V.land === "mountains" ? "under the mountains" : V.land === "hills" ? "in the hills" : "", V.mine ? "with a mine" : ""].filter(Boolean).join(" ");
-  void ms;
-  return `<p class="small"><strong>${V.W} × ${V.H} squares</strong> <span class="muted">(${V.W * 5} × ${V.H * 5} ft) · ${esc(what)} · ${V.buildings.length} buildings</span><br><span class="muted">${esc(list)}</span></p>
-    <div class="vgprev"><img src="${img}" alt="The village"></div>`;
+  const exits = V.custom ? "your own roads" : `${V.nRoads} road${V.nRoads > 1 ? "s" : ""} out`;
+  const what = [V.custom ? "" : V.centre === "ring" ? "Round a ring road" : V.centre === "green" ? "Round a green" : "Where the roads meet", exits, V.river === "river" ? "on a river" : V.river === "stream" ? "by a stream" : "", V.land === "mountains" ? "under the mountains" : V.land === "hills" ? "in the hills" : "", V.mine ? "with a mine" : ""].filter(Boolean).join(" · ");
+  return `<p class="small"><strong>${V.W} × ${V.H} squares</strong> <span class="muted">(${V.W * 5} × ${V.H * 5} ft) · ${esc(what)} · ${V.buildings.length} buildings</span><br><span class="muted">${esc(list)}</span></p>`;
 }
+function vgToolbarHtml() {
+  const L = [["roof", "Roofs"], ["upper", "Upper floors"], ["0", "Ground floor"], ["cellar", "Cellars"]], cur = String(VG.lvl);
+  const sel = VG.sel && VG.o.roads && VG.o.roads[VG.sel.r];
+  return `<div class="vgbar"><div class="seg" role="group" aria-label="Floor">${L.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" data-act="gvlvl" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join("")}</div>
+    <span class="vgzoom"><button class="btn ghost small" data-act="gvzoom" data-v="-1" aria-label="Zoom out">−</button><button class="btn ghost small" data-act="gvzoom" data-v="0" aria-label="Fit the map">⤢</button><button class="btn ghost small" data-act="gvzoom" data-v="1" aria-label="Zoom in">+</button></span>
+    <button class="btn small${VG.edit ? "" : " ghost"}" data-act="gvedit" aria-pressed="${VG.edit}">✏️ ${VG.edit ? "Done editing roads" : "Edit roads"}</button></div>
+    ${VG.edit ? `<div class="vgbar vgebar">${VG.add ? `<span class="small">Tap the map to lay the new road's points (start or end on a road to join it). </span><button class="btn small" data-act="gvaddok">Finish road</button><button class="btn ghost small" data-act="gvaddno">Cancel</button>`
+      : `<button class="btn ghost small" data-act="gvadd">➕ New road</button>${sel ? `${sel.pts.length > 2 && VG.sel.p != null ? `<button class="btn ghost small" data-act="gvdelpt">Delete point</button>` : ""}<button class="btn ghost small" data-act="gvloop">${sel.loop ? "Open the loop" : "Close into a loop"}</button><button class="btn ghost small danger" data-act="gvdelroad">Delete road</button>` : ""}<button class="btn ghost small" data-act="gvreset" title="Throw away your road changes">↺ Generated roads</button>
+      <span class="muted small">Drag a point to move it · tap a road to add a point · tap a point to pick it · drag an end onto another road or off the map edge.</span>`}</div>` : ""}`;
+}
+function vgRender(keepView) {
+  const el = document.getElementById("gv-prev"); if (!el || !VG.o) return;
+  const V = VG.V = genVillage(VG.o);
+  if (!el.querySelector(".vgview")) el.innerHTML = `<div id="gv-sum"></div><div id="gv-bar"></div><div class="vgview" id="gv-view"><div class="vgstage" id="gv-stage"></div></div>`;
+  document.getElementById("gv-sum").innerHTML = vgSummary(V); document.getElementById("gv-bar").innerHTML = vgToolbarHtml();
+  document.getElementById("gv-stage").innerHTML = vgStageHtml(V);
+  if (!keepView || !VG.view || VG.view.W !== V.W) vgFit(); else vgApply();
+}
+const vgRefresh = () => vgRender(true);
+function vgFit() { const vw = document.getElementById("gv-view"); if (!vw || !VG.V) return; vw.style.height = Math.round(Math.min(innerHeight * 0.72, 820, vw.clientWidth * VG.V.H / VG.V.W + 12)) + "px"; const r = vw.getBoundingClientRect(), S = Math.max(2, Math.min((r.width - 8) / VG.V.W, (r.height - 8) / VG.V.H));
+  VG.view = { S, x: (r.width - VG.V.W * S) / 2, y: (r.height - VG.V.H * S) / 2, W: VG.V.W }; vgApply(); }
+function vgApply() { const st = document.getElementById("gv-stage"), v = VG.view; if (!st || !v || !VG.V) return; st.style.width = VG.V.W * v.S + "px"; st.style.height = VG.V.H * v.S + "px"; st.style.transform = `translate(${v.x}px,${v.y}px)`;
+  const ed = st.querySelector(".vgedit"); if (ed && VG.edit) { const tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); ed.replaceWith(tmp.firstChild); } }
+function vgZoomAt(f, px, py) { const v = VG.view; if (!v) return; const nS = Math.max(1.5, Math.min(60, v.S * f)); v.x = px - (px - v.x) * nS / v.S; v.y = py - (py - v.y) * nS / v.S; v.S = nS; vgApply(); }
+const vgRedrawEdit = () => { const st = document.getElementById("gv-stage"); if (!st || !VG.V) return; const ed = st.querySelector(".vgedit"), tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); if (ed) ed.replaceWith(tmp.firstChild); else st.appendChild(tmp.firstChild); };
+// Map squares under a pointer.
+const vgAt = ev => { const st = document.getElementById("gv-stage").getBoundingClientRect(), v = VG.view; return [(ev.clientX - st.left) / v.S, (ev.clientY - st.top) / v.S]; };
+// A road end dropped near another road joins it; one dragged off the map runs to the edge.
+function vgSnap(p, skip) { const o = VG.o, V = VG.V; let best = null;
+  (o.roads || []).forEach((rd, i) => { if (i === skip || !rd.pts || rd.pts.length < 2) return; vgCurve(rd.pts, !!rd.loop, 0.5).forEach(q => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < 3 && (!best || d < best.d)) best = { d, q }; }); });
+  if (best) return [Math.round(best.q[0] * 2) / 2, Math.round(best.q[1] * 2) / 2];
+  let [x, y] = p; if (x < 1) x = -3; if (y < 1) y = -3; if (x > V.W - 1) x = V.W + 3; if (y > V.H - 1) y = V.H + 3; return [Math.round(x * 2) / 2, Math.round(y * 2) / 2]; }
+const vgEnsureRoads = () => { if (!VG.o.roads) VG.o.roads = vgClone(VG.V.ctl); };
+
 function viewVillageGen(camp) {
   if (!VG.o) VG.o = vgDefaults(); const o = VG.o;
   const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button class="${String(o[k]) === String(v) ? "on" : ""}" data-act="gvopt" data-k="${k}" data-v="${v}" aria-pressed="${String(o[k]) === String(v)}">${l}</button>`).join("")}</div>`;
+  setTimeout(() => vgRender(false), 0);
   return `<section class="page genpage"><a href="#gen-${esc(camp)}" class="vback">← Generator</a>
     <h1>🏡 Village</h1><p class="muted">Houses along the roads on their tofts and crofts, the church and manor, the mill on the water, open fields in strips, meadow, woods — and every building one you can walk into, floor by floor.</p>
     <div class="genlayout"><div class="genopts">
       <label><span>Size</span>${seg("size", [["hamlet", "Hamlet"], ["village", "Village"], ["large", "Large"]])}</label>
-      <label><span>Layout</span>${seg("layout", [["auto", "Any"], ["street", "Street"], ["green", "Green"], ["crossroads", "Crossroads"]])}</label>
+      <label><span>Roads to the edge <small class="muted">1 makes a ring road</small></span>${seg("nroads", [["auto", "Any"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]])}</label>
+      <label><span>Centre</span>${seg("centre", [["auto", "Any"], ["junction", "Crossing"], ["green", "Green"], ["ring", "Ring road"]])}</label>
       <label><span>Water</span>${seg("river", [["auto", "Any"], ["none", "None"], ["stream", "Stream"], ["river", "River"]])}</label>
       <label><span>Land</span>${seg("land", [["auto", "Any"], ["open", "Open"], ["hills", "Hills"], ["mountains", "Mountains"]])}</label>
       <label><span>Woods</span>${seg("woods", [["few", "Few"], ["some", "Some"], ["many", "Many"]])}</label>
@@ -14414,21 +14591,62 @@ function viewVillageGen(camp) {
       <label class="genchk"><input type="checkbox" data-act="gvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture in the buildings</span></label>
       <button class="btn" data-act="gvroll">🎲 New village</button>
       <label><span>Seed <small class="muted">the same seed makes the same village</small></span><input id="gv-seed" type="number" value="${o.seed}"></label>
+      <p class="muted small" id="gv-custom">${o.roads ? "Your own roads: a new seed keeps them and regrows the village round them." : ""}</p>
       <hr>
       <label><span>Name</span><input id="gv-name" type="text" value="${esc(o.name)}" placeholder="Village"></label>
       <button class="btn" data-act="gvplace" data-camp="${esc(camp)}">Place in the campaign</button>
       <p class="muted small">A new map in this campaign, with every building in place to walk into. Big villages take a little while to draw.</p>
-    </div><div class="genprev" id="gv-prev">${vgPreviewHtml(o)}</div></div></section>`;
+    </div><div class="genprev" id="gv-prev"></div></div></section>`;
 }
-const vgRefresh = () => { const el = document.getElementById("gv-prev"); if (el && VG.o) el.innerHTML = vgPreviewHtml(VG.o); };
+const vgCustomNote = () => { const n = document.getElementById("gv-custom"); if (n) n.textContent = VG.o.roads ? "Your own roads: a new seed keeps them and regrows the village round them." : ""; };
 document.addEventListener("click", async ev => {
-  const b = ev.target.closest && ev.target.closest("[data-act^=gv]"); if (!b || !vCanEdit()) return; const a = b.dataset.act; if (!VG.o) return;
-  if (a === "gvopt") { VG.o[b.dataset.k] = b.dataset.v; b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); vgRefresh(); return; }
-  if (a === "gvchk") { VG.o[b.dataset.k] = b.checked; return; }
-  if (a === "gvroll") { VG.o.seed = genSeed(); const s = document.getElementById("gv-seed"); if (s) s.value = VG.o.seed; vgRefresh(); return; }
-  if (a === "gvplace") { ev.preventDefault(); const n = document.getElementById("gv-name"); VG.o.name = n ? n.value.trim() : ""; b.disabled = true; try { await vgPlace(b.dataset.camp, VG.o); } finally { b.disabled = false; } return; }
+  const b = ev.target.closest && ev.target.closest("[data-act^=gv]"); if (!b || !vCanEdit()) return; const a = b.dataset.act; if (!VG.o) return; const o = VG.o;
+  if (a === "gvopt") { const k = b.dataset.k, was = o[k]; o[k] = b.dataset.v; b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); });
+    if ((k === "nroads" || k === "centre") && o.roads) { o.roads = null; VG.sel = null; vgCustomNote(); } // back to generated roads
+    if (k === "size" && o.roads && VG_SIZES[was] && VG_SIZES[o[k]]) { const f = VG_SIZES[o[k]].W / VG_SIZES[was].W, g = VG_SIZES[o[k]].H / VG_SIZES[was].H; o.roads.forEach(rd => rd.pts = rd.pts.map(([x, y]) => [Math.round(x * f * 2) / 2, Math.round(y * g * 2) / 2])); }
+    vgRender(k !== "size"); return; }
+  if (a === "gvchk") { o[b.dataset.k] = b.checked; VG.cache.clear(); vgRefresh(); return; }
+  if (a === "gvroll") { o.seed = genSeed(); const s = document.getElementById("gv-seed"); if (s) s.value = o.seed; vgRefresh(); return; }
+  if (a === "gvlvl") { VG.lvl = b.dataset.v === "0" ? 0 : b.dataset.v; vgRefresh(); return; }
+  if (a === "gvzoom") { const v = Number(b.dataset.v), r = document.getElementById("gv-view").getBoundingClientRect(); if (!v) vgFit(); else vgZoomAt(v > 0 ? 1.5 : 1 / 1.5, r.width / 2, r.height / 2); return; }
+  if (a === "gvedit") { VG.edit = !VG.edit; VG.sel = null; VG.add = null; if (VG.edit) { vgEnsureRoads(); vgCustomNote(); } vgRefresh(); return; }
+  if (a === "gvadd") { VG.add = []; VG.sel = null; document.getElementById("gv-bar").innerHTML = vgToolbarHtml(); vgRedrawEdit(); return; }
+  if (a === "gvaddno") { VG.add = null; document.getElementById("gv-bar").innerHTML = vgToolbarHtml(); vgRedrawEdit(); return; }
+  if (a === "gvaddok") { const pts = VG.add || []; VG.add = null; if (pts.length >= 2) { pts[pts.length - 1] = vgSnap(pts[pts.length - 1]); vgEnsureRoads(); o.roads.push({ pts }); VG.sel = { r: o.roads.length - 1, p: null }; } vgRefresh(); return; }
+  if (a === "gvdelpt" && VG.sel) { const rd = o.roads[VG.sel.r]; if (rd && rd.pts.length > 2) rd.pts.splice(VG.sel.p, 1); VG.sel.p = null; vgRefresh(); return; }
+  if (a === "gvloop" && VG.sel) { const rd = o.roads[VG.sel.r]; if (rd) rd.loop = rd.loop ? undefined : true; vgRefresh(); return; }
+  if (a === "gvdelroad" && VG.sel) { o.roads.splice(VG.sel.r, 1); VG.sel = null; if (!o.roads.length) o.roads = []; vgRefresh(); return; }
+  if (a === "gvreset") { o.roads = null; VG.sel = null; vgCustomNote(); vgRender(true); if (VG.edit) { vgEnsureRoads(); vgRedrawEdit(); } return; }
+  if (a === "gvplace") { ev.preventDefault(); const n = document.getElementById("gv-name"); o.name = n ? n.value.trim() : ""; b.disabled = true; try { await vgPlace(b.dataset.camp, o); } finally { b.disabled = false; } return; }
 });
 document.addEventListener("change", ev => { if (ev.target && ev.target.id === "gv-seed" && VG.o) { VG.o.seed = Math.max(1, Math.round(Number(ev.target.value)) || 1); vgRefresh(); } });
+// Zoom with the wheel; drag to pan (or, editing, to move a road point); pinch with two fingers.
+document.addEventListener("wheel", ev => { const vw = ev.target.closest && ev.target.closest("#gv-view"); if (!vw || !VG.view) return; ev.preventDefault(); const r = vw.getBoundingClientRect(); vgZoomAt(Math.exp(-ev.deltaY * 0.0015), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
+const VGP = { ptrs: new Map(), drag: null };
+document.addEventListener("pointerdown", ev => {
+  const vw = ev.target.closest && ev.target.closest("#gv-view"); if (!vw || !VG.view) return; VGP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
+  if (VGP.ptrs.size === 2) { const [p, q] = [...VGP.ptrs.values()]; VGP.drag = { pinch: Math.hypot(p[0] - q[0], p[1] - q[1]), S: VG.view.S }; return; }
+  const h = VG.edit && !VG.add && ev.target.closest(".vgeh"), line = VG.edit && !VG.add && !h && ev.target.closest(".vgehit");
+  if (h) { const r = Number(h.dataset.r), p = Number(h.dataset.p); VG.sel = { r, p }; VGP.drag = { pt: [r, p], moved: false }; }
+  else if (line) { const r = Number(line.dataset.r), rd = VG.o.roads[r], at = vgAt(ev); let bi = 0, bd = Infinity; // put a point in the nearest gap
+    for (let i = 0; i < rd.pts.length - (rd.loop ? 0 : 1); i++) { const A = rd.pts[i], B = rd.pts[(i + 1) % rd.pts.length], dx = B[0] - A[0], dy = B[1] - A[1], t = Math.max(0, Math.min(1, ((at[0] - A[0]) * dx + (at[1] - A[1]) * dy) / (dx * dx + dy * dy || 1))), d = Math.hypot(A[0] + dx * t - at[0], A[1] + dy * t - at[1]); if (d < bd) { bd = d; bi = i; } }
+    rd.pts.splice(bi + 1, 0, [Math.round(at[0] * 2) / 2, Math.round(at[1] * 2) / 2]); VG.sel = { r, p: bi + 1 }; VGP.drag = { pt: [r, bi + 1], moved: true }; vgRedrawEdit(); }
+  else VGP.drag = { pan: [ev.clientX, ev.clientY, VG.view.x, VG.view.y], moved: false };
+  vw.setPointerCapture && vw.setPointerCapture(ev.pointerId); ev.preventDefault();
+});
+document.addEventListener("pointermove", ev => {
+  if (!VGP.ptrs.has(ev.pointerId) || !VGP.drag || !VG.view) return; VGP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]); const d = VGP.drag;
+  if (d.pinch && VGP.ptrs.size === 2) { const [p, q] = [...VGP.ptrs.values()], r = document.getElementById("gv-view").getBoundingClientRect(), dist = Math.hypot(p[0] - q[0], p[1] - q[1]); vgZoomAt(d.S * dist / d.pinch / VG.view.S, (p[0] + q[0]) / 2 - r.left, (p[1] + q[1]) / 2 - r.top); return; }
+  if (d.pan) { if (Math.hypot(ev.clientX - d.pan[0], ev.clientY - d.pan[1]) > 4) d.moved = true; VG.view.x = d.pan[2] + ev.clientX - d.pan[0]; VG.view.y = d.pan[3] + ev.clientY - d.pan[1]; const st = document.getElementById("gv-stage"); if (st) st.style.transform = `translate(${VG.view.x}px,${VG.view.y}px)`; return; }
+  if (d.pt) { d.moved = true; const at = vgAt(ev), rd = VG.o.roads[d.pt[0]]; rd.pts[d.pt[1]] = [Math.round(at[0] * 2) / 2, Math.round(at[1] * 2) / 2]; vgRedrawEdit(); }
+});
+const vgUp = ev => {
+  if (!VGP.ptrs.has(ev.pointerId)) return; VGP.ptrs.delete(ev.pointerId); const d = VGP.drag; if (VGP.ptrs.size) return; VGP.drag = null; if (!d || d.pinch) return;
+  if (d.pt) { const rd = VG.o.roads[d.pt[0]], j = d.pt[1]; if (d.moved) { if (j === 0 || j === rd.pts.length - 1) rd.pts[j] = vgSnap(rd.pts[j], d.pt[0]); vgRefresh(); } else { document.getElementById("gv-bar").innerHTML = vgToolbarHtml(); vgRedrawEdit(); } return; }
+  if (d.pan && !d.moved && VG.edit) { if (VG.add) { const at = vgAt(ev), p = VG.add.length ? [Math.round(at[0] * 2) / 2, Math.round(at[1] * 2) / 2] : vgSnap(at); VG.add.push(p); vgRedrawEdit(); }
+    else if (VG.sel) { VG.sel = null; document.getElementById("gv-bar").innerHTML = vgToolbarHtml(); vgRedrawEdit(); } }
+};
+document.addEventListener("pointerup", vgUp); document.addEventListener("pointercancel", vgUp);
 
 // ---------- DnD Codex ----------
 const TYPES = [

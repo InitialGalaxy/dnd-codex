@@ -2268,6 +2268,13 @@ button.vtname.vtsel:hover { color: var(--brass); }
 .gencard { display:flex; flex-direction:column; gap:6px; padding:16px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:inherit; text-decoration:none; position:relative; transition:transform .12s, border-color .12s; }
 a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gencard, a.gencard:hover, a.gencard * { text-decoration:none; } .gencard strong { font:700 1.15rem var(--display); } .genicon { font-size:2rem; line-height:1; }
 .gencard.soon { opacity:.5; } .gensoon { position:absolute; top:10px; right:10px; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+.vgview { position:relative; height:min(72vh, 820px); overflow:hidden; background:#1c2416; border-radius:10px; touch-action:none; cursor:grab; user-select:none; } .vgview:active { cursor:grabbing; }
+.vgstage { position:absolute; left:0; top:0; transform-origin:0 0; } .vgland { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none; }
+.vgbs, .vgb { position:absolute; } .vgbs { inset:0; pointer-events:none; } .vgb > img { position:absolute; left:0; top:0; width:100%; height:100%; display:block; } .vgb > img.vgfp { width:auto; height:auto; } .vgb.dim { opacity:.35; }
+.vgedit { position:absolute; inset:0; width:100%; height:100%; overflow:visible; } .vgehit { fill:none; stroke:transparent; pointer-events:stroke; cursor:copy; }
+.vgeline { fill:none; stroke:#ffd54a; pointer-events:none; stroke-linecap:round; stroke-linejoin:round; } .vgeline.on { stroke:#ff9d2e; } .vgeline.add { stroke:#7fd3ff; }
+.vgeh { fill:#ffd54a; stroke:#1e1a16; cursor:move; } .vgeh.end { fill:#fff; } .vgeh.on { fill:#ff6a2e; } .vgeh.add { fill:#7fd3ff; pointer-events:none; }
+.vgbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0; } .vgzoom { display:inline-flex; gap:4px; } .vgebar { padding:6px 8px; border-radius:8px; background:rgba(255,213,74,.08); }
 .vgprev { overflow:auto; border-radius:10px; background:#24301c; } .vgprev img { display:block; max-width:100%; height:auto; }
 .genlayout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; } @media (max-width:860px) { .genlayout { grid-template-columns:1fr; } .genopts { position:static !important; } .genfloors img { max-width:100%; padding:6px; } }
 @media (max-height:760px) { .genopts { position:static !important; } }
