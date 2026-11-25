@@ -331,11 +331,12 @@ function genFloorSvg(B, L, labels, seed) {
   let stairs = "";
   (L.stairs || []).forEach((t, i) => {
     const along = t.w >= t.h, n = 6, X = t.x * P, Y = t.y * P, Wd = t.w * P, Hd = t.h * P, gid = `gst${L.level + 5}_${i}`, toB = t.toward === "b";
-    const near = t.dir === "up" ? "#8c7458" : "#eadfc6", far = t.dir === "up" ? "#f3ead6" : "#4e3d2b";
-    const steps = Array.from({ length: n - 1 }, (_, j) => along ? `<line x1="${X + Wd * (j + 1) / n}" y1="${Y}" x2="${X + Wd * (j + 1) / n}" y2="${Y + Hd}" stroke="#4a3a28" stroke-width="1.6"/>` : `<line x1="${X}" y1="${Y + Hd * (j + 1) / n}" x2="${X + Wd}" y2="${Y + Hd * (j + 1) / n}" stroke="#4a3a28" stroke-width="1.6"/>`).join("");
+    // The room's own floor shows through: going down it fades to black, going up it brightens a little.
+    const near = t.dir === "up" ? "rgba(255,248,230,0)" : "rgba(0,0,0,0)", far = t.dir === "up" ? "rgba(255,248,230,.55)" : "rgba(0,0,0,.95)";
+    const steps = Array.from({ length: n - 1 }, (_, j) => along ? `<line x1="${X + Wd * (j + 1) / n}" y1="${Y}" x2="${X + Wd * (j + 1) / n}" y2="${Y + Hd}" stroke="rgba(40,28,16,.75)" stroke-width="2"/>` : `<line x1="${X}" y1="${Y + Hd * (j + 1) / n}" x2="${X + Wd}" y2="${Y + Hd * (j + 1) / n}" stroke="rgba(40,28,16,.75)" stroke-width="2"/>`).join("");
     const cx = along ? (toB ? X + Wd - P * 0.28 : X + P * 0.28) : X + Wd / 2, cy = along ? Y + Hd / 2 : (toB ? Y + Hd - P * 0.28 : Y + P * 0.28);
     stairs += `<defs><linearGradient id="${gid}" x1="${along ? (toB ? 0 : 1) : 0}" y1="${along ? 0 : (toB ? 0 : 1)}" x2="${along ? (toB ? 1 : 0) : 0}" y2="${along ? 0 : (toB ? 1 : 0)}"><stop offset="0" stop-color="${near}"/><stop offset="1" stop-color="${far}"/></linearGradient></defs>
-      <rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#4a3a28" stroke-width="2"/>${steps}<text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${t.dir === "up" ? "#3a2c1c" : "#f1e6cf"}" text-anchor="middle" dominant-baseline="central">${t.dir === "up" ? "▲" : "▼"}</text>`;
+      ${steps}<rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="url(#${gid})" stroke="#3a2c1c" stroke-width="2"/><text x="${cx}" y="${cy}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${t.dir === "up" ? "#3a2c1c" : "#f1e6cf"}" stroke="${t.dir === "up" ? "#f3ead6" : "#000"}" stroke-width="2" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${t.dir === "up" ? "▲" : "▼"}</text>`;
   });
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
   const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
