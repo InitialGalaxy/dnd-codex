@@ -116,7 +116,7 @@ function vehFuelHtml(v) {
 function vehStatHtml(e) {
   const v = vehOf(e); if (!v) return "";
   const cx = v.cx === "complex", idp = [...S.entries].find(([, x]) => x === e), id = idp && idp[0], sh = vehShape(e, id), cost = typeof costText === "function" ? costText((e.item || {}).stats) : "";
-  const stats = [["Hull points", esc(String(v.hull))], ...(cost ? [["Cost", esc(cost)]] : []), ...(cx ? [] : [["Seats", esc(String(v.seats))]]), ["Speed", v.speeds.map(s => `${esc(VEH_MODES[s.mode])} ${s.move} ft${s.travel ? ` · ${s.travel} mph` : ""}${s.omni ? " · any direction" : ""}${s.rev ? " · reverses" : ""}`).join("<br>")]];
+  const stats = [["Hull points", esc(String(v.hull))], ["Cost", cost ? esc(cost) : "—"], ...(cx ? [] : [["Seats", esc(String(v.seats))]]), ["Speed", v.speeds.map(s => `${esc(VEH_MODES[s.mode])} ${s.move} ft${s.travel ? ` · ${s.travel} mph` : ""}${s.omni ? " · any direction" : ""}${s.rev ? " · reverses" : ""}`).join("<br>")]];
   const decks = sh.decks && sh.decks.length ? sh.decks.filter(d => d.row).map(d => `<figure>${vehDeckSvg(sh, d)}<figcaption>${esc(d.name)} · ${d.L} × ${d.W}</figcaption></figure>`).join("") : `<figure>${vehDeckSvg(sh, null)}${sh.box ? `<figcaption>No map yet: the shape set for the turning circle</figcaption>` : ""}</figure>`;
   // Seen from above: every deck stacked, the lowest first.
   const top = sh.decks && sh.decks.length ? { pics: sh.decks.slice().reverse().flatMap(d => d.pics) } : null;

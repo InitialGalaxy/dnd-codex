@@ -1055,7 +1055,7 @@ function itemPageHtml(id, e) {
     <h2 class="ititle">${esc(e.title)}</h2>
     <p class="isub">${esc(meta)}${it.holder ? ` · Held by <a href="#items" data-act="holder" data-v="${esc(it.holder)}">${esc(it.holder)}</a>` : ""}</p>
     ${it.magical === false ? `<p class="irar"><span class="rar mundane">Mundane</span></p>` : it.rarity ? `<p class="irar"><span class="rar r-${r}">${esc(it.rarity)}</span></p>` : ""}
-    ${e.image || (S.assets && canEdit) ? `<div class="iimg">${e.image ? imageHtml(e.image, e.title, id) : ""}${S.assets && canEdit ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">${e.image ? "Replace image" : "Add image"}</button>` : ""}</div>` : ""}
+    ${e.image || (S.assets && canEdit) ? `<div class="iimg">${e.image ? imageHtml(e.image, e.title, id) : ""}${S.assets && canEdit && !e.image ? `<button class="btn ghost small" data-act="portrait" data-id="${esc(id)}">Add image</button>` : ""}</div>` : ""}
     ${flavour.trim() ? `<div class="flavour">${md(flavour, { entryId: id })}</div>` : canEdit ? `<div class="iimg"><button class="btn ghost small" data-act="addlore" data-id="${esc(id)}">Add lore</button></div>` : ""}
     ${isVehicle(e) ? vehStatHtml(e) : ""}${itemStatsHtml(it, isVehicle(e))}${itemResPreviewHtml(it)}
     <div class="iprops">${md(paras.join("\n\n"), { entryId: id })}</div>
@@ -1566,7 +1566,7 @@ function itemStatsHtml(it, noCost) {
   if (u) rows.push(["Uses", esc(useText(u))]);
   if (k !== "armour") { const d = damageText(st); if (d) rows.push(["Damage", diceify(esc(d))]); }
   if (k === "armour") { const a = acText(st, /shield/i.test(it.category || "")); if (a) rows.push(["Armour Class", esc(a)]); }
-  const c = noCost ? "" : costText(st); if (c) rows.push(["Cost", esc(c)]);
+  if (!noCost) { const c = costText(st); rows.push(["Cost", c ? esc(c) : "—"]); } // every item shows its cost, or a dash
   if (!rows.length) return "";
   return `<div class="istats">${rows.map(([l, v]) => `<div><span>${l}</span><strong>${v}</strong></div>`).join("")}</div>`;
 }
@@ -1815,13 +1815,14 @@ function itemFields(e) {
   }
   if (!DRAFT.it[0].items.length) DRAFT.it[0].items.push({ name: "", desc: "" });
   const kind = kindOfCategory(parsed.category);
-  const hasStats = !!(it.stats && (it.stats.damage || it.stats.ac || it.stats.cost || (it.stats.dmg || []).length)) || (!e.title && (kind === "weapon" || kind === "armour")) || ((kind === "weapon" || kind === "armour") && !!(st.damage || st.ac));
+  const hasStats = !!(it.stats && (it.stats.damage || it.stats.ac || (it.stats.dmg || []).length)) || (!e.title && (kind === "weapon" || kind === "armour")) || ((kind === "weapon" || kind === "armour") && !!(st.damage || st.ac));
   const hasUse = !!(it.use && it.use.type && it.use.type !== "none");
   return `<label class="check magicbox hvhide"><input id="it-magical" type="checkbox"${it.magical === false ? "" : " checked"}> ✦ Magical <small class="muted">untick for ordinary, non-magical gear</small></label>
     <div class="frow">
       <label><span>Category</span><select id="it-cat">${ITEM_CATEGORIES.map(c => `<option${known && c.toLowerCase() === String(parsed.category).toLowerCase() ? " selected" : ""}>${c}</option>`).join("")}<option value="__other"${known ? "" : " selected"}>Other…</option></select></label>
       <label class="grow" id="it-catother-wrap"${known ? " hidden" : ""}><span>Category name</span><input id="it-catother" type="text" value="${esc(known ? "" : parsed.category)}" placeholder="e.g. Sentient melee weapon"></label>
       <label class="grow hvhide"><span>Base item</span><input id="it-base" type="text" value="${esc(parsed.base)}" placeholder="e.g. spear, longsword, plate"></label>
+      <label><span>Cost <small class="muted">optional</small></span><input id="it-cost" type="text" value="${esc(st.cost)}" placeholder="25 gp" style="width:120px"></label>
     </div>
     ${harvestFieldsHtml(Object.assign({}, it, { category: parsed.category, harvest: it.harvest || (e.type === "item" && e.title ? harvestOf(e) : {}) }))}
     <div class="frow" id="it-saddle"${isSaddleCat(parsed.category) ? "" : " hidden"}><label><span>Seats <small class="muted">how many riders it carries in all</small></span><input id="it-seats" type="number" min="1" max="20" step="1" style="width:110px" value="${esc(it.seats || 2)}"></label><p class="muted small grow">Equipped on a summon, the mount can carry this many riders. Without a saddle a mount carries one less than the squares it takes up (Large 1, Huge 2, Gargantuan 3), and always at least one.</p></div>
@@ -1841,7 +1842,7 @@ function itemFields(e) {
       <datalist id="holderlist">${[...new Set([...S.entries.values()].map(x => x.item && x.item.holder).filter(Boolean))].map(h => `<option value="${esc(h)}"></option>`).join("")}</datalist>
     </div>
     <div class="itchecks hvhide" role="group" aria-label="Optional item parts">
-      <label class="check inline"><input id="it-stats-on" type="checkbox"${hasStats ? " checked" : ""}> Stats <small class="muted">damage, AC, cost</small></label>
+      <label class="check inline"><input id="it-stats-on" type="checkbox"${hasStats ? " checked" : ""}> Stats <small class="muted">damage, AC</small></label>
       <label class="check inline"><input id="it-use-on" type="checkbox"${hasUse ? " checked" : ""}> Uses <small class="muted">charges, consumable</small></label>
       <label class="check inline"><input id="it-holds-on" type="checkbox"${(it.holds || {}).n ? " checked" : ""}> Holds other items</label>
       <label class="check inline"><input id="it-res-on" type="checkbox"${(it.res || []).length ? " checked" : ""}> Resources <small class="muted">charges, pools</small></label>
@@ -1851,13 +1852,11 @@ function itemFields(e) {
     <div class="statpanel hvhide" data-kind="weapon"${kind === "weapon" ? "" : " hidden"}>
       <span class="flabel">Weapon stats</span>
       ${dmgRowsHtml("weapon", st, true)}
-      <div class="frow"><label><span>Cost <small class="muted">optional</small></span><input class="st-cost" data-kind="weapon" type="text" value="${esc(st.cost)}" placeholder="15 gp"></label></div>
     </div>
     <datalist id="dtypes">${DAMAGE_TYPES.map(d => `<option value="${d}"></option>`).join("")}</datalist>
     <div class="statpanel hvhide" data-kind="item"${kind === "item" ? "" : " hidden"}>
       <span class="flabel">Item stats</span>
       ${dmgRowsHtml("item", st, false)}
-      <div class="frow"><label><span>Cost <small class="muted">optional</small></span><input class="st-cost" data-kind="item" type="text" value="${esc(st.cost)}" placeholder="25 gp"></label></div>
     </div>
     <div class="statpanel hvhide" data-kind="armour"${kind === "armour" ? "" : " hidden"}>
       <span class="flabel">Armour stats</span>
@@ -1865,7 +1864,6 @@ function itemFields(e) {
         <label><span>Base AC</span><input id="st-ac" type="text" inputmode="numeric" value="${esc(st.ac)}" placeholder="15"></label>
         <label class="check inline"><input id="st-dex" type="checkbox"${st.dex ? " checked" : ""}> Add Dex modifier</label>
         <label id="st-dexmax-wrap"${st.dex ? "" : " hidden"}><span>Max Dex <small class="muted">blank = no limit</small></span><input id="st-dexmax" type="text" inputmode="numeric" value="${esc(st.dexMax)}" placeholder="2"></label>
-        <label><span>Cost <small class="muted">optional</small></span><input class="st-cost" data-kind="armour" type="text" value="${esc(st.cost)}" placeholder="750 gp"></label>
       </div>
       <p class="muted small">Shows as: <strong id="st-acprev">${esc(acText(st, /shield/i.test(parsed.category)) || "—")}</strong></p>
     </div>
@@ -1965,14 +1963,15 @@ document.addEventListener("change", ev => {
     if (kd === "weapon" || kd === "armour") { $("#it-stats-on").checked = true; $("#it-stats-wrap").hidden = false; updateStatPanels(); }
   }
 });
+// The item's stats: damage or AC when Stats is ticked, and its cost (every item has a cost box).
 function readItemStats() {
-  if ($("#it-stats-on") && !$("#it-stats-on").checked) return null;
+  const cost = (($("#it-cost") || {}).value || "").trim(), on = !$("#it-stats-on") || $("#it-stats-on").checked;
   const cat = $("#it-cat").value === "__other" ? $("#it-catother").value : $("#it-cat").value, kind = kindOfCategory(cat);
-  const cost = (document.querySelector(`.st-cost[data-kind="${kind}"]`) || {}).value || "";
-  if (kind === "armour") return { cost: cost.trim(), ac: $("#st-ac").value.trim(), dex: $("#st-dex").checked, dexMax: $("#st-dex").checked ? $("#st-dexmax").value.trim() : "" };
+  if (!on) return cost ? { cost } : null;
+  if (kind === "armour") return { cost, ac: $("#st-ac").value.trim(), dex: $("#st-dex").checked, dexMax: $("#st-dex").checked ? $("#st-dexmax").value.trim() : "" };
   const d = readDmgRows(kind);
-  if (kind === "item" && !cost.trim() && !d.damage) return null;
-  return Object.assign({ cost: cost.trim() }, d);
+  if (kind === "item" && !cost && !d.damage) return null;
+  return Object.assign({ cost }, d);
 }
 function updateStatPanels() {
   const cat = $("#it-cat").value === "__other" ? $("#it-catother").value : $("#it-cat").value, kind = kindOfCategory(cat);
