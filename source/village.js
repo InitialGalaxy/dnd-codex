@@ -123,7 +123,7 @@ function genVillage(o) {
   // rounded off wide enough for a wagon to turn.
   // Roads keep off the river banks (they cross the water, not run along it).
   const wetD = new Uint8Array(W * H).fill(9); { const q = []; for (let i = 0; i < W * H; i++) if (T[i] === VGT.WATER) { wetD[i] = 0; q.push(i); } for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i / W) | 0; if (wetD[i] >= 5) continue; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const nx = x + a, ny = y + b; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (wetD[j] > wetD[i] + 1) { wetD[j] = wetD[i] + 1; q.push(j); } } } }
-  const roadCost = (x, y) => { const t = at(x, y); if (t === VGT.ROCK || t === 255) return Infinity; if (t === VGT.WATER) return 9; if (wetD[y * W + x] < 5) return 6; if (t === VGT.ROAD || t === VGT.BRIDGE) return 1.2; if (t === VGT.WOOD) return 2.2; if (t === VGT.BUILD || t === VGT.PLOT) return Infinity; return 1 + nz(x / 6, y / 6, 2) * 1.6; };
+  const roadCost = (x, y, wetOk) => { const t = at(x, y); if (t === VGT.ROCK || t === 255) return Infinity; if (t === VGT.WATER) return 9; if (!wetOk && wetD[y * W + x] < 5) return 6; if (t === VGT.ROAD || t === VGT.BRIDGE) return 1.2; if (t === VGT.WOOD) return 2.2; if (t === VGT.BUILD || t === VGT.PLOT) return Infinity; return 1 + nz(x / 6, y / 6, 2) * 1.6; };
   const carve = cells => cells.forEach(i => { const t = T[i]; T[i] = t === VGT.WATER || t === VGT.BRIDGE ? VGT.BRIDGE : VGT.ROAD; });
   const hits = (cells, plotsOk) => { let n = 0; cells.forEach(i => { if (T[i] === VGT.BUILD || (!plotsOk && T[i] === VGT.PLOT)) n++; }); return n; };
   const allRoads = () => V.roads.concat(V.lanes);
@@ -171,7 +171,7 @@ function genVillage(o) {
   // Lanes: a back lane loops out from a road and back to it, so houses can stand along it (no dead ends).
   const clearMap = () => { const D = new Uint8Array(W * H).fill(9), q = []; for (let i = 0; i < W * H; i++) if (T[i] === VGT.BUILD || T[i] === VGT.PLOT) { D[i] = 0; q.push(i); }
     for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i / W) | 0; if (D[i] >= 5) continue; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const nx = x + a, ny = y + b; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const j = ny * W + nx; if (D[j] > D[i] + 1) { D[j] = D[i] + 1; q.push(j); } } } return D; };
-  const laneCost = (D, near) => (x, y) => { if (D[y * W + x] < 4 && !(near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 5))) return Infinity; const t = at(x, y); if (t === VGT.ROAD || t === VGT.BRIDGE) return near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 3) ? 1 : 6; return roadCost(x, y); };
+  const laneCost = (D, near, wetOk) => (x, y) => { if (D[y * W + x] < 4 && !(near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 5))) return Infinity; const t = at(x, y); if (t === VGT.ROAD || t === VGT.BRIDGE) return near && near.some(p => Math.hypot(x - p[0], y - p[1]) < 3) ? 1 : 6; return wetOk ? roadCost(x, y, 1) : roadCost(x, y); };
   // A back lane: it leaves a road, runs alongside it some way off, and comes back to it — a loop, never a dead end, and kept
   // clear of the other roads so lanes don't tangle.
   const laneCap = ({ hamlet: 1, village: 3, large: 5 })[size];
@@ -201,6 +201,12 @@ function genVillage(o) {
       const x = Math.floor(d[i][0]), y = Math.floor(d[i][1]); [[-dy, dx], [dy, -dx]].forEach(([nx, ny]) => { const n = Math.abs(nx) > Math.abs(ny) ? [Math.sign(nx), 0] : [0, Math.sign(ny)]; fronts.push({ x, y, n, hw: VG_RW + 0.75, w: weight, rd, diag: Math.abs(Math.abs(dx) - Math.abs(dy)) < Math.hypot(dx, dy) * 0.5 }); }); } };
   // Lanes first (in a growing village they come before the houses that line them), then everyone faces a road or lane.
   if (!custom) for (let i = 0, n = ({ hamlet: 0, village: 2, large: 3 })[size] + (rr() < 0.5 ? 1 : 0); i < n * 12 && V.lanes.length < n; i++) growLane(R * 0.9);
+  // The well: 2 squares across, at the heart of the village (the middle of the ring or the green, or beside the crossing),
+  // with worn ground round it that no house is built on.
+  { const ok2 = (x, y, m) => { for (let b = -m; b < 2 + m; b++) for (let a = -m; a < 2 + m; a++) { const t = at(x + a, y + b); if (t !== VGT.GRASS && t !== VGT.GREEN && t !== VGT.WOOD) return false; } return true; };
+    const c0 = V.ring ? [Math.floor(V.ring[0]) - 1, Math.floor(V.ring[1]) - 1] : V.green ? [Math.round(V.green[0]) - 1, Math.round(V.green[1]) - 1] : [C[0] - 1, C[1] - 1]; let wc = null;
+    for (let d = 0; d < 16 && !wc; d++) for (let b = -d; b <= d && !wc; b++) for (let a = -d; a <= d && !wc; a++) if (Math.max(Math.abs(a), Math.abs(b)) === d && ok2(c0[0] + a, c0[1] + b, V.ring ? 0 : 1)) wc = [c0[0] + a, c0[1] + b];
+    if (wc) { for (let b = -1; b < 3; b++) for (let a = -1; a < 3; a++) { const t = at(wc[0] + a, wc[1] + b); if (t === VGT.GRASS || t === VGT.WOOD || (t === VGT.GREEN && !V.ring)) set(wc[0] + a, wc[1] + b, VGT.YARD); } V.well = wc; } }
   allRoads().forEach(rd => addFronts(rd, rd.kind === "lane" ? 0.9 : 1));
   if (V.green) { const [gx, gy] = V.green; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GREEN) continue;
       [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => { const t = at(x + dx, y + dy); if (t !== VGT.GREEN && t !== VGT.ROAD && (dx * (x - gx) + dy * (y - gy)) > 0) fronts.push({ x, y, n: [dx, dy], hw: 0.5, w: 0.7, green: 1 }); }); } }
@@ -257,7 +263,7 @@ function genVillage(o) {
         // Its lane: from a yard in front of the door to the nearest road, wide enough for the miller's wagon.
         const out = k === 0 ? [0, 1] : k === 2 ? [0, -1] : k === 1 ? [-1, 0] : [1, 0];
         for (const st of [3, 4, 5, 6]) { const s0 = [door[0] + out[0] * st, door[1] + out[1] * st]; if (!isFinite(roadCost(s0[0], s0[1]))) continue;
-          const lp = vgPath(W, H, laneCost(clearMap(), [s0, door]), s0, C, i => T[i] === VGT.ROAD || T[i] === VGT.BRIDGE); if (!lp || lp.length < 3) continue;
+          const lp = vgPath(W, H, laneCost(clearMap(), [s0, door], 1), s0, C, i => T[i] === VGT.ROAD || T[i] === VGT.BRIDGE); if (!lp || lp.length < 3) continue;
           if (addRoad(mkRoad(fromPath(lp), false, "mill"), { strict: 1, allow: 0 })) break; }
         break; }
       return true; }
@@ -287,10 +293,9 @@ function genVillage(o) {
   V.wanted = want.length; V.unplaced = left.length;
   // ----- Around the village -----
   // A churchyard round the church, the green's well or pond, a wayside cross where roads meet.
-  if (V.green) { const [gx, gy] = V.green; if (r() < 0.5) { const pr = 2 + r() * 1.5; for (let y = Math.floor(gy - pr - 1); y <= gy + pr + 1; y++) for (let x = Math.floor(gx - pr * 1.4 - 1); x <= gx + pr * 1.4 + 1; x++) if (at(x, y) === VGT.GREEN && Math.hypot((x - gx) / 1.4, y - gy) < pr * (0.8 + nz(x / 3, y / 3, 2) * 0.4)) set(x, y, VGT.POND); V.features.push({ k: "pond", x: gx, y: gy }); }
-    else V.features.push({ k: "well", x: Math.round(gx), y: Math.round(gy) }); }
-  else if (!V.ring) { const sp = [[4, 4], [-5, 4], [4, -5], [-5, -5], [0, 5], [5, 0]].find(([a, b]) => at(C[0] + a, C[1] + b) === VGT.GRASS); if (sp) V.features.push({ k: "well", x: C[0] + sp[0], y: C[1] + sp[1] }); }
-  if (V.ring) V.features.push({ k: "well", x: C[0], y: C[1] });
+  if (V.green && r() < 0.5) { const [g0, g1, gr] = V.green, an = r() * Math.PI * 2, gx = g0 + Math.cos(an) * gr * 0.55, gy = g1 + Math.sin(an) * gr * 0.55, pr = 1.8 + r() * 1.2; // a pond on the green, off to one side of the well
+    for (let y = Math.floor(gy - pr - 1); y <= gy + pr + 1; y++) for (let x = Math.floor(gx - pr * 1.4 - 1); x <= gx + pr * 1.4 + 1; x++) if (at(x, y) === VGT.GREEN && Math.hypot((x - gx) / 1.4, y - gy) < pr * (0.8 + nz(x / 3, y / 3, 2) * 0.4)) set(x, y, VGT.POND); }
+  if (V.ring) {}
   else if (!V.green && V.roads.length >= 3) { const sp = [[3, 3], [-4, 3], [3, -4], [-4, -4]].find(([a, b]) => at(C[0] + a, C[1] + b) === VGT.GRASS); if (sp) V.features.push({ k: "cross", x: C[0] + sp[0], y: C[1] + sp[1] }); }
   // What the road editor shows: the roads and lanes (not the mill's lane or the mine track: those follow the mill and mine).
   V.ctl = allRoads().filter(rd => rd.kind === "road" || rd.kind === "lane").map(rd => ({ pts: rd.ctl.map(p => [Math.round(p[0] * 2) / 2, Math.round(p[1] * 2) / 2]), loop: rd.loop || undefined }));
@@ -298,15 +303,36 @@ function genVillage(o) {
   // common pasture where they run out, and the rest left to grass and trees.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (at(x, y) !== VGT.GRASS) continue; let near = false; for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (at(x + dx, y + dy) === VGT.WATER) { near = true; break; }
     if (near && Math.hypot(x - C[0], y - C[1]) > R * 0.6) set(x, y, VGT.MEADOW); }
+  // Furlongs: each from four corner points on a loose grid the neighbours share, so they fit together like a patchwork with a
+  // headland between. A corner with a road, house, wood or water in the way moves in until the furlong is clear; if the middle
+  // itself is taken, the furlong splits in four and each part tries again. Edges are rounded; the strips run the long way.
   const fieldOf = (x, y) => Math.floor(((Math.atan2(y - C[1], x - C[0]) + Math.PI) / (Math.PI * 2) * 3 + 0.17)) % 3, crops = ["wheat", "barley", "fallow"].sort(() => r() - 0.5);
-  for (let by = 0; by < H; by += 12 + Math.floor(r() * 6)) for (let bx = 0; bx < W; bx += 16 + Math.floor(r() * 8)) {
-    const fw = 14 + Math.floor(r() * 8), fh = 10 + Math.floor(r() * 6), x0 = bx + Math.floor(r() * 3), y0 = by + Math.floor(r() * 3);
-    if (Math.hypot(x0 + fw / 2 - C[0], y0 + fh / 2 - C[1]) < R * 0.95) continue;
-    let free = 0; for (let y = y0; y < y0 + fh; y++) for (let x = x0; x < x0 + fw; x++) if (at(x, y) === VGT.GRASS) free++;
-    if (free < fw * fh * 0.55) continue;
-    const fl = { x: x0, y: y0, w: fw, h: fh, horiz: r() < 0.5, crop: crops[fieldOf(x0 + fw / 2, y0 + fh / 2)], cells: [] };
-    for (let y = y0; y < y0 + fh; y++) for (let x = x0; x < x0 + fw; x++) if (at(x, y) === VGT.GRASS) { set(x, y, VGT.FIELD); fl.cells.push([x, y]); }
-    V.furlongs.push(fl); }
+  const freeF = (x, y) => { for (const [a, b] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) if (at(Math.floor(x + a), Math.floor(y + b)) !== VGT.GRASS) return false; return true; };
+  const polyIn = (P, x, y) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+  const roundQ = Q => { // straight sides with rounded corners (a plough team needs room to turn)
+    const P = []; Q.forEach((q, i) => { const a = Q[(i + 3) % 4], b = Q[(i + 1) % 4], la = Math.hypot(a[0] - q[0], a[1] - q[1]) || 1, lb = Math.hypot(b[0] - q[0], b[1] - q[1]) || 1, rr = Math.min(3, la * 0.3, lb * 0.3);
+      const p0 = [q[0] + (a[0] - q[0]) / la * rr, q[1] + (a[1] - q[1]) / la * rr], p2 = [q[0] + (b[0] - q[0]) / lb * rr, q[1] + (b[1] - q[1]) / lb * rr];
+      for (let t = 0; t <= 1.0001; t += 0.25) P.push([0, 1].map(k => (1 - t) * (1 - t) * p0[k] + 2 * (1 - t) * t * q[k] + t * t * p2[k])); }); return P; };
+  const cellsIn = P => { const xs = P.map(q => q[0]), ys = P.map(q => q[1]), out = []; for (let y = Math.floor(Math.min(...ys)); y <= Math.max(...ys); y++) for (let x = Math.floor(Math.min(...xs)); x <= Math.max(...xs); x++) if (polyIn(P, x + 0.5, y + 0.5)) out.push([x, y]); return out; };
+  const furlong = (Q0, depth) => {
+    const mid = Q => [Q.reduce((a, q) => a + q[0], 0) / 4, Q.reduce((a, q) => a + q[1], 0) / 4];
+    let Q = Q0.map(q => q.slice()); const [cx, cy] = mid(Q);
+    if (Math.hypot(cx - C[0], cy - C[1]) < R * 0.8) return;
+    Q = Q.map(([x, y]) => { const dx = cx - x, dy = cy - y, l = Math.hypot(dx, dy) || 1; return [x + dx / l * 1.0, y + dy / l * 1.0]; }); // the headland
+    let P = null;
+    if (freeF(cx, cy)) for (let it = 0; it < 70; it++) { const R4 = roundQ(Q), hit = [0, 0, 0, 0]; let bad = 0;
+      cellsIn(R4).forEach(([x, y]) => { if (freeF(x + 0.5, y + 0.5)) return; bad++; let k = 0, bd = Infinity; Q.forEach((q, qi) => { const d = Math.hypot(q[0] - x - 0.5, q[1] - y - 0.5); if (d < bd) { bd = d; k = qi; } }); hit[k]++; });
+      if (!bad) { P = R4; break; }
+      hit.forEach((n, k) => { if (!n) return; const q = Q[k], dx = cx - q[0], dy = cy - q[1], l = Math.hypot(dx, dy); if (l < 2) return; const st = Math.min(0.8, l * 0.15); q[0] += dx / l * st; q[1] += dy / l * st; }); }
+    const area = P ? cellsIn(P).length : 0;
+    if (!P || area < (depth ? 24 : 60)) { if (depth < 1) { const m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], [a, b, c, d] = Q0, ab = m(a, b), bc = m(b, c), cd = m(c, d), da = m(d, a), o = mid(Q0);
+        [[a, ab, o, da], [ab, b, bc, o], [o, bc, c, cd], [da, o, cd, d]].forEach(q => furlong(q, depth + 1)); } return; }
+    const e1 = Math.hypot(Q[1][0] - Q[0][0], Q[1][1] - Q[0][1]) + Math.hypot(Q[2][0] - Q[3][0], Q[2][1] - Q[3][1]), e2 = Math.hypot(Q[3][0] - Q[0][0], Q[3][1] - Q[0][1]) + Math.hypot(Q[2][0] - Q[1][0], Q[2][1] - Q[1][1]);
+    const [ea, eb] = e1 >= e2 ? [Q[0], Q[1]] : [Q[0], Q[3]], cells = cellsIn(P); cells.forEach(([x, y]) => set(x, y, VGT.FIELD));
+    V.furlongs.push({ poly: P, ang: Math.atan2(eb[1] - ea[1], eb[0] - ea[0]), crop: crops[fieldOf(cx, cy)], c: [cx, cy], cells }); };
+  { const gw = 20 + Math.floor(r() * 6), gh = 16 + Math.floor(r() * 5), nx = Math.ceil(W / gw) + 1, ny = Math.ceil(H / gh) + 1, G = [];
+    for (let j = 0; j <= ny; j++) { G.push([]); for (let i = 0; i <= nx; i++) G[j].push([i * gw - gw / 2 + (r() - 0.5) * gw * 0.5, j * gh - gh / 2 + (r() - 0.5) * gh * 0.5]); }
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) furlong([G[j][i], G[j][i + 1], G[j + 1][i + 1], G[j + 1][i]], 0); }
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === VGT.GRASS && Math.hypot(x - C[0], y - C[1]) > R * 1.3 && nz(x / 14 + 9, y / 14, 2) > 0.55) set(x, y, VGT.PASTURE);
   // Trees: woods thick with them; a few along the hedges and lanes, in the crofts and on the green.
   const tr = (x, y, s, kind) => V.trees.push([x, y, s, kind || 0]);
@@ -327,17 +353,15 @@ function vgTerrainSvg(V, s, vb, opts) {
   const box = vb || [0, 0, W, H], inBox = (x, y, m) => x >= box[0] - (m || 1) && y >= box[1] - (m || 1) && x <= box[0] + box[2] + (m || 1) && y <= box[1] + box[3] + (m || 1);
   const out = [], cell = (x, y, c) => out.push(`<rect x="${x * s}" y="${y * s}" width="${s + 0.5}" height="${s + 0.5}" fill="${c}"/>`);
   const nz = vgNoise(31), shade = (x, y, base, amp) => { const v = nz(x / 7, y / 7, 3); const [h, sat, l] = base; return `hsl(${h} ${sat}% ${(l + (v - 0.5) * amp).toFixed(1)}%)`; };
-  const COL = { [VGT.GRASS]: [95, 32, 42], [VGT.WOOD]: [100, 30, 30], [VGT.MEADOW]: [90, 36, 45], [VGT.GREEN]: [100, 40, 45], [VGT.PLOT]: [82, 28, 43], [VGT.PASTURE]: [86, 28, 43], [VGT.FIELD]: [70, 30, 45], [VGT.ROCK]: [30, 6, 52], [VGT.SPOIL]: [30, 5, 45], [VGT.BUILD]: [82, 28, 43], [VGT.YARD]: [40, 25, 45], [VGT.ROAD]: [36, 30, 46], [VGT.LANE]: [38, 28, 48], [VGT.BRIDGE]: [205, 38, 34], [VGT.WATER]: [205, 38, 34], [VGT.POND]: [200, 40, 36] };
+  const COL = { [VGT.GRASS]: [95, 32, 42], [VGT.WOOD]: [100, 30, 30], [VGT.MEADOW]: [90, 36, 45], [VGT.GREEN]: [100, 40, 45], [VGT.PLOT]: [82, 28, 43], [VGT.PASTURE]: [86, 28, 43], [VGT.FIELD]: [95, 32, 42], [VGT.ROCK]: [30, 6, 52], [VGT.SPOIL]: [30, 5, 45], [VGT.BUILD]: [82, 28, 43], [VGT.YARD]: [40, 25, 45], [VGT.ROAD]: [36, 30, 46], [VGT.LANE]: [38, 28, 48], [VGT.BRIDGE]: [205, 38, 34], [VGT.WATER]: [205, 38, 34], [VGT.POND]: [200, 40, 36] };
   for (let y = Math.max(0, Math.floor(box[1]) - 1); y < Math.min(H, box[1] + box[3] + 1); y++) for (let x = Math.max(0, Math.floor(box[0]) - 1); x < Math.min(W, box[0] + box[2] + 1); x++) {
     const t = at(x, y), c = COL[t] || COL[VGT.GRASS]; cell(x, y, t === VGT.ROAD || t === VGT.LANE || t === VGT.WATER || t === VGT.POND || t === VGT.BRIDGE ? shade(x, y, COL[VGT.MEADOW], 6) : shade(x, y, c, t === VGT.ROCK ? 14 : 8)); }
   for (let y = Math.max(0, Math.floor(box[1]) - 1); y < Math.min(H, box[1] + box[3] + 1); y++) for (let x = Math.max(0, Math.floor(box[0]) - 1); x < Math.min(W, box[0] + box[2] + 1); x++) if (at(x, y) === VGT.POND) out.push(`<circle cx="${(x + 0.5) * s}" cy="${(y + 0.5) * s}" r="${s * 0.85}" fill="#3d6f8f"/>`);
   // Fields: strips (selions) across each furlong; wheat, barley or fallow by great field.
   const crop = { wheat: ["#c9a94a", "#b8963c"], barley: ["#a9b45a", "#98a24c"], fallow: ["#8a7048", "#7a6240"] };
-  V.furlongs.forEach(f => { if (!inBox(f.x + f.w / 2, f.y + f.h / 2, Math.max(f.w, f.h))) return; const c = crop[f.crop] || crop.wheat, set = new Set(f.cells.map(([x, y]) => x + "," + y));
-    f.cells.forEach(([x, y]) => { const stripe = f.horiz ? Math.floor((y - f.y) / 1.5) : Math.floor((x - f.x) / 1.5); cell(x, y, c[stripe % 2]); });
-    const lines = []; if (f.horiz) for (let y = f.y; y <= f.y + f.h; y += 1.5) lines.push(`M${f.x * s} ${y * s}h${f.w * s}`); else for (let x = f.x; x <= f.x + f.w; x += 1.5) lines.push(`M${x * s} ${f.y * s}v${f.h * s}`);
-    out.push(`<path d="${lines.join("")}" stroke="rgba(60,45,20,.35)" stroke-width="${Math.max(1, s * 0.05)}" clip-path="url(#vgf${V.furlongs.indexOf(f)})"/>`);
-    out.push(`<clipPath id="vgf${V.furlongs.indexOf(f)}">${f.cells.map(([x, y]) => `<rect x="${x * s}" y="${y * s}" width="${s}" height="${s}"/>`).join("")}</clipPath>`); void set; });
+  V.furlongs.forEach((f, i) => { if (!inBox(f.c[0], f.c[1], 30)) return; const c = crop[f.crop] || crop.wheat, id = `vgf${i}`, sw = 1.5 * s;
+    out.push(`<pattern id="${id}" patternUnits="userSpaceOnUse" width="${sw * 2}" height="${sw * 2}" patternTransform="rotate(${(f.ang * 180 / Math.PI).toFixed(2)})"><rect width="${sw * 2}" height="${sw}" fill="${c[0]}"/><rect y="${sw}" width="${sw * 2}" height="${sw}" fill="${c[1]}"/><path d="M0 ${sw}h${sw * 2}" stroke="rgba(60,45,20,.3)" stroke-width="${Math.max(1, s * 0.06)}"/></pattern>`);
+    out.push(`<path d="M${f.poly.map(([x, y]) => `${(x * s).toFixed(1)} ${(y * s).toFixed(1)}`).join("L")}Z" fill="url(#${id})" stroke="#5d4a2c" stroke-opacity=".5" stroke-width="${Math.max(1, s * 0.14)}" stroke-linejoin="round"/>`); });
   // Plots: a worn yard round each house, hedges round the croft, rows of beds.
   V.plots.forEach(p => { if (!inBox(p.x + p.w / 2, p.y + p.h / 2, Math.max(p.w, p.h))) return;
     out.push(`<rect x="${p.x * s}" y="${p.y * s}" width="${p.w * s}" height="${p.h * s}" fill="none" stroke="#3f5a2a" stroke-width="${s * 0.35}" stroke-dasharray="${s * 0.5} ${s * 0.25}" stroke-linecap="round" opacity=".85"/>`);
@@ -367,6 +391,8 @@ function vgTerrainSvg(V, s, vb, opts) {
     else if (t === VGT.SPOIL && (x + y) % 2 === 0) out.push(`<circle cx="${(x + 0.5) * s}" cy="${(y + 0.5) * s}" r="${s * 0.6}" fill="#7d7870" opacity=".9"/>`); }
   if (V.mineAt) { const [mx, my] = V.mineAt; out.push(`<rect x="${(mx - 0.6) * s}" y="${(my - 0.6) * s}" width="${s * 2.2}" height="${s * 2.2}" fill="#1e1a16" stroke="#5e4027" stroke-width="${s * 0.25}"/><text x="${(mx + 0.5) * s}" y="${(my - 1) * s}" font-size="${s * 1.1}" text-anchor="middle" fill="#f1e6cf" stroke="#1e1a16" stroke-width="${s * 0.15}" paint-order="stroke" font-family="sans-serif">⛏ Mine</text>`); }
   // Features: well, wayside cross.
+  if (V.well && inBox(V.well[0] + 1, V.well[1] + 1, 3)) { const x = (V.well[0] + 1) * s, y = (V.well[1] + 1) * s; // a stone well with its winch
+    out.push(`<circle cx="${x + s * 0.12}" cy="${y + s * 0.15}" r="${s * 0.98}" fill="rgba(0,0,0,.3)"/><circle cx="${x}" cy="${y}" r="${s * 0.95}" fill="#8d8478" stroke="#2b2520" stroke-width="${s * 0.08}"/><circle cx="${x}" cy="${y}" r="${s * 0.95}" fill="none" stroke="#6f675d" stroke-width="${s * 0.18}" stroke-dasharray="${s * 0.35} ${s * 0.08}"/><circle cx="${x}" cy="${y}" r="${s * 0.58}" fill="#1e2a33" stroke="#2b2520" stroke-width="${s * 0.06}"/><circle cx="${x - s * 0.15}" cy="${y - s * 0.15}" r="${s * 0.2}" fill="#3b5a6e" opacity=".7"/><rect x="${x - s * 0.98}" y="${y - s * 0.09}" width="${s * 1.96}" height="${s * 0.18}" rx="${s * 0.05}" fill="#7a5530" stroke="#3b2a1a" stroke-width="${s * 0.04}"/><rect x="${x - s * 1.02}" y="${y - s * 0.2}" width="${s * 0.16}" height="${s * 0.4}" fill="#5e4027"/><rect x="${x + s * 0.86}" y="${y - s * 0.2}" width="${s * 0.16}" height="${s * 0.4}" fill="#5e4027"/><circle cx="${x + s * 0.3}" cy="${y}" r="${s * 0.14}" fill="#c9b48a" stroke="#3b2a1a" stroke-width="${s * 0.03}"/>`); }
   V.features.forEach(f => { if (!inBox(f.x, f.y)) return; if (f.k === "well") out.push(`<circle cx="${(f.x + 0.5) * s}" cy="${(f.y + 0.5) * s}" r="${s * 0.55}" fill="#8d8478" stroke="#2b2520" stroke-width="${s * 0.08}"/><circle cx="${(f.x + 0.5) * s}" cy="${(f.y + 0.5) * s}" r="${s * 0.3}" fill="#1e2a33"/>`);
     else if (f.k === "cross") out.push(`<rect x="${(f.x + 0.2) * s}" y="${(f.y + 0.2) * s}" width="${s * 0.6}" height="${s * 0.6}" fill="#a8a29a" stroke="#2b2520" stroke-width="${s * 0.06}"/><path d="M${(f.x + 0.5) * s} ${(f.y + 0.25) * s}v${s * 0.5}M${(f.x + 0.3) * s} ${(f.y + 0.45) * s}h${s * 0.4}" stroke="#2b2520" stroke-width="${s * 0.08}"/>`); });
   // Trees last, with shadows: woods, hedgerow trees, fruit trees in the crofts.
