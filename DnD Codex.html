@@ -13462,6 +13462,8 @@ const GEN_FURN = [
   { id: "clothbolts", name: "Cloth bolts", cat: "Workshop", w: 1, h: 1, place: "wall", access: "front", group: "cloth", draw: P => gfR(3, 3, P - 6, P * 0.6, genfWood[0]) + ["#4f6fa8", "#a8322d", "#6b8f4e", "#d8c07a"].map((c, i) => gfR(6, 6 + i * P * 0.13, P - 12, P * 0.12, c, ` rx="4"`)).join("") },
   { id: "display", name: "Display table", cat: "Shop", w: 2, h: 1, place: "free", access: "any", door: "near", draw: P => gfTable(4, P * 0.12, 2 * P - 8, P * 0.76, genfWood[2], 2) + [["#a8322d", 0.35], ["#e0c26a", 0.7], ["#6b8f4e", 1.05], ["#4f7fa8", 1.4], ["#d8cfc0", 1.7]].map(([c, x], i) => gfR(x * P - 6, P * (i % 2 ? 0.25 : 0.45), 12, 12, c, ` rx="2"`)).join("") },
   { id: "counter", name: "Shop counter", cat: "Shop", w: 3, h: 1, place: "free", access: "frontback", face: "door", door: "near", draw: P => gfShadow(4, P * 0.18, 3 * P - 8, P * 0.64) + gfR(4, P * 0.18, 3 * P - 8, P * 0.64, genfWood[0]) + gfR(9, P * 0.26, 3 * P - 18, P * 0.48, genfWood[2]) + gfL(P * 0.6, P * 0.36, P * 0.6, P * 0.64, "#4a4d52", 2) + gfL(P * 0.4, P * 0.38, P * 0.8, P * 0.38, "#4a4d52", 2) + gfC(P * 0.4, P * 0.5, 4, "#c9a45e") + gfC(P * 0.8, P * 0.5, 4, "#c9a45e") + [1.6, 1.75, 1.68].map((x, i) => gfC(x * P, P * (0.4 + i * 0.08), 3, "#e0b23c")).join("") + gfBook(P * 2.2, P * 0.32, P * 0.4, P * 0.32, "#6b4a2e") },
+  { id: "reception", name: "Reception desk", cat: "Shop", w: 2, h: 1, place: "free", access: "frontback", face: "door", door: "near", behind: "stool", draw: P => gfShadow(4, P * 0.14, 2 * P - 8, P * 0.7) + gfR(4, P * 0.14, 2 * P - 8, P * 0.7, genfWood[0]) + gfR(9, P * 0.22, 2 * P - 18, P * 0.54, genfWood[2]) + gfR(P * 0.3, P * 0.28, P * 0.66, P * 0.42, "#efe6cf") + gfL(P * 0.63, P * 0.3, P * 0.63, P * 0.68, "#9a8f7a", 1.2) + [0.38, 0.46, 0.54].map(y => gfL(P * 0.36, P * y, P * 0.58, P * y, "#9a8f7a", 1) + gfL(P * 0.68, P * y, P * 0.9, P * y, "#9a8f7a", 1)).join("") + gfC(P * 1.18, P * 0.4, 3.5, "#1e1a16") + gfL(P * 1.18, P * 0.4, P * 1.4, P * 0.26, "#f1ead8", 2) + gfC(P * 1.6, P * 0.5, P * 0.12, "#c9a45e") + gfC(P * 1.6, P * 0.5, P * 0.05, "#8a6a1a") },
+  { id: "questboard", name: "Quest board", cat: "Hall & church", w: 2, h: 1, place: "wall", access: "front", tall: 1, door: "near", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.5) + gfR(3, 3, 2 * P - 6, P * 0.5, genfWood[0]) + gfR(7, 6, 2 * P - 14, P * 0.5 - 6, "#b08a5a") + [[0.18, 0.1, -6], [0.55, 0.14, 4], [0.95, 0.08, -3], [1.32, 0.13, 7], [1.62, 0.09, -5]].map(([x, y, a], i) => `<g transform="rotate(${a} ${x * P + 8} ${y * P + 8})"><rect x="${x * P}" y="${y * P}" width="${P * 0.32}" height="${P * 0.34}" fill="${i % 2 ? "#efe6cf" : "#e6d6ae"}" stroke="#7a6a4a" stroke-width="1"/>${gfL(x * P + 3, y * P + 7, x * P + P * 0.28, y * P + 7, "#8a7a5a", 1)}${gfL(x * P + 3, y * P + 11, x * P + P * 0.24, y * P + 11, "#8a7a5a", 1)}<circle cx="${x * P + P * 0.16}" cy="${y * P + 3}" r="2.2" fill="${["#a8322d", "#2d5fa8", "#c9a42a"][i % 3]}"/></g>`).join("") },
   { id: "bar", name: "Bar", cat: "Tavern", w: 3, h: 1, place: "gap", access: "frontback", draw: P => gfShadow(3, P * 0.12, 3 * P - 6, P * 0.76) + gfR(3, P * 0.12, 3 * P - 6, P * 0.76, genfWood[0]) + gfR(8, P * 0.2, 3 * P - 16, P * 0.6, "#8a5a33") + gfPlanks(8, P * 0.2, 3 * P - 16, P * 0.6, 2, true) + [0.5, 1.1, 1.9, 2.5].map(x => gfMug(x * P, P * 0.5)).join("") + gfCask(P * 1.3, P * 0.28, P * 0.4, P * 0.3) },
   // Halls, churches, special rooms
   { id: "lectern", name: "Lectern", cat: "Hall & church", w: 1, h: 1, place: "free", access: "front", draw: P => gfCShadow(P / 2, P * 0.5, P * 0.12) + gfC(P / 2, P * 0.5, P * 0.12, genfWood[0]) + `<path d="M${P * 0.2} ${P * 0.3}H${P * 0.8}L${P * 0.74} ${P * 0.62}H${P * 0.26}Z" fill="${genfWood[1]}" stroke="${GENF_INK}" stroke-width="2"/>` + gfBook(P * 0.3, P * 0.34, P * 0.4, P * 0.24, "#7a2e2e") },
@@ -13481,7 +13483,7 @@ const GEN_FURN = [
 ];
 
 // What each room holds: [piece, least, most, chance (of having any at all)], most important first. "a|b" means one of these
-// (in a random order: if the first won't fit, the next). Rooms not listed borrow from another room of the same kind.
+// (in a random order: if the first won't fit, the next); "a>b" means a, or b if a won't fit. Rooms not listed borrow from another room of the same kind.
 const GEN_FURN_ROOMS = (() => {
   const living = [["trestle|trestle|table2", 1, 1, 1], ["settle", 0, 1, 0.5], ["chest", 1, 2], ["cupboard", 0, 1, 0.6], ["stool", 0, 2], ["shelves", 0, 1, 0.4], ["barrel", 0, 1, 0.3]];
   const bedroom = [["bed|bed|bigbed", 1, 1], ["chest", 0, 1, 0.5], ["washstand", 0, 1, 0.5], ["stool", 0, 1, 0.4], ["press", 0, 1, 0.3], ["cupboard", 0, 1, 0.3]];
@@ -13520,10 +13522,10 @@ const GEN_FURN_ROOMS = (() => {
     "Fitting room": [["dressform", 1, 2], ["press", 0, 1], ["stool", 1, 1], ["washstand", 0, 1, 0.4]],
     "Forge": [["anvil", 1, 1], ["quench", 1, 1], ["bellows", 1, 1], ["toolrack", 1, 1], ["coalbin", 1, 1], ["grindstone", 0, 1, 0.7], ["workbench", 0, 1, 0.6], ["ironstock", 0, 1, 0.5], ["barrel", 0, 1, 0.3]],
     "Common room": [["bar", 1, 1], ["trestle|table2", 1, 3], ["roundtable", 1, 4], ["settle", 0, 1, 0.5], ["caskrack", 0, 1, 0.5], ["barrel", 0, 2]],
-    "Great hall": [["longtable|trestle", 1, 1], ["carvedchair", 0, 1, 0.5], ["bench", 0, 2], ["lectern", 0, 1, 0.3], ["chest", 0, 1, 0.4], ["weaponrack", 0, 1, 0.3]],
+    "Great hall": [["questboard", 1, 1], ["longtable|trestle", 1, 1], ["carvedchair", 0, 1, 0.5], ["bench", 0, 2], ["lectern", 0, 1, 0.3], ["chest", 0, 1, 0.4], ["weaponrack", 0, 1, 0.3]],
     "Trophy hall": [["statue", 1, 3], ["weaponrack", 1, 2], ["longtable", 0, 1, 0.5], ["chest", 0, 1]],
     "Office": [["desk", 1, 1], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5], ["shelves", 0, 1, 0.4], ["strongbox", 0, 1, 0.3]],
-    "Reception": [["desk", 1, 1], ["bench", 0, 2], ["chest", 0, 1, 0.5], ["shelves", 0, 1, 0.4]],
+    "Reception": [["reception>desk", 1, 1], ["bench", 0, 2], ["chest", 0, 1, 0.5], ["shelves", 0, 1, 0.4]],
     "Guildmaster's study": [["desk", 1, 1], ["bookshelf", 1, 2], ["carvedchair", 0, 1], ["chest", 1, 1], ["strongbox", 0, 1, 0.5]],
     "Confessional": [["chair", 1, 1], ["stool", 1, 1], ["candles", 0, 1]],
     "Meeting room": [["longtable|table2", 1, 1], ["trestle|smalltable", 0, 1], ["bookshelf", 0, 1, 0.4], ["chest", 0, 1, 0.6]],
@@ -13563,7 +13565,7 @@ function genFurnLib() {
   const st = genFurnStore(), hidden = new Set(st.hidden || []), rooms = st.rooms || {};
   // Each piece's rooms: { room name: [least, most, chance, order] }, from the room lists above.
   const base = new Map(GEN_FURN.map(a => [a.id, {}]));
-  Object.entries(GEN_FURN_ROOMS).forEach(([room, list]) => list.forEach(([ids, lo, hi, p], i) => ids.split("|").forEach(id => { const m = base.get(id); if (m && !m[room]) m[room] = [lo, hi, p == null ? 1 : p, i, ids]; })));
+  Object.entries(GEN_FURN_ROOMS).forEach(([room, list]) => list.forEach(([ids, lo, hi, p], i) => ids.split(/[|>]/).forEach(id => { const m = base.get(id); if (m && !m[room]) m[room] = [lo, hi, p == null ? 1 : p, i, ids]; })));
   const out = GEN_FURN.filter(a => !hidden.has(a.id)).map(a => Object.assign({}, a, { rooms: rooms[a.id] ? Object.fromEntries(Object.entries(rooms[a.id]).map(([k, v]) => [k, [v[0], v[1], v[2] == null ? 1 : v[2], (base.get(a.id)[k] || [])[3] ?? 50, (base.get(a.id)[k] || [])[4] || a.id]])) : base.get(a.id), builtin: true }));
   (st.custom || []).forEach(c => out.push(Object.assign({ cat: "Your own", access: "any", place: "free" }, c, { rooms: Object.fromEntries(Object.entries(c.rooms || {}).map(([k, v]) => [k, [v[0], v[1], v[2] == null ? 1 : v[2], 60 - c.w * c.h, c.id]])) })));
   out.forEach(a => { if (!GEN_FURN_IMG.has(a.id + (a.img || ""))) GEN_FURN_IMG.set(a.id + (a.img || ""), genFurnImg(a)); a.src = GEN_FURN_IMG.get(a.id + (a.img || "")); });
@@ -13585,7 +13587,7 @@ function genFurnish(o, B) {
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   const name = GEN_FURN_ROOMS[rm.n] || lib.some(a => a.rooms && a.rooms[rm.n]) ? rm.n : GEN_FURN_KIND[rm.k] || rm.n;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
-  const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
+  const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
   const list = [...entries.values()].sort((a, b) => a.ord - b.ord); if (!list.length) return;
   const byId = new Map(lib.map(a => [a.id, a]));
   const inRoom = (x, y) => x >= rm.x && y >= rm.y && x < rm.x + rm.w && y < rm.y + rm.h, K = (x, y) => x + "," + y;
@@ -13680,16 +13682,18 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
     return made; };
   for (const e of list) {
     // Bigger rooms get a little more of the small things.
-    const small = e.ids.every(id => { const a = byId.get(id); return a && a.w * a.h <= 2 && !a.seats; }), hi = e.hi + (small && e.hi >= 1 ? Math.floor(Math.max(0, area - 20) / 22) : 0);
+    const small = e.ids.every(id => { const a = byId.get(id); return a && a.w * a.h <= 2 && !a.seats; }), hi = e.hi + (small && e.hi > e.lo ? Math.floor(Math.max(0, area - 20) / 22) : 0);
     let n = e.lo + Math.floor(r() * (hi - e.lo + 1)); if (e.p < 1 && r() > e.p) n = Math.min(n, e.lo);
     for (let c = 0; c < n; c++) {
       if (c >= e.lo && [...solid].length > area * (e.ids.includes("pew") ? 0.75 : 0.48)) break;
-      const ids = e.ids.slice().sort(() => r() - 0.5); let got = null;
+      // "a|b": one of these, in a random order; "a>b": a if it fits, else b.
+      const ids = String(e.key).includes(">") ? String(e.key).split(">").filter(id => e.ids.includes(id)) : e.ids.slice().sort(() => r() - 0.5); let got = null;
       for (const id of ids) { const a = byId.get(id); if (!a) continue;
         if (a.face === "altar" && !faceAltar) { const alt = placed.find(p => p.a === "altar"); faceAltar = { k: alt ? (alt.k + 2) % 4 : 0 }; }
         for (const s of spots(a).slice(0, 60)) { const p = tryAt(a, s); if (!p) continue;
           if (a.seats) { const seats = seatRound(p, a); if (seats.length < (a.seats.min || 0)) { seats.reverse().forEach(([, sp, pp]) => unput(sp, pp)); unput(s, p); continue; } }
           if (a.foot && r() < 0.6) { const f = byId.get(a.foot), fv = GENF_FRONT[s.k]; if (f) { const fx = s.k === 1 ? s.x - 1 : s.k === 3 ? s.x + s.W : s.x + (s.W > 1 ? Math.floor(r() * s.W) : 0), fy = s.k === 0 ? s.y + s.H : s.k === 2 ? s.y - 1 : s.y + (s.H > 1 ? Math.floor(r() * s.H) : 0); void fv; const sp = besides(f, fx, fy, s.k); if (sp) tryAt(f, sp); } }
+          if (a.behind) { const f = byId.get(a.behind); if (f) { const A = around(s.x, s.y, s.W, s.H, s.k), opts = A.back.slice().sort(() => r() - 0.5); for (const [fx, fy] of opts) { const sp = besides(f, fx, fy, s.k); if (sp && tryAt(f, sp)) break; } } }
           if (a.front) { const f = byId.get(a.front); if (f) { const A = around(s.x, s.y, s.W, s.H, s.k), opts = A.front.slice().sort(() => r() - 0.5); for (const [fx, fy] of opts) { const sp = besides(f, fx, fy, (s.k + 2) % 4); if (sp && tryAt(f, sp)) break; } } }
           got = p; break; }
         if (got) break; }
