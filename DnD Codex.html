@@ -14420,6 +14420,13 @@ function genVillage(o) {
     else if (t === VGT.GREEN && r() < 0.006) tr(x + 0.5, y + 0.5, 1.2 + r() * 0.5, 0);
     else if (t === VGT.ROCK && r() < 0.01) tr(x + r(), y + r(), 0.7 + r() * 0.4, 1); }
   V.plots.forEach(p => { if (!p.b || p.b.kind === "mill") return; if (r() < 0.35) for (let i = 0; i < 2 + Math.floor(r() * 4); i++) { const x = p.x + 1 + r() * (p.w - 2), y = p.y + 1 + r() * (p.h - 2); if (at(Math.floor(x), Math.floor(y)) === VGT.PLOT) tr(x, y, 0.7 + r() * 0.3, 2); } });
+  // Footpaths: from each front door out to the nearest road or lane.
+  V.paths = []; { const rp = allRoads().flatMap(rd => rd.d);
+    V.buildings.forEach(b => { const L0 = b.B.levels.find(L => L.level === 0); if (!L0 || !L0.front || !L0.front.size) return; const ks = [...L0.front].map(k => k.split(",").map(Number));
+      const xs = ks.map(k => k[1]), dy = ks[0][2], tf = vgTurn(b.k, b.B.W, b.B.H), mx = (Math.min(...xs) + Math.max(...xs) + 1) / 2;
+      const [ax, ay] = tf(mx, dy), [ox, oy] = tf(mx, dy + 2.5), a = [b.x + ax, b.y + ay], c = [b.x + ox, b.y + oy];
+      let best = null; rp.forEach(q => { const d = Math.hypot(q[0] - c[0], q[1] - c[1]); if (!best || d < best.d) best = { d, q }; }); if (!best || best.d > 16) return;
+      V.paths.push([a, c, best.q]); }); }
   V.counts = V.buildings.reduce((m, b) => (m[b.kind] = (m[b.kind] || 0) + 1, m), {});
   return V;
 }
@@ -14462,7 +14469,12 @@ function vgTerrainSvg(V, s, vb, opts) {
   // Roads: all the edges first, then all the surfaces, so where roads meet they run into each other in one piece.
   const pd = P => "M" + vgThin(P, 2).map(([x, y]) => `${(x * s).toFixed(1)} ${(y * s).toFixed(1)}`).join("L"), RS = V.roads.concat(V.lanes), all = RS.map(rd => pd(rd.d) + (rd.loop ? "Z" : "")).concat((V.fillets || []).map(pd));
   const ww = VG_RW * 2 * s, rl = `fill="none" stroke-linecap="round" stroke-linejoin="round"`;
-  out.push(`<path d="${all.join("")}" stroke="#5a4a30" stroke-width="${ww + s * 0.6}" ${rl} opacity=".55"/><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/>`);
+  // The whole network is smoothed as one shape: blurred, then cut back to a hard edge, so every join and bend runs smooth.
+  const fx = (box[0] - 12) * s, fy = (box[1] - 12) * s, fw = (box[2] + 24) * s, fh = (box[3] + 24) * s;
+  out.push(`<filter id="vgrd" filterUnits="userSpaceOnUse" x="${fx}" y="${fy}" width="${fw}" height="${fh}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${(s * 1.3).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 16 -7.5"/></filter>`);
+  // Footpaths from the front doors out to the road, under the road's edge.
+  if (V.paths && V.paths.length) out.push(`<path d="${V.paths.map(([a, c, e]) => `M${a[0] * s} ${a[1] * s}Q${c[0] * s} ${c[1] * s} ${e[0] * s} ${e[1] * s}`).join("")}" stroke="#9c845a" stroke-width="${s * 1.1}" fill="none" stroke-linecap="round" opacity=".8"/>`);
+  out.push(`<g filter="url(#vgrd)" opacity=".75"><path d="${all.join("")}" stroke="#4e4128" stroke-width="${ww + s * 0.7}" ${rl}/></g><g filter="url(#vgrd)"><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/></g>`);
   out.push(`<path d="${RS.map(rd => pd(rd.d)).join("")}" stroke="rgba(70,55,30,.28)" stroke-width="${Math.max(1, s * 0.16)}" ${rl} stroke-dasharray="${s * 1.4} ${s * 0.9}"/>`);
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
   { const runs = []; RS.map(rd => rd.d).concat(V.fillets || []).forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
