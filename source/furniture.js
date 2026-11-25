@@ -206,7 +206,8 @@ function genFurnish(o, B) {
     L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs") return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
 }
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
-  const name = GEN_FURN_ROOMS[rm.n] || lib.some(a => a.rooms && a.rooms[rm.n]) ? rm.n : GEN_FURN_KIND[rm.k] || rm.n;
+  // (Village buildings are only furnished where a room's own name has a list, for now: their furniture comes later.)
+  const name = GEN_FURN_ROOMS[rm.n] || lib.some(a => a.rooms && a.rooms[rm.n]) ? rm.n : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
   const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
   const list = [...entries.values()].sort((a, b) => a.ord - b.ord); if (!list.length) return;
