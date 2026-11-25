@@ -13,7 +13,7 @@
 const VG = { o: null };
 const VGT = { GRASS: 0, ROAD: 1, LANE: 2, WATER: 3, ROCK: 4, WOOD: 5, FIELD: 6, MEADOW: 7, GREEN: 8, PLOT: 9, BUILD: 10, BRIDGE: 11, YARD: 12, POND: 13, SPOIL: 14, PASTURE: 15, PATH: 16 };
 const VG_SIZES = { hamlet: { W: 96, H: 76, n: [5, 8], R: 16 }, village: { W: 136, H: 104, n: [12, 18], R: 24 }, large: { W: 176, H: 136, n: [22, 30], R: 32 } };
-const vgDefaults = () => ({ seed: genSeed(), size: "village", layout: "auto", river: "auto", land: "auto", woods: "some", mine: "auto", furn: true, name: "" });
+const vgDefaults = () => ({ seed: genSeed(), size: "village", layout: "auto", river: "auto", land: "auto", woods: "some", mine: "auto", furn: true, names: true, name: "" });
 
 // Smooth value noise (seeded): fbm(x, y) in about 0..1.
 function vgNoise(seed) {
@@ -457,7 +457,9 @@ function vgTerrainSvg(V, s, vb, opts) {
   { const sp = genRng(99), blobs = [], ln = []; // worn and uneven: the line plus scuffed patches along it, blurred and cut back
     const add = (d, wd) => { ln.push(`<path d="${pd(d)}" stroke-width="${(s * wd).toFixed(1)}"/>`); for (let i = 3; i < d.length - 2; i += 3) if (sp() < 0.55) blobs.push(`<circle cx="${((d[i][0] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" cy="${((d[i][1] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" r="${(s * wd * (0.45 + sp() * 0.3)).toFixed(1)}"/>`); };
     (V.paths || []).forEach(d => add(d, 0.95)); (V.tracks || []).forEach(d => add(d, 1.9));
-    if (ln.length) out.push(`<filter id="vgpt" filterUnits="userSpaceOnUse" x="${(box[0] - 8) * s}" y="${(box[1] - 8) * s}" width="${(box[2] + 16) * s}" height="${(box[3] + 16) * s}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${(s * 0.3).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 9 -4"/></filter><g filter="url(#vgpt)" opacity=".85"><g fill="none" stroke="#9c845a" stroke-linecap="round" stroke-linejoin="round">${ln.join("")}</g><g fill="#9c845a">${blobs.join("")}</g></g>`); }
+    // Worn into the ground: a soft darker hollow under each path and a paler, harder-trodden middle.
+    if (ln.length) out.push(`<filter id="vgps" filterUnits="userSpaceOnUse" x="${(box[0] - 8) * s}" y="${(box[1] - 8) * s}" width="${(box[2] + 16) * s}" height="${(box[3] + 16) * s}"><feGaussianBlur stdDeviation="${(s * 0.45).toFixed(2)}"/></filter><g filter="url(#vgps)" opacity=".55" fill="none" stroke="#4e4128" stroke-linecap="round" stroke-linejoin="round">${(V.paths || []).map(d => `<path d="${pd(d)}" stroke-width="${(s * 1.7).toFixed(1)}"/>`).join("")}${(V.tracks || []).map(d => `<path d="${pd(d)}" stroke-width="${(s * 2.7).toFixed(1)}"/>`).join("")}</g>`);
+    if (ln.length) out.push(`<filter id="vgpt" filterUnits="userSpaceOnUse" x="${(box[0] - 8) * s}" y="${(box[1] - 8) * s}" width="${(box[2] + 16) * s}" height="${(box[3] + 16) * s}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${(s * 0.3).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 9 -4"/></filter><g filter="url(#vgpt)" opacity=".85"><g fill="none" stroke="#9c845a" stroke-linecap="round" stroke-linejoin="round">${ln.join("")}</g><g fill="#9c845a">${blobs.join("")}</g></g><g filter="url(#vgps)" opacity=".5" fill="none" stroke="#c2a878" stroke-linecap="round" stroke-linejoin="round">${(V.paths || []).map(d => `<path d="${pd(d)}" stroke-width="${(s * 0.35).toFixed(1)}"/>`).join("")}${(V.tracks || []).map(d => `<path d="${pd(d)}" stroke-width="${(s * 0.6).toFixed(1)}"/>`).join("")}</g>`); }
   out.push(`<g filter="url(#vgrd)" opacity=".75"><path d="${all.join("")}" stroke="#4e4128" stroke-width="${ww + s * 0.7}" ${rl}/></g><g filter="url(#vgrd)"><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/></g>`);
   out.push(`<path d="${RS.map(rd => pd(rd.d)).join("")}" stroke="rgba(70,55,30,.28)" stroke-width="${Math.max(1, s * 0.16)}" ${rl} stroke-dasharray="${s * 1.4} ${s * 0.9}"/>`);
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
@@ -509,8 +511,10 @@ function vgVillagePage(o) {
     (page.links || []).forEach(l => { const [p1, p2] = to(l.x, l.y), [q1, q2] = to(l.x + l.w, l.y + l.h); links.push(Object.assign({}, l, { id: vid("l"), x: Math.min(p1, q1), y: Math.min(p2, q2), w: Math.abs(q1 - p1), h: Math.abs(q2 - p2) })); });
     minL = Math.min(minL, page.minLevel || 0); maxL = Math.max(maxL, page.maxLevel || 1);
     // Room names for the GM, upright, one picture per floor of the building.
-    b.B.levels.forEach(L => { const texts = L.rooms.filter(rm => !rm.porch).map(rm => { const [cx, cy] = tf(rm.x + rm.w / 2, rm.y + rm.h / 2); return `<text x="${(cx * P).toFixed(1)}" y="${(cy * P).toFixed(1)}" font-family="Georgia,serif" font-size="${Math.min(15, 9 + Math.min(rm.w, rm.h) * 1.5)}" fill="#f1e6cf" stroke="#1e1a16" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}</text>`; }).join("");
+    if (o.names !== false) b.B.levels.forEach(L => { const texts = L.rooms.filter(rm => !rm.porch).map(rm => { const [cx, cy] = tf(rm.x + rm.w / 2, rm.y + rm.h / 2); return `<text x="${(cx * P).toFixed(1)}" y="${(cy * P).toFixed(1)}" font-family="Georgia,serif" font-size="${Math.min(15, 9 + Math.min(rm.w, rm.h) * 1.5)}" fill="#f1e6cf" stroke="#1e1a16" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}</text>`; }).join("");
       objs.push({ id: id(), layer: "gm", level: L.level, x: b.x, y: b.y, w: b.w, h: b.h, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${b.w * P} ${b.h * P}" width="${b.w * P}" height="${b.h * P}">${texts}</svg>`) }); });
+    // The building's name over its roof, for the GM, upright.
+    if (o.names !== false) { const lw = b.w + 8, lh = Math.max(3, b.h); objs.push({ id: id(), layer: "gm", level: b.B.floors, x: b.x - 4, y: b.y + (b.h - lh) / 2, w: lw, h: lh, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${lw * P} ${lh * P}" width="${lw * P}" height="${lh * P}"><text x="${lw * P / 2}" y="${lh * P / 2}" font-family="Georgia,serif" font-size="30" font-weight="bold" fill="#f1e6cf" stroke="#1e1a16" stroke-width="6" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(vgName(b))}</text></svg>`) }); }
   });
   const names = { "-1": "Cellars", 0: "Ground" }; for (let l = 1; l <= maxL; l++) names[l] = l === maxL ? "Roofs" : `Floor ${l + 1} & roofs`;
   return { V, page: { w: V.W, h: V.H, bg: "#5d7a3a", grid: true, light: false, fogMem: true, objs, walls: genMergeWalls(walls), areas, links, levelNames: names, minLevel: minL, maxLevel: maxL } };
@@ -534,6 +538,7 @@ async function vgPlace(camp, o) {
 // The preview is a map you can zoom (wheel, pinch, + and −) and drag around, look into at any floor, and — with the road
 // editor on — reshape: drag road points, tap a road to add a point, draw new roads, join them up; the village regrows round
 // whatever roads you leave it.
+const vgName = b => { const n = VG_LABEL[b.kind] || b.kind; return n.charAt(0).toUpperCase() + n.slice(1); };
 const VG_LABEL = { chapel: "church", manor: "manor house", mill: "mill", blacksmith: "smithy", bakehouse: "bakehouse", tavern: "alehouse", stable: "stable", farmhouse: "farmhouse", barn: "barn", house: "house", cottage: "cottage" };
 Object.assign(VG, { V: null, view: null, lvl: "roof", edit: false, sel: null, add: null, cache: new Map() });
 const vgClone = rs => rs.map(rd => ({ pts: rd.pts.map(p => p.slice()), loop: rd.loop || undefined }));
@@ -546,7 +551,7 @@ function vgBuildingHtml(V, b, lvl, o) {
   const key = [b.o.type, b.o.seed, b.o.size, want, o.furn !== false].join("|"); let inner = VG.cache.get(key), w, h;
   if (want === "roof") { w = B.W; h = B.H; if (!inner) inner = `<img src="${genUrl(genRoofSvg(B, b.o.seed))}" alt="">`; }
   else { w = B.W + GEN_PAD * 2; h = B.H + GEN_PAD * 2; if (!inner) { const L = B.levels.find(x => x.level === want);
-      inner = `<img src="${genUrl(genFloorSvg(B, L, false, b.o.seed, false, "base"))}" alt="">` + (o.furn !== false ? genFurnBoxes(L).map(f => `<img class="vgfp" src="${esc(f.src)}" alt="" style="left:${vgPct(f.x + GEN_PAD, w)};top:${vgPct(f.y + GEN_PAD, h)};width:${vgPct(f.w, w)};height:${vgPct(f.h, h)}${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("") : "") + `<img class="vgfp" src="${genUrl(genFloorSvg(B, L, true, b.o.seed, false, "top"))}" alt="" style="left:0;top:0;width:100%;height:100%">`; } }
+      inner = `<img src="${genUrl(genFloorSvg(B, L, false, b.o.seed, false, "base"))}" alt="">` + (o.furn !== false ? genFurnBoxes(L).map(f => `<img class="vgfp" src="${esc(f.src)}" alt="" style="left:${vgPct(f.x + GEN_PAD, w)};top:${vgPct(f.y + GEN_PAD, h)};width:${vgPct(f.w, w)};height:${vgPct(f.h, h)}${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("") : "") + `<img class="vgfp" src="${genUrl(genFloorSvg(B, L, false, b.o.seed, false, "top"))}" alt="" style="left:0;top:0;width:100%;height:100%">`; } }
   VG.cache.set(key, inner); if (VG.cache.size > 400) VG.cache.delete(VG.cache.keys().next().value);
   return `<div class="vgb${dim ? " dim" : ""}" style="left:${vgPct(cx - w / 2, V.W)};top:${vgPct(cy - h / 2, V.H)};width:${vgPct(w, V.W)};height:${vgPct(h, V.H)}${b.k ? `;transform:rotate(${b.k * 90}deg)` : ""}">${inner}</div>`;
 }
@@ -559,9 +564,19 @@ function vgEditSvg(V) {
   if (VG.add && VG.add.length) { const d = VG.add; out.push(`<path class="vgeline add" d="M${d.map(p => p.join(" ")).join("L")}" stroke-width="${3 / S}"/>`); d.forEach(([x, y]) => out.push(`<circle class="vgeh add" cx="${x}" cy="${y}" r="${hr}" stroke-width="${2 / S}"/>`)); }
   return `<svg class="vgedit" viewBox="-0.0001 -0.0001 ${V.W} ${V.H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${out.join("")}</svg>`;
 }
+// Names, upright whatever way a building is turned: building names over the roofs, room names on the floors.
+function vgNamesHtml(V, lvl) {
+  const out = [], pc = (x, y) => `left:${vgPct(x, V.W)};top:${vgPct(y, V.H)}`;
+  V.buildings.forEach(b => { const B = b.B, levels = B.levels.map(L => L.level), top = Math.max(...levels); let want = lvl === "roof" ? "roof" : lvl === "cellar" ? -1 : lvl === "upper" ? 1 : 0;
+    if (want === 1 && top < 1) want = "roof"; if (want === -1 && !levels.includes(-1)) return;
+    if (want === "roof") { out.push(`<span class="vgname bld" style="${pc(b.x + b.w / 2, b.y + b.h / 2)}">${esc(vgName(b))}</span>`); return; }
+    const L = B.levels.find(x => x.level === want), tf = vgTurn(b.k, B.W, B.H); if (!L) return;
+    L.rooms.filter(rm => !rm.porch).forEach(rm => { const [cx, cy] = tf(rm.x + rm.w / 2, rm.y + rm.h / 2); out.push(`<span class="vgname" style="${pc(b.x + cx, b.y + cy)}">${esc(rm.n)}</span>`); }); });
+  return `<div class="vgnames">${out.join("")}</div>`;
+}
 function vgStageHtml(V) {
   const o = VG.o, s = Math.max(4, Math.min(8, Math.floor(1100 / V.W)));
-  return `<img class="vgland" src="${genUrl(vgTerrainSvg(V, s))}" alt="The village" draggable="false"><div class="vgbs">${V.buildings.map(b => vgBuildingHtml(V, b, VG.lvl, o)).join("")}</div>${VG.edit ? vgEditSvg(V) : ""}`;
+  return `<img class="vgland" src="${genUrl(vgTerrainSvg(V, s))}" alt="The village" draggable="false"><div class="vgbs">${V.buildings.map(b => vgBuildingHtml(V, b, VG.lvl, o)).join("")}</div>${o.names !== false ? vgNamesHtml(V, VG.lvl) : ""}${VG.edit ? vgEditSvg(V) : ""}`;
 }
 function vgSummary(V) {
   const order = ["chapel", "manor", "mill", "blacksmith", "bakehouse", "tavern", "stable", "farmhouse", "barn", "house", "cottage"];
@@ -591,7 +606,7 @@ function vgRender(keepView) {
 const vgRefresh = () => vgRender(true);
 function vgFit() { const vw = document.getElementById("gv-view"); if (!vw || !VG.V) return; vw.style.height = Math.round(Math.min(innerHeight * 0.72, 820, vw.clientWidth * VG.V.H / VG.V.W + 12)) + "px"; const r = vw.getBoundingClientRect(), S = Math.max(2, Math.min((r.width - 8) / VG.V.W, (r.height - 8) / VG.V.H));
   VG.view = { S, x: (r.width - VG.V.W * S) / 2, y: (r.height - VG.V.H * S) / 2, W: VG.V.W }; vgApply(); }
-function vgApply() { const st = document.getElementById("gv-stage"), v = VG.view; if (!st || !v || !VG.V) return; st.style.width = VG.V.W * v.S + "px"; st.style.height = VG.V.H * v.S + "px"; st.style.transform = `translate(${v.x}px,${v.y}px)`;
+function vgApply() { const st = document.getElementById("gv-stage"), v = VG.view; if (!st || !v || !VG.V) return; st.style.width = VG.V.W * v.S + "px"; st.style.height = VG.V.H * v.S + "px"; st.style.setProperty("--vgS", v.S); st.classList.toggle("vgfar", v.S < 9); st.style.transform = `translate(${v.x}px,${v.y}px)`;
   const ed = st.querySelector(".vgedit"); if (ed && VG.edit) { const tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); ed.replaceWith(tmp.firstChild); } }
 function vgZoomAt(f, px, py) { const v = VG.view; if (!v) return; const nS = Math.max(1.5, Math.min(60, v.S * f)); v.x = px - (px - v.x) * nS / v.S; v.y = py - (py - v.y) * nS / v.S; v.S = nS; vgApply(); }
 const vgRedrawEdit = () => { const st = document.getElementById("gv-stage"); if (!st || !VG.V) return; const ed = st.querySelector(".vgedit"), tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); if (ed) ed.replaceWith(tmp.firstChild); else st.appendChild(tmp.firstChild); };
@@ -619,6 +634,7 @@ function viewVillageGen(camp) {
       <label><span>Woods</span>${seg("woods", [["few", "Few"], ["some", "Some"], ["many", "Many"]])}</label>
       <label><span>Mine <small class="muted">in the mountains</small></span>${seg("mine", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
       <label class="genchk"><input type="checkbox" data-act="gvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture in the buildings</span></label>
+      <label class="genchk"><input type="checkbox" data-act="gvchk" data-k="names"${o.names !== false ? " checked" : ""}> <span>Names <small class="muted">buildings and rooms, for the GM</small></span></label>
       <button class="btn" data-act="gvroll">🎲 New village</button>
       <label><span>Seed <small class="muted">the same seed makes the same village</small></span><input id="gv-seed" type="number" value="${o.seed}"></label>
       <p class="muted small" id="gv-custom">${o.roads ? "Your own roads: a new seed keeps them and regrows the village round them." : ""}</p>
@@ -635,7 +651,7 @@ document.addEventListener("click", async ev => {
     if ((k === "nroads" || k === "centre") && o.roads) { o.roads = null; VG.sel = null; vgCustomNote(); } // back to generated roads
     if (k === "size" && o.roads && VG_SIZES[was] && VG_SIZES[o[k]]) { const f = VG_SIZES[o[k]].W / VG_SIZES[was].W, g = VG_SIZES[o[k]].H / VG_SIZES[was].H; o.roads.forEach(rd => rd.pts = rd.pts.map(([x, y]) => [Math.round(x * f * 2) / 2, Math.round(y * g * 2) / 2])); }
     vgRender(k !== "size"); return; }
-  if (a === "gvchk") { o[b.dataset.k] = b.checked; VG.cache.clear(); vgRefresh(); return; }
+  if (a === "gvchk") { o[b.dataset.k] = b.checked; if (b.dataset.k === "furn") VG.cache.clear(); vgRefresh(); return; }
   if (a === "gvroll") { o.seed = genSeed(); const s = document.getElementById("gv-seed"); if (s) s.value = o.seed; vgRefresh(); return; }
   if (a === "gvlvl") { VG.lvl = b.dataset.v === "0" ? 0 : b.dataset.v; vgRefresh(); return; }
   if (a === "gvzoom") { const v = Number(b.dataset.v), r = document.getElementById("gv-view").getBoundingClientRect(); if (!v) vgFit(); else vgZoomAt(v > 0 ? 1.5 : 1 / 1.5, r.width / 2, r.height / 2); return; }
