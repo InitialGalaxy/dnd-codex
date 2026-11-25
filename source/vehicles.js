@@ -57,7 +57,24 @@ function vehShape(e, id) {
   const front = ((Number(I.front) || 0) % 360 + 360) % 360, side = front === 90 || front === 270;
   const lv = [...new Set((I.objs || []).filter(o => o.img && o.layer !== "gm").map(o => Number(o.level) || 0))].sort((a, b) => b - a);
   const name = d => ((I.levelNames || {})[d]) || (d === 0 ? "Ground deck" : d > 0 ? `Deck +${d}` : `Deck ${d}`);
-  return { w: side ? I.w : I.h, l: side ? I.h : I.w, pw: I.w, ph: I.h, front, decks: lv.map(d => ({ d, name: name(d), pics: (I.objs || []).filter(o => o.img && o.layer !== "gm" && (Number(o.level) || 0) === d) })) };
+  const decks = lv.map(d => vehDeckMeasure(I, front, d, name(d)));
+  // Overall: the biggest of any deck (or the whole map, if no deck has pictures).
+  const L = decks.length ? Math.max(...decks.map(x => x.L)) : (side ? I.h : I.w), W = decks.length ? Math.max(...decks.map(x => x.W)) : (side ? I.w : I.h);
+  return { w: W, l: L, pw: I.w, ph: I.h, front, decks };
+}
+// One deck's squares that are really the vehicle: under its pictures and not marked "not the vehicle" in the workshop. Turned
+// so the front points right (length across, width down). Its length is its longest row, its width its longest column.
+function vehDeckMeasure(I, front, d, name) {
+  const pics = (I.objs || []).filter(o => o.img && o.layer !== "gm" && (Number(o.level) || 0) === d), off = new Set(((I.off || {})[d]) || []);
+  const pw = I.w, ph = I.h, side = front === 90 || front === 270, DL = side ? ph : pw, DW = side ? pw : ph;
+  const toD = (x, y) => front === 90 ? [y, pw - 1 - x] : front === 180 ? [pw - 1 - x, ph - 1 - y] : front === 270 ? [ph - 1 - y, x] : [x, y];
+  const cells = new Set();
+  for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) { if (off.has(x + "," + y)) continue; const cx = x + 0.5, cy = y + 0.5; if (!pics.some(o => cx >= o.x && cx <= o.x + o.w && cy >= o.y && cy <= o.y + o.h)) continue; const [a, b] = toD(x, y); cells.add(a + "," + b); }
+  let row = null, col = null, bx0 = DL, bx1 = -1, by0 = DW, by1 = -1;
+  for (let b = 0; b < DW; b++) { let a0 = -1, a1 = -1; for (let a = 0; a < DL; a++) if (cells.has(a + "," + b)) { if (a0 < 0) a0 = a; a1 = a; } if (a0 >= 0) { if (!row || a1 - a0 > row.a1 - row.a0) row = { b, a0, a1 }; bx0 = Math.min(bx0, a0); bx1 = Math.max(bx1, a1); by0 = Math.min(by0, b); by1 = Math.max(by1, b); } }
+  for (let a = 0; a < DL; a++) { let b0 = -1, b1 = -1; for (let b = 0; b < DW; b++) if (cells.has(a + "," + b)) { if (b0 < 0) b0 = b; b1 = b; } if (b0 >= 0 && (!col || b1 - b0 > col.b1 - col.b0)) col = { a, b0, b1 }; }
+  if (!row) return { d, name, pics, cells, L: 0, W: 0, row: null, col: null, box: [0, 0, DL - 1, DW - 1], DL, DW };
+  return { d, name, pics, cells, L: row.a1 - row.a0 + 1, W: col.b1 - col.b0 + 1, row, col, box: [bx0, by0, bx1, by1], DL, DW };
 }
 // The pictures of one deck, drawn in a frame where the vehicle's front points the way of angle `face` (degrees, 0 right, -90 up),
 // scaled k pixels a square, centred on (0, 0).
@@ -67,14 +84,25 @@ function vehArt(sh, pics, face) {
 }
 // One deck (or the box, or a simple vehicle's token) lying long side across the top, with arrows for its length and width.
 function vehDeckSvg(sh, deck) {
-  const L = sh.l, Wd = sh.w, k = Math.max(8, Math.min(34, 280 / Math.max(L, Wd * 1.4))), pad = 34, VW = L * k + pad + 12, VH = Wd * k + pad + 12;
-  const x0 = pad, y0 = pad; let grid = ""; for (let i = 1; i < L; i++) grid += `<line x1="${x0 + i * k}" y1="${y0}" x2="${x0 + i * k}" y2="${y0 + Wd * k}"/>`; for (let j = 1; j < Wd; j++) grid += `<line x1="${x0}" y1="${y0 + j * k}" x2="${x0 + L * k}" y2="${y0 + j * k}"/>`;
-  const body = deck ? `<g transform="translate(${x0 + L * k / 2} ${y0 + Wd * k / 2}) scale(${k})">${vehArt(sh, deck.pics, 0)}</g>`
-    : sh.img ? `<image href="${esc(sh.img)}" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}" preserveAspectRatio="xMidYMid meet"/>`
-    : `<rect class="vehbox" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}"/><polygon class="vehbox" points="${x0 + L * k + Math.min(14, k * 0.7)},${y0 + Wd * k / 2} ${x0 + L * k},${y0 + Wd * k / 2 - Math.min(10, k * 0.5)} ${x0 + L * k},${y0 + Wd * k / 2 + Math.min(10, k * 0.5)}"/>`;
+  const arrowDefs = `<defs><marker id="vehah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z"/></marker></defs>`;
   const arrow = (xa, ya, xb, yb, lab, vert) => `<g class="vehdim"><line x1="${xa}" y1="${ya}" x2="${xb}" y2="${yb}" marker-start="url(#vehah)" marker-end="url(#vehah)"/><text ${vert ? `transform="translate(${xa - 6} ${(ya + yb) / 2}) rotate(-90)" x="0" y="0"` : `x="${(xa + xb) / 2}" y="${ya - 6}"`}>${lab}</text></g>`;
-  return `<svg class="vehdeck" viewBox="0 0 ${VW} ${VH}" width="${VW}" height="${VH}" role="img" aria-label="${esc(deck ? deck.name : "The vehicle")}, ${L} by ${Wd} squares">
-    <defs><marker id="vehah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z"/></marker></defs>
+  const pad = 34;
+  if (deck && deck.row) { // a deck: just its own squares, measured along its longest row and column
+    const [bx0, by0, bx1, by1] = deck.box, BL = bx1 - bx0 + 1, BW = by1 - by0 + 1, k = Math.max(8, Math.min(34, 280 / Math.max(BL, BW * 1.4)));
+    const VW = BL * k + pad + 12, VH = BW * k + pad + 12, X = a => pad + (a - bx0) * k, Y = b => pad + (b - by0) * k;
+    let grid = ""; deck.cells.forEach(c => { const [a, b] = c.split(",").map(Number); grid += `M${X(a)} ${Y(b)}h${k}v${k}h${-k}z`; });
+    const cx = pad + (deck.DL / 2 - bx0) * k, cy = pad + (deck.DW / 2 - by0) * k, cid = "vehclip" + Math.random().toString(36).slice(2, 8);
+    return `<svg class="vehdeck" viewBox="0 0 ${VW} ${VH}" width="${VW}" height="${VH}" role="img" aria-label="${esc(deck.name)}, ${deck.L} by ${deck.W} squares">${arrowDefs}
+      <clipPath id="${cid}"><rect x="${pad}" y="${pad}" width="${BL * k}" height="${BW * k}"/></clipPath>
+      <g clip-path="url(#${cid})"><g transform="translate(${cx} ${cy}) scale(${k})">${vehArt(sh, deck.pics, 0)}</g></g>
+      <path class="vehcells" d="${grid}"/>
+      ${arrow(X(deck.row.a0), 18, X(deck.row.a1 + 1), 18, `${deck.L} long`, false)}${arrow(18, Y(deck.col.b0), 18, Y(deck.col.b1 + 1), `${deck.W} wide`, true)}</svg>`;
+  }
+  const L = sh.l, Wd = sh.w, k = Math.max(8, Math.min(34, 280 / Math.max(L, Wd * 1.4))), VW = L * k + pad + 12, VH = Wd * k + pad + 12, x0 = pad, y0 = pad;
+  let grid = ""; for (let i = 1; i < L; i++) grid += `<line x1="${x0 + i * k}" y1="${y0}" x2="${x0 + i * k}" y2="${y0 + Wd * k}"/>`; for (let j = 1; j < Wd; j++) grid += `<line x1="${x0}" y1="${y0 + j * k}" x2="${x0 + L * k}" y2="${y0 + j * k}"/>`;
+  const body = sh.img ? `<image href="${esc(sh.img)}" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}" preserveAspectRatio="xMidYMid meet"/>`
+    : `<rect class="vehbox" x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}"/><polygon class="vehbox" points="${x0 + L * k + Math.min(14, k * 0.7)},${y0 + Wd * k / 2} ${x0 + L * k},${y0 + Wd * k / 2 - Math.min(10, k * 0.5)} ${x0 + L * k},${y0 + Wd * k / 2 + Math.min(10, k * 0.5)}"/>`;
+  return `<svg class="vehdeck" viewBox="0 0 ${VW} ${VH}" width="${VW}" height="${VH}" role="img" aria-label="The vehicle, ${L} by ${Wd} squares">${arrowDefs}
     ${body}<g class="vehgrid">${grid}<rect x="${x0}" y="${y0}" width="${L * k}" height="${Wd * k}" fill="none"/></g>
     ${arrow(x0, 18, x0 + L * k, 18, `${L} long`, false)}${arrow(18, y0, 18, y0 + Wd * k, `${Wd} wide`, true)}</svg>`;
 }
@@ -89,7 +117,7 @@ function vehStatHtml(e) {
   const v = vehOf(e); if (!v) return "";
   const cx = v.cx === "complex", idp = [...S.entries].find(([, x]) => x === e), id = idp && idp[0], sh = vehShape(e, id), cost = typeof costText === "function" ? costText((e.item || {}).stats) : "";
   const stats = [["Hull points", esc(String(v.hull))], ...(cost ? [["Cost", esc(cost)]] : []), ...(cx ? [] : [["Seats", esc(String(v.seats))]]), ["Speed", v.speeds.map(s => `${esc(VEH_MODES[s.mode])} ${s.move} ft${s.travel ? ` · ${s.travel} mph` : ""}${s.omni ? " · any direction" : ""}${s.rev ? " · reverses" : ""}`).join("<br>")]];
-  const decks = sh.decks && sh.decks.length ? sh.decks.map(d => `<figure>${vehDeckSvg(sh, d)}<figcaption>${esc(d.name)}</figcaption></figure>`).join("") : `<figure>${vehDeckSvg(sh, null)}${sh.box ? `<figcaption>No map yet: the shape set for the turning circle</figcaption>` : ""}</figure>`;
+  const decks = sh.decks && sh.decks.length ? sh.decks.filter(d => d.row).map(d => `<figure>${vehDeckSvg(sh, d)}<figcaption>${esc(d.name)} · ${d.L} × ${d.W}</figcaption></figure>`).join("") : `<figure>${vehDeckSvg(sh, null)}${sh.box ? `<figcaption>No map yet: the shape set for the turning circle</figcaption>` : ""}</figure>`;
   // Seen from above: every deck stacked, the lowest first.
   const top = sh.decks && sh.decks.length ? { pics: sh.decks.slice().reverse().flatMap(d => d.pics) } : null;
   return `<div class="istats vehstats">${stats.map(([l, x]) => `<div><span>${l}</span><strong>${x}</strong></div>`).join("")}</div>
