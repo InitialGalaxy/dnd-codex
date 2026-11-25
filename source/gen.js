@@ -811,9 +811,10 @@ function viewGen(camp, kind, type) {
   if (!kind) {
     const card = (k, icon, t, d, ready) => ready ? `<a class="gencard" href="#gen-${esc(camp)}/${k}"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span></a>` : `<div class="gencard soon" aria-disabled="true"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span><span class="gensoon">Coming later</span></div>`;
     return `<section class="page">${back}<h1>Generator</h1><p class="muted">Make maps for ${esc(c.name || "this campaign")}, ready to play on the tabletop.</p>
-      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "A road and a few dozen buildings.")}${card("town", "🏘", "Towns", "Streets, districts and walls.")}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
+      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets, districts and walls.")}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
   }
   if (kind === "furniture") return genFurnView(camp, back);
+  if (kind === "village") return viewVillageGen(camp);
   if (kind === "building" && !type) {
     const saved = vPages(VGEN).filter(([, p]) => p.gen), tagSet = new Set(saved.flatMap(([, p]) => p.gen.tags || [])), tf = GEN.tag || "";
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
@@ -861,9 +862,9 @@ const genRefresh = () => { const el = document.getElementById("genpreview"); if 
 const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.getElementById("gen-name"), t = document.getElementById("gen-tags"); if (n) o.name = n.value.trim(); if (t) o.tags = t.value.split(",").map(x => x.trim()).filter(Boolean); };
 // The pictures as files: each drawn once onto a canvas and uploaded (WebP where the browser can, else PNG), so a map is a
 // few small links instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
-async function genStoreImages(page) {
+async function genStoreImages(page, msg) {
   if (!S.assets || !S.assets.upload) return page;
-  toast("Drawing the building…"); const done = new Map(); // the same picture (a chair, say) is uploaded once
+  toast((msg || "Drawing the building") + "…"); const done = new Map(); // the same picture (a chair, say) is uploaded once
   for (const o of page.objs) {
     if (!String(o.img).startsWith("data:image/svg")) continue;
     if (done.has(o.img)) { o.img = done.get(o.img); continue; } const was = o.img;
