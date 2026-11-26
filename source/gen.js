@@ -407,7 +407,7 @@ const GEN_TOWN = [
       return { D, name: up ? "Market house" : "Market shed", units }; } },
   { id: "gatehouse", name: "Gatehouse", icon: "🏯", blurb: "The town gate: a vaulted gate passage between two guard towers, the porter's lodge, and the portcullis chamber over the arch.",
     cellar: 0.2, porch: 0, floorsMax: 2, doorBonus: 2, under: [{ n: "Lock-up", k: "cellar", w: 1 }],
-    plan(r, size, up) { const D = size === "small" ? genInt(r, 4, 5) : genInt(r, 5, 6), tw = size === "large" ? genInt(r, 4, 5) : genInt(r, 3, 4), gw = size === "small" ? 3 : genInt(r, 3, 4), back = size === "small" ? 0 : genInt(r, 1, 2);
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 4, 5) : genInt(r, 5, 6), tw = size === "large" ? genInt(r, 4, 5) : genInt(r, 3, 4), gw = size === "large" ? 5 : 4, back = size === "small" ? 0 : genInt(r, 1, 2);
       const units = [genU(tw, size === "small" ? genR("Guard room", "work") : [genR("Guard room", "work"), genR("Armoury", "store")], Object.assign({ back }, up ? { up: [genR("Portcullis chamber", "work", { w: 1.4 }), genR("Guard chamber", "bed"), genR("Captain's room", "office")] } : {})),
         genU(gw, genR("Gate passage", "passage", { dark: 1 }), Object.assign({ entry: 1, pass: 1, doorW: gw - 1 }, up ? { upJoin: 1 } : {})),
         genU(tw, genR("Porter's lodge", "living"), Object.assign({ back }, up ? { upJoin: 1 } : {}))];
