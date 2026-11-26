@@ -81,7 +81,8 @@ const GEN_BUILDINGS = [
     rare: [{ n: "Reliquary", k: "sanctum", w: 0.7, at: "ground", p: 0.15 }, { n: "Confessional", k: "office", w: 0.5, at: "ground", p: 0.15 }, { n: "Ossuary", k: "vault", w: 1, at: "under", p: 0.15 },
       { n: "Forbidden shrine", k: "pit", w: 0.6, at: "under", p: 0.06, secret: 1 }] }
 ];
-const genType = id => GEN_BUILDINGS.find(b => b.id === id) || GEN_BUILDINGS[0];
+const GEN_CUSTOM_T = { id: "custom", name: "Custom building", icon: "✏️", blurb: "Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.", cellar: 0 };
+const genType = id => id === "custom" ? GEN_CUSTOM_T : GEN_BUILDINGS.find(b => b.id === id) || GEN_BUILDINGS[0];
 const GEN_SHAPES = { rect: "Rectangle", L: "L-shape", U: "U-shape", long: "Long house" };
 
 // ----- The footprint: a main block at the front, and wings -----
@@ -159,6 +160,7 @@ function genBuilding(o) {
   genHearths(o, B); if (typeof genFurnish === "function") genFurnish(o, B); return B;
 }
 function genBuildingTry(o, attempt) {
+  if (o.custom) return genCustomTry(o); // drawn by hand (builder.js)
   if (genType(o.type).plan) return genPlanTry(o, attempt);
   const T = genType(o.type), r = genRng(attempt ? (Number(o.seed) || 1) + attempt * 100003 : o.seed), S = T.size[o.size] || T.size.medium;
   const F = genFootprint(r, T, o, genInt(r, S[0][0], S[0][1]), genInt(r, S[1][0], S[1][1]));
@@ -713,6 +715,11 @@ function genFloorDetail(r, rm, kind, P) {
 // Floors are drawn with a square of margin all round (GEN_PAD) so a grand front door's step and pillars can stand outside.
 const GEN_PAD = 1;
 // part: "base" (the floor without names or the overlay), "top" (only those, to lay over furniture), or everything.
+// Gates: each straight run of gate edges ({ d: "h" | "v", a..b along the line, c the line itself }) is one gate.
+function genGateRuns(gates) { const runs = [];
+  [...gates].map(k => k.split(",").map((v, i) => i ? Number(v) : v)).map(([d, x, y]) => d === "h" ? { d, p: x, c: y } : { d, p: y, c: x }).sort((a, b) => (a.d > b.d ? 1 : a.d < b.d ? -1 : 0) || a.c - b.c || a.p - b.p)
+    .forEach(g => { const last = runs[runs.length - 1]; if (last && last.d === g.d && last.c === g.c && last.b === g.p) last.b = g.p + 1; else runs.push({ d: g.d, a: g.p, b: g.p + 1, c: g.c }); });
+  return runs; }
 function genFloorSvg(B, L, labels, seed, overlay, part) {
   const P = GEN_PX, W = B.W, H = B.H, r = genRng((Number(seed) || 1) * 31 + L.level * 7 + 5);
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
@@ -753,11 +760,10 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
     return ln(e.ext ? WE : WI, "#2b2520", "square"); }).join("");
   // The front door: double doors under a stone lintel, a pillar each side and a broad step outside.
   // Gates: one pair of heavy plank gates the width of the passage, iron-strapped, between stone jambs.
-  const gateRuns = []; [...gates].map(k => k.split(",").map((v, i) => i ? Number(v) : v)).sort((a, b) => a[2] - b[2] || a[1] - b[1]).forEach(([, x, y]) => { const last = gateRuns[gateRuns.length - 1]; if (last && last.y === y && last.x1 === x) last.x1 = x + 1; else gateRuns.push({ x0: x, x1: x + 1, y }); });
-  const gateSvg = gateRuns.map(({ x0, x1, y }) => { const X0 = x0 * P, X1 = x1 * P, Y = y * P, mx = (X0 + X1) / 2, leaf = (a, b) => { let pl = ""; for (let q = a + 8; q < b - 2; q += 8) pl += `<line x1="${q}" y1="${Y - 6}" x2="${q}" y2="${Y + 6}" stroke="rgba(43,37,32,.45)" stroke-width="1"/>`;
+  const gateSvg = genGateRuns(gates).map(({ d, a, b, c }) => { const X0 = 0, X1 = (b - a) * P, Y = 0, mx = (X0 + X1) / 2, tf = d === "h" ? `translate(${a * P} ${c * P})` : `translate(${c * P} ${a * P}) rotate(90)`, leaf = (a, b) => { let pl = ""; for (let q = a + 8; q < b - 2; q += 8) pl += `<line x1="${q}" y1="${Y - 6}" x2="${q}" y2="${Y + 6}" stroke="rgba(43,37,32,.45)" stroke-width="1"/>`;
       return `<rect x="${a + 1}" y="${Y - 6}" width="${b - a - 2}" height="12" fill="#6e4524" stroke="#2b2520" stroke-width="1.5"/>${pl}<line x1="${a + 2}" y1="${Y - 3}" x2="${b - 2}" y2="${Y - 3}" stroke="#2b2520" stroke-width="1.6"/><line x1="${a + 2}" y1="${Y + 3}" x2="${b - 2}" y2="${Y + 3}" stroke="#2b2520" stroke-width="1.6"/>`; };
     const jamb = cx => `<rect x="${cx - 8}" y="${Y - 8}" width="16" height="16" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`;
-    return `<rect x="${X0}" y="${Y - 2}" width="${X1 - X0}" height="4" fill="#5e5548"/>${leaf(X0, mx)}${leaf(mx, X1)}<circle cx="${mx - 5}" cy="${Y}" r="2.2" fill="#3a3530"/><circle cx="${mx + 5}" cy="${Y}" r="2.2" fill="#3a3530"/>${jamb(X0)}${jamb(X1)}`; }).join("");
+    return `<g transform="${tf}"><rect x="${X0}" y="${Y - 2}" width="${X1 - X0}" height="4" fill="#5e5548"/>${leaf(X0, mx)}${leaf(mx, X1)}<circle cx="${mx - 5}" cy="${Y}" r="2.2" fill="#3a3530"/><circle cx="${mx + 5}" cy="${Y}" r="2.2" fill="#3a3530"/>${jamb(X0)}${jamb(X1)}</g>`; }).join("");
   let grand = gateSvg;
   if (front.size && ![...front].every(k => gates.has(k))) { const tier = B.doorTier || "grand"; const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
     const leaves = tier === "grand" || x1 - x0 > P * 1.5
@@ -861,8 +867,9 @@ function genPage(o) {
   const cells = set => [...set].map(k => { const [x, y] = k.split(",").map(Number); return [ox + x, oy + y]; });
   const porchCells = F.porch ? Array.from({ length: F.porch.w * F.porch.h }, (_, i) => (F.porch.x + i % F.porch.w) + "," + (F.porch.y + Math.floor(i / F.porch.w))) : [];
   const fr = [...B.levels.find(L => L.level === 0).front].map(k => Number(k.split(",")[1])), fx = fr.length ? Math.min(...fr) : B.W / 2, fw = fr.length;
-  const pathTop = oy + (F.porch ? F.porch.y + F.porch.h : F.main.y + F.main.h);
-  objs.push({ id: id(), layer: "map", level: 0, x: 0, y: 0, w: W, h: H, img: genUrl(genYardSvg(W, H, { x: ox + fx - 0.25, y: pathTop, w: fw + 0.5 }, o.seed)) });
+  const frY = fr.length ? Number([...B.levels.find(L => L.level === 0).front][0].split(",")[2]) : null, pBelow = B.custom && fr.length && F.porch && F.porch.y === frY && fx >= F.porch.x && fx < F.porch.x + F.porch.w;
+  const pathTop = oy + (B.custom ? (pBelow ? F.porch.y + F.porch.h : frY == null ? B.H : frY) : F.porch ? F.porch.y + F.porch.h : F.main.y + F.main.h);
+  objs.push({ id: id(), layer: "map", level: 0, x: 0, y: 0, w: W, h: H, img: genUrl(genYardSvg(W, H, fw ? { x: ox + fx - 0.25, y: pathTop, w: fw + 0.5 } : null, o.seed)) });
   B.levels.forEach(L => {
     objs.push({ id: id(), layer: "map", level: L.level, x: ox - GEN_PAD, y: oy - GEN_PAD, w: B.W + GEN_PAD * 2, h: B.H + GEN_PAD * 2, img: genUrl(genFloorSvg(B, L, false, o.seed)) });
     // The furniture: each piece its own object on the map layer, on the grid, so you can move, turn or delete it.
@@ -872,8 +879,7 @@ function genPage(o) {
     genEdges(L, B.W, B.H).forEach(e => { if (gt.has(e.k)) return; const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
       walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); });
     // A gate is one door the whole width of the passage, opened all at once.
-    const runs = []; [...gt].map(k => k.split(",").map((v, i) => i ? Number(v) : v)).sort((a, b) => a[2] - b[2] || a[1] - b[1]).forEach(([, x, y]) => { const last = runs[runs.length - 1]; if (last && last.y === y && last.x1 === x) last.x1 = x + 1; else runs.push({ x0: x, x1: x + 1, y }); });
-    runs.forEach(g => walls.push([ox + g.x0, oy + g.y, ox + g.x1, oy + g.y, L.level, { k: "door", id: vid("d"), open: false, gate: true }]));
+    genGateRuns(gt).forEach(g => walls.push(g.d === "h" ? [ox + g.a, oy + g.c, ox + g.b, oy + g.c, L.level, { k: "door", id: vid("d"), open: false, gate: true }] : [ox + g.c, oy + g.a, ox + g.c, oy + g.b, L.level, { k: "door", id: vid("d"), open: false, gate: true }]));
     if (L.level > 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); } // only where there's a floor (a loft, not the open hall)
     if (L.level < 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); }
     names[L.level] = L.name;
@@ -902,7 +908,7 @@ function genMergeWalls(walls) {
 // #gen-<camp>/building/<type> the building generator
 const GEN = { o: null };
 function genDefaults(type) { return { type, seed: genSeed(), size: "medium", floors: "auto", cellar: "auto", shape: "auto", porch: "auto", name: "", tags: [] }; }
-const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", furn: o.furn !== false, furnRe: o.furnRe || {}, name: o.name, tags: o.tags || [] });
+const genKeep = o => ({ type: o.type, seed: o.seed, size: o.size, floors: o.floors, cellar: o.cellar, shape: o.shape || "auto", porch: o.porch || "auto", furn: o.furn !== false, furnRe: o.furnRe || {}, name: o.name, tags: o.tags || [], ...(o.custom ? { custom: o.custom } : {}) });
 function viewGen(camp, kind, type) {
   const c = S.vttCamps && S.vttCamps.get(camp); if (!vCanEdit()) return `<section class="page"><p class="muted">Only the GM can use the generators.</p></section>`;
   if (!c) return `<section class="page"><p class="muted">${S.vttCamps ? "That campaign isn't here any more." : "Opening…"}</p></section>`;
@@ -918,14 +924,16 @@ function viewGen(camp, kind, type) {
     const saved = vPages(VGEN).filter(([, p]) => p.gen), tagSet = new Set(saved.flatMap(([, p]) => p.gen.tags || [])), tf = GEN.tag || "";
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
     return `<section class="page">${back}<h1>Buildings</h1><p class="muted">Pick a kind of building.</p>
+      <div class="gencards"><a class="gencard gencustom" href="#gen-${esc(camp)}/building/custom" data-act="gednew"><span class="genicon">✏️</span><strong>Custom building</strong><span class="muted small">Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.</span></a></div>
       ${[["village", "Village buildings"], ["", "Town buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
       <h2 class="sect">Your buildings <span>${saved.length}</span></h2>
       ${tagSet.size ? `<div class="gentags">${["", ...[...tagSet].sort()].map(t => `<button class="chip${tf === t ? " on" : ""}" data-act="gentagf" data-v="${esc(t)}">${t ? esc(t) : "All"}</button>`).join("")}</div>` : ""}
       ${shown.length ? `<div class="gensaved">${shown.map(([pid, p]) => { const g = p.gen, T = genType(g.type), plan = (p.objs || []).find(x => x.layer === "map" && (x.level || 0) === 0 && x.x > 0);
-        return `<article class="gensave"><div class="genthumb">${plan ? `<img src="${esc(plan.img)}" alt="">` : ""}</div><div class="gensavebody"><strong>${esc(p.name)}</strong><span class="muted small">${T.icon} ${esc(T.name)} · ${esc(g.size)}</span>${(g.tags || []).length ? `<span class="gentaglist">${g.tags.map(t => `<span class="chip small">${esc(t)}</span>`).join("")}</span>` : ""}
+        return `<article class="gensave"><div class="genthumb">${plan ? `<img src="${esc(plan.img)}" alt="">` : ""}</div><div class="gensavebody"><strong>${esc(p.name)}</strong><span class="muted small">${T.icon} ${esc(T.name)}${g.custom ? "" : ` · ${esc(g.size)}`}</span>${(g.tags || []).length ? `<span class="gentaglist">${g.tags.map(t => `<span class="chip small">${esc(t)}</span>`).join("")}</span>` : ""}
           <div class="acts"><button class="btn small" data-act="genplace" data-id="${esc(pid)}" data-camp="${esc(camp)}">Place in the campaign</button><a class="btn ghost small" href="#gen-${esc(camp)}/building/${esc(g.type)}" data-act="genedit" data-id="${esc(pid)}">Edit</a><button class="btn ghost small danger" data-act="gendel" data-id="${esc(pid)}">Delete</button></div></div></article>`; }).join("")}</div>`
         : `<p class="muted small">${saved.length ? "None with that tag." : "None yet. Generate one and press Save."}</p>`}</section>`;
   }
+  if (kind === "building" && type === "custom") return viewGenCustom(camp);
   if (kind === "building") {
     const T = genType(type); if (!GEN.o || GEN.o.type !== T.id || GEN.o.camp !== camp) GEN.o = Object.assign(genDefaults(T.id), { camp });
     const o = GEN.o, seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button class="${String(o[k]) === String(v) ? "on" : ""}" data-act="genopt" data-k="${k}" data-v="${v}" aria-pressed="${String(o[k]) === String(v)}">${l}</button>`).join("")}</div>`;
@@ -945,6 +953,7 @@ function viewGen(camp, kind, type) {
         <label><span>Name</span><input id="gen-name" type="text" value="${esc(o.name)}" placeholder="${esc(T.name)}"></label>
         <label><span>Tags <small class="muted">comma between, e.g. poor, docks, stone</small></span><input id="gen-tags" type="text" value="${esc((o.tags || []).join(", "))}"></label>
         <div class="acts"><button class="btn" data-act="gensave">${o.pid ? "Save changes" : "Save to your buildings"}</button><button class="btn ghost" data-act="genplace" data-camp="${esc(camp)}">Place in the campaign</button></div>
+        <button class="btn ghost" data-act="gencopy" title="Open this layout in the custom building maker, to move rooms, doors and stairs yourself">✏️ Edit a copy by hand</button>
       </div><div class="genpreview" id="genpreview">${genPreviewHtml(o)}</div></div></section>`;
   }
   return `<section class="page">${back}<p class="muted">Nothing here yet.</p></section>`;
@@ -957,7 +966,7 @@ function genPreviewHtml(o) {
   return `<p class="small"><strong>${B.W} × ${B.H} squares</strong> <span class="muted">(${B.W * 5} × ${B.H * 5} ft) · ${esc(B.F.shapeName || GEN_SHAPES[B.F.shape])}${B.F.porch ? " with a porch" : ""} · ${B.floors} floor${B.floors === 1 ? "" : "s"}${B.cellar ? " and a cellar" : ""} · ${rooms} rooms${o.furn !== false ? ` · ${nF} pieces of furniture` : ""}</span>${o.furn !== false ? `<br><span class="muted">🎲 on a room gives it new furniture${Object.keys(o.furnRe || {}).length ? ` · <button class="linkbtn" data-act="genrereset">put every room back as it was</button>` : ""}</span>` : ""}${B.rare.length ? `<br><span class="genrare">✦ Something unusual: ${esc(B.rare.join(", "))}</span>` : ""}</p>
     <div class="genfloors"><figure><img src="${genUrl(genRoofSvg(B, o.seed))}" alt="The roof"><figcaption>Roof</figcaption></figure>${levels.map(L => `<figure>${floor(L)}<figcaption>${esc(L.name)}</figcaption></figure>`).join("")}</div>`;
 }
-const genRefresh = () => { const el = document.getElementById("genpreview"); if (el && GEN.o) el.innerHTML = genPreviewHtml(GEN.o); };
+const genRefresh = () => { const el = document.getElementById("genpreview"); if (el && GEN.o) el.innerHTML = genPreviewHtml(GEN.o); if (GEN.o && GEN.o.custom && typeof gedPaint === "function") gedPaint(false); };
 const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.getElementById("gen-name"), t = document.getElementById("gen-tags"); if (n) o.name = n.value.trim(); if (t) o.tags = t.value.split(",").map(x => x.trim()).filter(Boolean); };
 // The pictures as files: each drawn once onto a canvas and uploaded (WebP where the browser can, else PNG), so a map is a
 // few small links instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
