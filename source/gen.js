@@ -415,7 +415,7 @@ const GEN_TOWN = [
   { id: "butcher", name: "Butcher", icon: "🥩", blurb: "A shambles shop: the open-fronted shop with its stall board, the cutting room, the salting room and the slaughterhouse at the back, a passage through to the yard.",
     cellar: 0.25, porch: 0, floorsMax: 2, doorBonus: -1, under: [{ n: "Cold cellar", k: "cellar", w: 1 }],
     plan(r, size, up) { const D = size === "small" ? genInt(r, 7, 8) : genInt(r, 8, 10), w0 = size === "large" ? genInt(r, 5, 6) : genInt(r, 4, 5);
-      const rooms = size === "small" ? [genR("Butcher's shop", "shop", { w: 1.2 }), genR("Slaughterhouse", "slaughter", { w: 1.2 })] : [genR("Butcher's shop", "shop", { w: 1.2 }), genR("Cutting room", "work"), genR("Salting room", "store", { w: 0.7 }), genR("Slaughterhouse", "slaughter", { w: 1.3 })];
+      const rooms = size === "small" ? [genR("Butcher's shop", "shop", { w: 1.2 }), genR("Slaughterhouse", "slaughter", { w: 1.2 })] : [genR("Butcher's shop", "shop", { w: 1.6 }), genR("Cutting room", "work"), genR("Salting room", "store", { w: 0.7 }), genR("Slaughterhouse", "slaughter", { w: 1.3 })];
       const units = [genU(w0, rooms, Object.assign({ entry: 1, doorW: 2 }, up ? { up: [genR("Living room", "living"), genR("Chamber", "bed")] } : {})), genU(2, genR("Yard passage", "passage"), Object.assign({ pass: 1 }, up ? { upJoin: 1 } : {}))];
       return { D, name: "Shambles shop", units }; } },
   { id: "apothecary", name: "Apothecary", icon: "⚗", blurb: "The shop with its jars and counter at the front, the still room behind where the medicines are made, a store and grinding room, herbs drying in the loft.",
@@ -434,7 +434,7 @@ const GEN_TOWN = [
       return { D, name: "Carpenter's shop", units }; } },
   { id: "workshop", name: "Workshop", icon: "🔨", blurb: "A craftsman's shop-house (cooper, cobbler, weaver, potter, chandler, goldsmith and more): the shop at the front, the workroom behind, the family above.",
     cellar: 0.15, porch: 0, floorsMax: 2, doorBonus: -0.5, under: [{ n: "Cellar", k: "cellar", w: 1 }],
-    plan(r, size, up) { const T = [["Cooper", "Cooperage", "Stave store"], ["Cobbler", "Workroom", "Leather store"], ["Weaver", "Loom room", "Yarn store"], ["Potter", "Kiln room", "Clay store"], ["Chandler", "Dipping room", "Tallow store"], ["Goldsmith", "Workroom", "Strong room"], ["Glover", "Workroom", "Skin store"], ["Bowyer", "Workroom", "Stave store"], ["Wheelwright", "Wheel shop", "Timber store"], ["Cutler", "Grinding room", "Store"]];
+    plan(r, size, up) { const T = [["Cooper", "Cooperage", "Stave store"], ["Cobbler", "Cobbling room", "Leather store"], ["Weaver", "Loom room", "Yarn store"], ["Potter", "Kiln room", "Clay store"], ["Chandler", "Dipping room", "Tallow store"], ["Goldsmith", "Goldsmith's workroom", "Strong room"], ["Glover", "Glove room", "Skin store"], ["Bowyer", "Bow room", "Stave store"], ["Wheelwright", "Wheel shop", "Timber store"], ["Cutler", "Grinding room", "Store"]];
       const [who, work, store] = T[Math.floor(r() * T.length)], D = size === "small" ? genInt(r, 6, 7) : genInt(r, 7, 9), w0 = size === "large" ? genInt(r, 5, 6) : genInt(r, 4, 5);
       const units = [genU(w0, size === "small" ? [genR(`${who}'s shop`, "shop"), genR(work, "work", { w: 1.3 })] : [genR(`${who}'s shop`, "shop"), genR(work, "work", { w: 1.4 }), genR(store, "store", { w: 0.7 })], Object.assign({ entry: 1 }, up ? { up: [genR("Living room", "living"), genR("Chamber", "bed")] } : {}))];
       if (size === "large") units.push(genU(genInt(r, 3, 4), [genR("Hall", "living"), genR("Kitchen", "kitchen")], up ? { upJoin: 1 } : {}));
@@ -495,7 +495,8 @@ function genPlanTry(o, attempt) {
   // Stairs (or a ladder) up to each part with a floor above, from a room under it, not a passage or the aisle.
   const upRooms = [];
   Lay.regions.forEach(g => { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
-    const cands = g.below.filter(rm => !rm.pass && !rm.hub && rm.k !== "water").concat(g.below.filter(rm => rm.hub && !rm.pass)); let s = null;
+    const shopLast = rm => rm.k === "shop" ? 1 : 0; // the stairs out of the shop, if anywhere else will do: it needs its floor for the counter
+    const cands = g.below.filter(rm => !rm.pass && !rm.hub && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
     if (!s) return; s.lo = 0; stairs.push(s);
     upRooms.push(...(g.rooms.length > 1 ? (g.slice ? genSlice(r, g.rect, g.rooms, minD) : genUpper(r, g.rect, s, g.rooms, minD, 1, g.landName || "Landing")) : [Object.assign({}, g.rooms[0], g.rect)])); }); // slice: rooms opening one into the next, no landing
@@ -503,7 +504,7 @@ function genPlanTry(o, attempt) {
   if (upRooms.length) levels.push({ level: 1, rooms: upRooms, name: "Upper floor" });
   let down = null;
   if (cellar) { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), inM = rm => rm.x >= M.x && rm.y >= M.y && rm.x + rm.w <= M.x + M.w && rm.y + rm.h <= M.y + M.h;
-    const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : 1));
+    const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : a.k === "shop" ? 2 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : b.k === "shop" ? 2 : 1));
     for (const rm of order) { down = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: M, frontY, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: M, frontY, avoid: busy, near: nb }); if (down) break; }
     if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); const rooms = genPick(r, T.under || [{ n: "Cellar", k: "cellar", w: 1 }]);
       levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: "Cellar" }); } }

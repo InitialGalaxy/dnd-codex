@@ -15,6 +15,8 @@ const gfC = (x, y, r, fill, ex) => `<circle cx="${(+x).toFixed(1)}" cy="${(+y).t
 const gfE = (x, y, rx, ry, fill, ex) => `<ellipse cx="${(+x).toFixed(1)}" cy="${(+y).toFixed(1)}" rx="${(+rx).toFixed(1)}" ry="${(+ry).toFixed(1)}" fill="${fill}" stroke="${GENF_INK}" stroke-width="2"${ex || ""}/>`;
 const gfL = (x1, y1, x2, y2, c, w) => `<line x1="${(+x1).toFixed(1)}" y1="${(+y1).toFixed(1)}" x2="${(+x2).toFixed(1)}" y2="${(+y2).toFixed(1)}" stroke="${c || GENF_INK}" stroke-width="${w || 1.5}" stroke-linecap="round"/>`;
 const gfPlanks = (x, y, w, h, n, along) => Array.from({ length: n - 1 }, (_, i) => along ? gfL(x + 2, y + h * (i + 1) / n, x + w - 2, y + h * (i + 1) / n, "rgba(43,37,32,.35)", 1) : gfL(x + w * (i + 1) / n, y + 2, x + w * (i + 1) / n, y + h - 2, "rgba(43,37,32,.35)", 1)).join("");
+// A market stall: trestle boards under a striped awning edge, laid with goods (rounds of colour) or bolts of cloth.
+const gfStall = (P, goods, awn, cloth) => gfTable(3, P * 0.1, 2 * P - 6, P * 0.8, genfWood[3], 2) + (cloth ? cloth.map((c, i) => gfR(P * (0.18 + i * 0.34), P * 0.3, P * 0.28, P * 0.5, c, ` rx="3"`)).join("") : [0.3, 0.65, 1.0, 1.35, 1.7].map((x, i) => gfE(x * P, P * (0.42 + (i % 2) * 0.2), P * 0.15, P * 0.12, goods[i % goods.length][0]) + `<ellipse cx="${x * P}" cy="${P * (0.42 + (i % 2) * 0.2)}" rx="${P * 0.07}" ry="${P * 0.05}" fill="${goods[i % goods.length][1]}"/>`).join("")) + gfR(2, 2, 2 * P - 4, P * 0.16, awn) + [0, 0.5, 1, 1.5].map(x => gfR(2 + x * P, 2, P * 0.25, P * 0.16, "#e8d9b0")).join("");
 const gfShadow = (x, y, w, h, rx) => `<rect x="${x + 3}" y="${y + 4}" width="${w}" height="${h}" rx="${rx || 2}" fill="rgba(0,0,0,.28)"/>`;
 const gfCShadow = (x, y, r) => `<circle cx="${x + 3}" cy="${y + 4}" r="${r}" fill="rgba(0,0,0,.28)"/>`;
 const gfTable = (x, y, w, h, wood, n) => gfShadow(x, y, w, h) + gfR(x, y, w, h, wood || genfWood[3], ` rx="2"`) + gfPlanks(x, y, w, h, n || Math.max(2, Math.round(h / 9)), true);
@@ -83,6 +85,8 @@ const GEN_FURN = [
   { id: "clothbolts", name: "Cloth bolts", cat: "Workshop", w: 1, h: 1, place: "wall", access: "front", group: "cloth", draw: P => gfR(3, 3, P - 6, P * 0.6, genfWood[0]) + ["#4f6fa8", "#a8322d", "#6b8f4e", "#d8c07a"].map((c, i) => gfR(6, 6 + i * P * 0.13, P - 12, P * 0.12, c, ` rx="4"`)).join("") },
   { id: "display", name: "Display table", cat: "Shop", w: 2, h: 1, place: "free", access: "any", door: "near", draw: P => gfTable(4, P * 0.12, 2 * P - 8, P * 0.76, genfWood[2], 2) + [["#a8322d", 0.35], ["#e0c26a", 0.7], ["#6b8f4e", 1.05], ["#4f7fa8", 1.4], ["#d8cfc0", 1.7]].map(([c, x], i) => gfR(x * P - 6, P * (i % 2 ? 0.25 : 0.45), 12, 12, c, ` rx="2"`)).join("") },
   { id: "counter", name: "Shop counter", cat: "Shop", w: 3, h: 1, place: "free", access: "frontback", face: "door", door: "near", draw: P => gfShadow(4, P * 0.18, 3 * P - 8, P * 0.64) + gfR(4, P * 0.18, 3 * P - 8, P * 0.64, genfWood[0]) + gfR(9, P * 0.26, 3 * P - 18, P * 0.48, genfWood[2]) + gfL(P * 0.6, P * 0.36, P * 0.6, P * 0.64, "#4a4d52", 2) + gfL(P * 0.4, P * 0.38, P * 0.8, P * 0.38, "#4a4d52", 2) + gfC(P * 0.4, P * 0.5, 4, "#c9a45e") + gfC(P * 0.8, P * 0.5, 4, "#c9a45e") + [1.6, 1.75, 1.68].map((x, i) => gfC(x * P, P * (0.4 + i * 0.08), 3, "#e0b23c")).join("") + gfBook(P * 2.2, P * 0.32, P * 0.4, P * 0.32, "#6b4a2e") },
+  { id: "counter2", name: "Stall-board counter", cat: "Shop", w: 2, h: 1, place: "free", access: "frontback", face: "door", door: "near", draw: P => gfShadow(4, P * 0.18, 2 * P - 8, P * 0.64) + gfR(4, P * 0.18, 2 * P - 8, P * 0.64, genfWood[0]) + gfR(9, P * 0.26, 2 * P - 18, P * 0.48, genfWood[2]) + gfL(P * 0.5, P * 0.36, P * 0.5, P * 0.64, "#4a4d52", 2) + gfL(P * 0.3, P * 0.38, P * 0.7, P * 0.38, "#4a4d52", 2) + gfC(P * 0.3, P * 0.5, 4, "#c9a45e") + gfC(P * 0.7, P * 0.5, 4, "#c9a45e") + [1.2, 1.35, 1.28].map((x, i) => gfC(x * P, P * (0.4 + i * 0.08), 3, "#e0b23c")).join("") },
+  { id: "stallboard", name: "Stall board (shop window counter)", cat: "Shop", w: 2, h: 1, place: "wall", access: "front", door: "near", draw: P => gfShadow(3, 4, 2 * P - 6, P * 0.55) + gfR(3, 4, 2 * P - 6, P * 0.55, genfWood[2]) + gfPlanks(3, 4, 2 * P - 6, P * 0.55, 3, false) + gfL(3, 6, 2 * P - 3, 6, genfWood[0], 3) + [0.45, 1.0, 1.5].map((x, i) => gfE(x * P, P * 0.32, P * 0.13, P * 0.1, ["#c8665a", "#e0b23c", "#d8cfc0"][i])).join("") },
   { id: "reception", name: "Reception desk", cat: "Shop", w: 2, h: 1, place: "free", access: "frontback", face: "door", door: "near", behind: "stool", draw: P => gfShadow(4, P * 0.14, 2 * P - 8, P * 0.7) + gfR(4, P * 0.14, 2 * P - 8, P * 0.7, genfWood[0]) + gfR(9, P * 0.22, 2 * P - 18, P * 0.54, genfWood[2]) + gfR(P * 0.3, P * 0.28, P * 0.66, P * 0.42, "#efe6cf") + gfL(P * 0.63, P * 0.3, P * 0.63, P * 0.68, "#9a8f7a", 1.2) + [0.38, 0.46, 0.54].map(y => gfL(P * 0.36, P * y, P * 0.58, P * y, "#9a8f7a", 1) + gfL(P * 0.68, P * y, P * 0.9, P * y, "#9a8f7a", 1)).join("") + gfC(P * 1.18, P * 0.4, 3.5, "#1e1a16") + gfL(P * 1.18, P * 0.4, P * 1.4, P * 0.26, "#f1ead8", 2) + gfC(P * 1.6, P * 0.5, P * 0.12, "#c9a45e") + gfC(P * 1.6, P * 0.5, P * 0.05, "#8a6a1a") },
   { id: "questboard", name: "Quest board", cat: "Hall & church", w: 2, h: 1, place: "wall", access: "front", tall: 1, door: "near", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.5) + gfR(3, 3, 2 * P - 6, P * 0.5, genfWood[0]) + gfR(7, 6, 2 * P - 14, P * 0.5 - 6, "#b08a5a") + [[0.18, 0.1, -6], [0.55, 0.14, 4], [0.95, 0.08, -3], [1.32, 0.13, 7], [1.62, 0.09, -5]].map(([x, y, a], i) => `<g transform="rotate(${a} ${x * P + 8} ${y * P + 8})"><rect x="${x * P}" y="${y * P}" width="${P * 0.32}" height="${P * 0.34}" fill="${i % 2 ? "#efe6cf" : "#e6d6ae"}" stroke="#7a6a4a" stroke-width="1"/>${gfL(x * P + 3, y * P + 7, x * P + P * 0.28, y * P + 7, "#8a7a5a", 1)}${gfL(x * P + 3, y * P + 11, x * P + P * 0.24, y * P + 11, "#8a7a5a", 1)}<circle cx="${x * P + P * 0.16}" cy="${y * P + 3}" r="2.2" fill="${["#a8322d", "#2d5fa8", "#c9a42a"][i % 3]}"/></g>`).join("") },
   { id: "bar", name: "Bar", cat: "Tavern", w: 3, h: 1, place: "gap", access: "frontback", draw: P => gfShadow(3, P * 0.12, 3 * P - 6, P * 0.76) + gfR(3, P * 0.12, 3 * P - 6, P * 0.76, genfWood[0]) + gfR(8, P * 0.2, 3 * P - 16, P * 0.6, "#8a5a33") + gfPlanks(8, P * 0.2, 3 * P - 16, P * 0.6, 2, true) + [0.5, 1.1, 1.9, 2.5].map(x => gfMug(x * P, P * 0.5)).join("") + gfCask(P * 1.3, P * 0.28, P * 0.4, P * 0.3) },
@@ -132,6 +136,33 @@ const GEN_FURN = [
   { id: "choirstall", name: "Choir stall", cat: "Hall & church", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.62) + gfR(3, 3, 2 * P - 6, P * 0.25, genfWood[0]) + gfR(3, P * 0.28, 2 * P - 6, P * 0.34, genfWood[1]) + gfL(P, 3, P, P * 0.62, GENF_INK, 2) + gfBook(P * 0.35, P * 0.36, P * 0.3, P * 0.2, "#7a2e2e") },
   { id: "almsbox", name: "Alms box", cat: "Hall & church", w: 1, h: 1, place: "free", access: "any", door: "near", draw: P => gfCShadow(P / 2, P / 2, P * 0.2) + gfR(P * 0.3, P * 0.3, P * 0.4, P * 0.4, genfWood[0]) + gfL(P * 0.3, P / 2, P * 0.7, P / 2, "#4a4d52", 3) + gfR(P * 0.43, P * 0.36, P * 0.14, 3, "#1e1a16") },
   { id: "priedieu", name: "Prie-dieu", cat: "Hall & church", w: 1, h: 1, place: "free", access: "front", face: "altar", draw: P => gfR(P * 0.15, P * 0.12, P * 0.7, P * 0.28, genfWood[0]) + gfR(P * 0.2, P * 0.5, P * 0.6, P * 0.28, "#8f2f2f") },
+  // Town buildings
+  { id: "stall", name: "Produce stall", cat: "Town", w: 2, h: 1, place: "wall", access: "front", group: "stall", draw: P => gfStall(P, [["#c9a35e", "#e0b23c"], ["#b8322d", "#e05a3a"], ["#6b8f4e", "#9ab86a"]], "#8f2f2f") },
+  { id: "stall2", name: "Cloth stall", cat: "Town", w: 2, h: 1, place: "wall", access: "front", group: "stall", draw: P => gfStall(P, null, "#2f4f8f", ["#3f6fa0", "#a8322d", "#e0c26a", "#6b8f4e", "#d8cfc0"]) },
+  { id: "stall3", name: "Pottery stall", cat: "Town", w: 2, h: 1, place: "wall", access: "front", group: "stall", draw: P => gfStall(P, [["#b8643a", "#5a3020"], ["#a8a29a", "#6a655c"], ["#c98f4a", "#7a4a26"]], "#3f6a2c") },
+  { id: "basket", name: "Baskets of goods", cat: "Town", w: 1, h: 1, place: "wall", access: "front", group: "stall", corner: 1, draw: P => [[0.32, 0.34, "#e0b23c"], [0.66, 0.4, "#b8322d"], [0.45, 0.7, "#6b8f4e"]].map(([x, y, c]) => gfCShadow(x * P, y * P, P * 0.17) + gfC(x * P, y * P, P * 0.17, "#a8834a") + `<circle cx="${x * P}" cy="${y * P}" r="${P * 0.11}" fill="${c}"/>`).join("") },
+  { id: "scales", name: "Scales & weights", cat: "Town", w: 1, h: 1, place: "wall", access: "front", draw: P => gfTable(5, 5, P - 10, P * 0.6, genfWood[1], 2) + gfL(P * 0.2, P * 0.3, P * 0.8, P * 0.3, "#c9a45e", 2.5) + gfC(P * 0.22, P * 0.36, P * 0.1, "#d8b45a") + gfC(P * 0.78, P * 0.36, P * 0.1, "#d8b45a") + gfC(P / 2, P * 0.3, 3, "#8a6a2a") + [0.35, 0.5, 0.62].map((x, i) => gfR(x * P, P * 0.48, 4 + i, 4 + i, "#6a6560")).join("") },
+  { id: "countboard", name: "Counting board", cat: "Town", w: 2, h: 1, place: "free", access: "any", seats: { a: ["chair", "stool"], sides: "back", min: 1 }, draw: P => gfTable(4, P * 0.12, 2 * P - 8, P * 0.76, genfWood[1], 2) + `<rect x="${P * 0.2}" y="${P * 0.2}" width="${P * 1.6}" height="${P * 0.6}" fill="#2f5a3a" stroke="${GENF_INK}" stroke-width="1.5"/>` + [0.4, 0.6, 0.8].map(y => gfL(P * 0.2, y * P, P * 1.8, y * P, "rgba(255,255,255,.35)", 1)).join("") + [[0.4, 0.3], [0.55, 0.3], [0.9, 0.5], [1.3, 0.7], [1.45, 0.7], [1.6, 0.5]].map(([x, y]) => gfC(x * P, y * P, 3, "#e0b23c")).join("") },
+  { id: "bale", name: "Wool bale", cat: "Town", w: 1, h: 1, place: "free", access: "any", group: "store", corner: 1, draw: P => gfShadow(P * 0.12, P * 0.14, P * 0.76, P * 0.72, 8) + `<rect x="${P * 0.12}" y="${P * 0.14}" width="${P * 0.76}" height="${P * 0.72}" rx="${P * 0.2}" fill="#e3dccb" stroke="${GENF_INK}" stroke-width="2"/>` + gfL(P * 0.12, P / 2, P * 0.88, P / 2, "#8a6a44", 2) + gfL(P / 2, P * 0.14, P / 2, P * 0.86, "#8a6a44", 2) },
+  { id: "horsestall", name: "Horse stall", cat: "Farm", w: 2, h: 2, place: "wall", access: "front", group: "farm", draw: P => gfR(3, 3, 2 * P - 6, P * 0.42, genfWood[1]) + gfR(7, 6, 2 * P - 14, P * 0.26, "#d9c27a") + gfL(4, 2, 4, P * 1.75, genfWood[0], 5) + gfL(2 * P - 4, 2, 2 * P - 4, P * 1.75, genfWood[0], 5) + gfL(4, P * 0.9, 2 * P - 4, P * 0.9, "rgba(94,64,39,.5)", 2) + Array.from({ length: 12 }, (_, i) => gfL(P * (0.3 + (i % 6) * 0.25), P * (1.05 + Math.floor(i / 6) * 0.4), P * (0.42 + (i % 6) * 0.25), P * (1.15 + Math.floor(i / 6) * 0.4), "rgba(170,140,60,.6)", 1.2)).join("") },
+  { id: "windlass", name: "Portcullis windlass", cat: "Town", w: 2, h: 1, place: "free", access: "any", draw: P => gfShadow(4, P * 0.2, 2 * P - 8, P * 0.6) + gfR(4, P * 0.28, P * 0.2, P * 0.44, genfWood[0]) + gfR(2 * P - P * 0.2 - 4, P * 0.28, P * 0.2, P * 0.44, genfWood[0]) + gfR(P * 0.24, P * 0.38, 2 * P - P * 0.48 - 8, P * 0.24, genfWood[2]) + Array.from({ length: 8 }, (_, i) => gfL(P * (0.4 + i * 0.16), P * 0.38, P * (0.4 + i * 0.16), P * 0.62, "#4a4d52", 1.5)).join("") + gfL(P * 0.15, P * 0.5, P * 0.02, P * 0.95, "#3a3530", 3) + gfL(2 * P - P * 0.15, P * 0.5, 2 * P - P * 0.02, P * 0.95, "#3a3530", 3) },
+  { id: "shackles", name: "Shackles", cat: "Town", w: 1, h: 1, place: "wall", access: "front", draw: P => gfR(P * 0.2, 3, P * 0.6, P * 0.12, "#4a4d52") + [0.32, 0.68].map(x => gfL(x * P, P * 0.12, x * P, P * 0.45, "#6a6d72", 2) + `<circle cx="${x * P}" cy="${P * 0.52}" r="${P * 0.08}" fill="none" stroke="#4a4d52" stroke-width="3"/>`).join("") + gfE(P / 2, P * 0.78, P * 0.28, P * 0.12, "#c9b062") },
+  { id: "meathooks", name: "Meat hooks", cat: "Town", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfR(3, 3, 2 * P - 6, P * 0.12, genfWood[0]) + [0.35, 0.8, 1.25, 1.65].map((x, i) => gfL(x * P, P * 0.1, x * P, P * 0.22, "#9aa0a8", 2) + gfE(x * P, P * 0.42, P * 0.14, P * 0.2, i % 2 ? "#b04a3e" : "#c8665a") + `<ellipse cx="${x * P}" cy="${P * 0.42}" rx="${P * 0.06}" ry="${P * 0.12}" fill="#f0d8c8" opacity=".7"/>`).join("") },
+  { id: "saltingtrough", name: "Salting trough", cat: "Town", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 5, 2 * P - 8, P * 0.72) + gfR(4, 5, 2 * P - 8, P * 0.72, genfWood[1], ` rx="4"`) + `<rect x="9" y="10" width="${2 * P - 18}" height="${P * 0.62}" rx="3" fill="#efeae0"/>` + [0.5, 1.0, 1.5].map(x => gfE(x * P, P * 0.42, P * 0.16, P * 0.1, "#c8665a")).join("") },
+  { id: "gambrel", name: "Slaughter beam", cat: "Town", w: 2, h: 1, place: "wall", access: "front", draw: P => gfR(3, 3, 2 * P - 6, P * 0.14, genfWood[0]) + gfL(P * 0.15, P * 0.1, P * 0.15, P * 0.4, genfWood[0], 4) + gfL(2 * P - P * 0.15, P * 0.1, 2 * P - P * 0.15, P * 0.4, genfWood[0], 4) + gfL(P, P * 0.15, P, P * 0.3, "#3a3530", 2) + gfL(P * 0.7, P * 0.3, P * 1.3, P * 0.3, genfWood[2], 3) + `<ellipse cx="${P}" cy="${P * 0.75}" rx="${P * 0.4}" ry="${P * 0.16}" fill="#7a1f1a" opacity=".55"/>` },
+  { id: "jars", name: "Jar shelves", cat: "Town", w: 2, h: 1, place: "wall", access: "front", tall: 1, group: "store", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.45) + gfR(3, 3, 2 * P - 6, P * 0.45, genfWood[0]) + Array.from({ length: 7 }, (_, i) => gfC(P * (0.2 + i * 0.27), P * 0.25, P * 0.1, ["#e8e0cf", "#3f6fa0", "#e8e0cf", "#c9a45e", "#e8e0cf", "#3f6fa0", "#6b8f4e"][i]) + `<circle cx="${P * (0.2 + i * 0.27)}" cy="${P * 0.25}" r="${P * 0.045}" fill="#7a5a3a"/>`).join("") },
+  { id: "still", name: "Still (alembic)", cat: "Town", w: 1, h: 1, place: "free", access: "any", near: "hearth", draw: P => gfCShadow(P / 2, P / 2, P * 0.32) + gfR(P * 0.2, P * 0.3, P * 0.6, P * 0.5, "#6a5a4a", ` rx="4"`) + `<circle cx="${P * 0.5}" cy="${P * 0.6}" r="${P * 0.08}" fill="#ff9a3a"/>` + gfC(P * 0.45, P * 0.42, P * 0.2, "#c87a3a") + gfL(P * 0.6, P * 0.32, P * 0.9, P * 0.15, "#c87a3a", 3) + gfC(P * 0.88, P * 0.18, P * 0.08, "#9fc3d6") },
+  { id: "mortar", name: "Mortar & pestle", cat: "Town", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.26) + gfC(P / 2, P / 2, P * 0.26, "#a8a29a") + gfC(P / 2, P / 2, P * 0.16, "#6b8f4e") + gfL(P * 0.45, P * 0.5, P * 0.85, P * 0.18, "#8a8377", 5) },
+  { id: "herbrack", name: "Drying racks", cat: "Town", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfR(3, 3, 2 * P - 6, P * 0.1, genfWood[0]) + Array.from({ length: 8 }, (_, i) => { const x = P * (0.18 + i * 0.235); return gfL(x, P * 0.1, x, P * 0.22, "#8a6a44", 1) + `<path d="M${x - P * 0.07} ${P * 0.22}L${x} ${P * 0.62}L${x + P * 0.07} ${P * 0.22}Z" fill="${["#6b8f4e", "#8aa05a", "#a0905a", "#5a7a4a"][i % 4]}" stroke="${GENF_INK}" stroke-width="1"/>`; }).join("") },
+  { id: "sawhorse", name: "Saw trestles", cat: "Town", w: 3, h: 1, place: "free", access: "any", draw: P => [0.4, 2.6].map(x => gfR(x * P - 4, P * 0.15, 8, P * 0.7, genfWood[0])).join("") + gfShadow(4, P * 0.32, 3 * P - 8, P * 0.36) + gfR(4, P * 0.32, 3 * P - 8, P * 0.36, "#b0844f") + gfL(P * 0.3, P / 2, 3 * P - P * 0.3, P / 2, "rgba(43,37,32,.3)", 1) + gfL(P * 1.7, P * 0.2, P * 1.7, P * 0.8, "#9aa0a8", 2.5) + `<rect x="${P * 1.6}" y="${P * 0.05}" width="${P * 0.2}" height="${P * 0.15}" fill="${genfWood[1]}" stroke="${GENF_INK}" stroke-width="1.5"/>` },
+  { id: "planks", name: "Stacked timber", cat: "Town", w: 2, h: 1, place: "wall", access: "front", group: "timber", draw: P => gfShadow(3, 4, 2 * P - 6, P * 0.8) + Array.from({ length: 4 }, (_, i) => gfR(3, 4 + i * P * 0.2, 2 * P - 6, P * 0.18, ["#b0844f", "#9c6d42", "#b88c55", "#a87a48"][i])).join("") + gfL(P * 0.6, 4, P * 0.6, P * 0.84, "rgba(43,37,32,.3)", 1) + gfL(P * 1.4, 4, P * 1.4, P * 0.84, "rgba(43,37,32,.3)", 1) },
+  { id: "logs", name: "Logs", cat: "Town", w: 2, h: 1, place: "wall", access: "front", group: "timber", draw: P => gfShadow(3, 4, 2 * P - 6, P * 0.8) + [0.24, 0.52, 0.76].map((y, i) => gfR(3 + (i % 2) * 4, y * P - P * 0.13, 2 * P - 10, P * 0.26, "#7d5533", ` rx="${P * 0.12}"`) + gfC(2 * P - 8 - (i % 2) * 2, y * P, P * 0.12, "#c9a06a")).join("") },
+  { id: "potwheel", name: "Potter's wheel", cat: "Town", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.38) + gfC(P / 2, P / 2, P * 0.38, genfWood[1]) + gfC(P / 2, P / 2, P * 0.2, "#a8603a") + gfC(P / 2, P / 2, P * 0.1, "#8a4a2a") },
+  { id: "kiln", name: "Kiln", cat: "Town", w: 2, h: 2, place: "corner", access: "front", draw: P => gfCShadow(P, P, P * 0.86) + gfC(P, P, P * 0.86, "#9a6a4a") + gfC(P, P, P * 0.6, "#7a4a32") + `<circle cx="${P}" cy="${P}" r="${P * 0.35}" fill="#3a2418"/>` + gfR(P * 0.75, P * 1.6, P * 0.5, P * 0.3, "#2a1a12") + `<circle cx="${P}" cy="${P * 1.72}" r="${P * 0.1}" fill="#ff8a3a"/>` },
+  { id: "pots", name: "Pots", cat: "Town", w: 1, h: 1, place: "free", access: "any", group: "store", corner: 1, draw: P => [[0.3, 0.32, 0.15], [0.68, 0.36, 0.13], [0.48, 0.7, 0.17]].map(([x, y, r]) => gfCShadow(x * P, y * P, r * P) + gfC(x * P, y * P, r * P, "#b8643a") + `<circle cx="${x * P}" cy="${y * P}" r="${r * P * 0.55}" fill="#5a3020"/>`).join("") },
+  { id: "candlerack", name: "Candle rack", cat: "Town", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfR(3, 3, 2 * P - 6, P * 0.12, genfWood[0]) + Array.from({ length: 10 }, (_, i) => gfR(P * (0.14 + i * 0.18), P * 0.12, 3, P * (0.35 + (i % 3) * 0.08), "#efe6cf")).join("") },
+  { id: "wheel", name: "Cart wheel", cat: "Town", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.4) + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.4}" fill="none" stroke="${genfWood[0]}" stroke-width="5"/>` + Array.from({ length: 6 }, (_, i) => gfL(P / 2, P / 2, P / 2 + Math.cos(i * Math.PI / 3) * P * 0.38, P / 2 + Math.sin(i * Math.PI / 3) * P * 0.38, genfWood[1], 3)).join("") + gfC(P / 2, P / 2, P * 0.09, "#4a4d52") },
+  { id: "hides", name: "Hides", cat: "Town", w: 2, h: 1, place: "free", access: "any", group: "store", draw: P => gfShadow(5, 5, 2 * P - 10, P * 0.75, 10) + `<path d="M${P * 0.15} ${P * 0.2}Q${P * 0.5} ${P * 0.05} ${P} ${P * 0.18}Q${P * 1.5} ${P * 0.05} ${P * 1.85} ${P * 0.2}L${P * 1.75} ${P * 0.8}Q${P} ${P * 0.95} ${P * 0.25} ${P * 0.8}Z" fill="#a8774a" stroke="${GENF_INK}" stroke-width="2"/>` + gfL(P * 0.3, P * 0.45, P * 1.7, P * 0.45, "rgba(43,37,32,.3)", 1) },
   { id: "plant", name: "Potted plant", cat: "Outside", w: 1, h: 1, place: "free", access: "any", corner: 1, draw: P => gfCShadow(P / 2, P / 2, P * 0.26) + gfC(P / 2, P / 2, P * 0.26, "#b8643a") + [[0.4, 0.4], [0.6, 0.42], [0.5, 0.58], [0.38, 0.58], [0.62, 0.6], [0.5, 0.36]].map(([x, y]) => `<circle cx="${P * x}" cy="${P * y}" r="${P * 0.12}" fill="#5a8a3a" stroke="#2f4f1f" stroke-width="1"/>`).join("") },
 ];
 
@@ -166,7 +197,7 @@ const GEN_FURN_ROOMS = (() => {
     "Nursery": [["cradle", 1, 2], ["pallet", 0, 1, 0.6], ["chest", 1, 1], ["stool", 0, 1]],
     "Priest's room": [["bed", 1, 1], ["desk", 0, 1, 0.6], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5]],
     "Priest's quarters": [["bed", 1, 1], ["desk", 0, 1, 0.6], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5]],
-    "Shop floor": [["counter", 1, 1], ["shelves", 2, 3], ["barrel", 1, 2], ["crate", 0, 2], ["sacks", 0, 2], ["display", 0, 1, 0.6]],
+    "Shop floor": [["counter>counter2>stallboard", 1, 1], ["shelves", 2, 3], ["barrel", 1, 2], ["crate", 0, 2], ["sacks", 0, 2], ["display", 0, 1, 0.6]],
     "Shop": [["counter", 1, 1], ["clothbolts", 1, 3], ["dressform", 1, 2], ["shelves", 0, 1, 0.6], ["display", 0, 1, 0.4]],
     "Pawn counter": [["counter", 1, 1], ["shelves", 1, 2], ["strongbox", 1, 1], ["chest", 0, 2]],
     "Workroom": [["cuttingtable", 1, 1], ["loom", 0, 1, 0.5], ["spinning", 0, 1, 0.6], ["dressform", 0, 1, 0.5], ["clothbolts", 1, 2], ["stool", 1, 2], ["shelves", 0, 1, 0.4]],
@@ -234,7 +265,7 @@ const GEN_FURN_ROOMS = (() => {
     "Oven room": [["woodpile", 1, 1], ["moulding", 0, 1, 0.6], ["breadrack", 0, 1, 0.6], ["sacks", 0, 1]],
     "Kneading room": [["kneading", 1, 2], ["moulding", 1, 1], ["sacks", 1, 2], ["barrel", 0, 1], ["shelves", 0, 1]],
     "Flour store": [["sacks", 2, 4], ["mealbin", 0, 1], ["barrel", 0, 1]], "Woodstore": [["woodpile", 1, 3]],
-    "Bread shop": [["counter", 1, 1], ["breadrack", 1, 2], ["display", 0, 1, 0.5]],
+    "Bread shop": [["counter>counter2>stallboard", 1, 1], ["breadrack", 1, 2], ["display", 0, 1, 0.5]],
     "Brewhouse": [["cauldron", 1, 2], ["barrel", 2, 4], ["caskrack", 0, 1], ["worktable", 0, 1]],
     "Baker's room": [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1], ["washstand", 0, 1, 0.4]],
     "Shrine": [["altar", 1, 1], ["candles", 1, 2], ["priedieu", 0, 1, 0.6]],
@@ -249,6 +280,71 @@ const GEN_FURN_ROOMS = (() => {
     "Steward's room": [["desk", 1, 1], ["chest", 1, 1], ["strongbox", 0, 1, 0.5], ["shelves", 0, 1, 0.5]],
     "Undercroft": [["caskrack", 1, 2], ["barrel", 2, 4], ["crate", 0, 2], ["sacks", 0, 2]],
     "Root cellar": [["sacks", 1, 3], ["barrel", 1, 2], ["crate", 0, 2]],
+    // Town buildings. Shops after the inventories: shelves and counters, weights and measures, and the stock.
+    "townhouse:Shop": [["counter>counter2>stallboard", 1, 1], ["shelves", 1, 2], ["scales", 0, 1, 0.6], ["display", 0, 1, 0.5], ["barrel", 0, 2], ["crate", 0, 2], ["sacks", 0, 1, 0.5]],
+    "townhouse:Hall": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.7], ["settle", 0, 1, 0.5], ["stool", 0, 2], ["carvedchair", 0, 1, 0.3]],
+    "townhouse:Great chamber": [["bigbed|bed", 1, 1], ["chest", 1, 2], ["press", 0, 1, 0.6], ["washstand", 0, 1, 0.5], ["carvedchair", 0, 1, 0.4]],
+    "Side passage": [["barrel", 0, 1, 0.4]], "Entry passage": [["chest", 0, 1, 0.3]], "Yard passage": [], "Carriage way": [], "Gate passage": [], "Gallery": [],
+    "merchant:Shop": [["counter>counter2>stallboard", 1, 1], ["scales", 1, 1], ["shelves", 1, 2], ["bale", 0, 2], ["chest", 0, 1, 0.6], ["display", 0, 1, 0.4]],
+    "Counting house": [["countboard>desk", 1, 1], ["strongbox", 1, 1], ["chest", 1, 2], ["bookshelf", 0, 1, 0.6], ["scales", 0, 1, 0.5]],
+    "merchant:Hall": [["hightable", 1, 1], ["trestle", 0, 2], ["buffet", 0, 1, 0.8], ["chest", 0, 1, 0.6], ["bench", 0, 2]],
+    "Warehouse": [["bale", 2, 4], ["crate", 1, 3], ["barrel", 1, 3], ["sacks", 0, 2]],
+    "Clerk's room": [["desk", 1, 1], ["bed|pallet", 1, 1], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5]],
+    "merchant:Undercroft": [["bale", 1, 3], ["caskrack", 1, 2], ["barrel", 1, 4], ["crate", 1, 3], ["sacks", 0, 2]],
+    "Tap room": [["bar", 1, 1], ["trestle|table2", 1, 3], ["roundtable", 1, 3], ["settle", 0, 2, 0.6], ["caskrack", 0, 1, 0.6], ["barrel", 0, 2]],
+    "inn:Parlour": [["table2|longtable", 1, 1], ["settle", 0, 1, 0.6], ["cupboard", 0, 1, 0.5], ["chest", 0, 1, 0.5], ["carvedchair", 0, 1, 0.4]],
+    "inn:Kitchen": [["worktable", 1, 2], ["cauldron", 1, 1], ["shelves", 1, 2], ["oven", 0, 1, 0.7], ["block", 0, 1, 0.7], ["barrel", 1, 2], ["sacks", 0, 2]],
+    "Best chamber": [["bigbed>bed", 1, 1], ["chest", 1, 1], ["washstand", 1, 1], ["carvedchair", 0, 1, 0.6], ["smalltable", 0, 1, 0.5]],
+    "Guest chamber": [["bed", 1, 3], ["pallet", 0, 1, 0.4], ["chest", 0, 1, 0.6], ["washstand", 0, 1, 0.5], ["stool", 0, 1, 0.5]],
+    "Ostler's room": [["bed|pallet", 1, 1], ["chest", 1, 1], ["saddlerack", 0, 1, 0.7], ["harness", 0, 1, 0.6], ["stool", 0, 1]],
+    "Stables": [["horsestall", 1, 4], ["oatbin", 0, 1, 0.6], ["saddlerack", 0, 1, 0.5]],
+    "Hay store": [["haystack", 1, 3], ["sacks", 0, 2]],
+    "Toll booth": [["desk", 1, 1], ["strongbox", 1, 1], ["scales", 0, 1, 0.7], ["chest", 0, 1, 0.6], ["bench", 0, 1, 0.5]],
+    "Market arcade": [["stall|stall2|stall3", 2, 4], ["basket", 0, 2], ["crate", 0, 1, 0.5], ["sacks", 0, 1, 0.5]],
+    "Court room": [["hightable", 1, 1], ["bench3|bench", 2, 5], ["lectern", 0, 1, 0.5], ["chest", 0, 1, 0.5]],
+    "markethall:Court room": [["hightable", 1, 1], ["bench3|bench", 2, 5], ["lectern", 0, 1, 0.5], ["chest", 0, 1, 0.5]],
+    "Council chamber": [["longtable|table2", 1, 1], ["carvedchair", 0, 1, 0.6], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5]],
+    "Muniment room": [["chest", 2, 3], ["strongbox", 1, 1], ["bookshelf", 0, 1, 0.6]],
+    "Guard room": [["table2|smalltable", 1, 1], ["weaponrack", 1, 1], ["bench", 0, 1, 0.6], ["chest", 0, 1, 0.6], ["barrel", 0, 1, 0.4]],
+    "Porter's lodge": [["bed", 1, 1], ["smalltable|table2", 1, 1], ["chest", 1, 1], ["stool", 0, 1], ["shelves", 0, 1, 0.4]],
+    "Portcullis chamber": [["windlass", 1, 1], ["weaponrack", 0, 1, 0.7], ["barrel", 0, 1, 0.5], ["chest", 0, 1, 0.4]],
+    "Guard chamber": [["pallet|bed", 2, 3], ["chest", 1, 2], ["weaponrack", 0, 1, 0.5], ["stool", 0, 1, 0.5]],
+    "Captain's room": [["bed", 1, 1], ["desk", 1, 1], ["chest", 1, 1], ["weaponrack", 0, 1, 0.5]],
+    "Lock-up": [["shackles", 1, 3], ["pallet", 0, 2], ["bench", 0, 1, 0.4]],
+    "Butcher's shop": [["counter>counter2>stallboard", 1, 1], ["meathooks", 1, 2], ["block", 1, 1], ["scales", 0, 1, 0.6], ["barrel", 0, 1, 0.4]],
+    "butcher:Cutting room": [["block", 1, 2], ["worktable", 1, 1], ["meathooks", 1, 2], ["barrel", 0, 1, 0.5]],
+    "Salting room": [["saltingtrough", 1, 2], ["barrel", 1, 3], ["sacks", 0, 2]],
+    "Slaughterhouse": [["gambrel", 1, 1], ["block", 1, 1], ["barrel", 1, 2], ["meathooks", 0, 1, 0.6]],
+    "Cold cellar": [["meathooks", 1, 2], ["barrel", 1, 3], ["saltingtrough", 0, 1, 0.5]],
+    "Apothecary's shop": [["counter>counter2>stallboard", 1, 1], ["jars", 1, 3], ["scales", 1, 1], ["mortar", 0, 1, 0.6], ["display", 0, 1, 0.4]],
+    "Still room": [["still", 1, 2], ["worktable", 1, 1], ["jars", 1, 2], ["mortar", 0, 1, 0.6], ["barrel", 0, 1, 0.4]],
+    "apothecary:Store": [["jars", 1, 2], ["sacks", 1, 2], ["crate", 0, 2], ["barrel", 0, 1]],
+    "apothecary:Grinding room": [["mortar", 1, 2], ["quern", 0, 1, 0.6], ["worktable", 1, 1], ["sacks", 0, 2]],
+    "Drying loft": [["herbrack", 1, 3], ["sacks", 0, 2], ["crate", 0, 1]],
+    "Apothecary's chamber": [["bed", 1, 1], ["chest", 1, 1], ["desk", 0, 1, 0.5], ["bookshelf", 0, 1, 0.5]],
+    "Cool store": [["jars", 1, 2], ["barrel", 1, 2], ["crate", 0, 2]],
+    "carpenter:Workshop": [["workbench", 1, 2], ["toolrack", 1, 1], ["sawhorse", 0, 1, 0.7], ["planks", 0, 1, 0.6], ["stool", 0, 1], ["barrel", 0, 1, 0.3]],
+    "carpenter:Hall": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.5], ["stool", 0, 2]],
+    "Timber store": [["planks", 1, 3], ["logs", 1, 2]],
+    "Saw shed": [["sawhorse", 1, 1], ["logs", 0, 2], ["planks", 0, 1]],
+    "Timber loft": [["planks", 1, 3], ["crate", 0, 1]],
+    // The workshop's trades: each its own workroom and store.
+    "Cooperage": [["workbench", 1, 1], ["barrel", 2, 4], ["toolrack", 0, 1, 0.6], ["planks", 0, 1, 0.5]],
+    "Cobbling room": [["workbench", 1, 2], ["stool", 1, 2], ["shelves", 0, 1, 0.6], ["hides", 0, 1, 0.5]],
+    "Loom room": [["loom", 1, 2], ["spinning", 0, 1, 0.7], ["clothbolts", 0, 1, 0.5], ["stool", 0, 1]],
+    "Kiln room": [["kiln", 1, 1], ["potwheel", 1, 1], ["pots", 1, 3], ["shelves", 0, 1, 0.5]],
+    "Dipping room": [["cauldron", 1, 2], ["candlerack", 1, 2], ["worktable", 0, 1, 0.6], ["barrel", 0, 1]],
+    "Goldsmith's workroom": [["workbench", 1, 1], ["anvil", 0, 1, 0.7], ["strongbox", 1, 1], ["scales", 0, 1, 0.6], ["stool", 0, 1]],
+    "Glove room": [["cuttingtable", 1, 1], ["hides", 0, 1, 0.7], ["stool", 1, 2], ["shelves", 0, 1, 0.5]],
+    "Bow room": [["workbench", 1, 2], ["weaponrack", 0, 1, 0.7], ["planks", 0, 1, 0.5], ["stool", 0, 1]],
+    "Wheel shop": [["workbench", 1, 1], ["wheel", 1, 3], ["toolrack", 0, 1, 0.6], ["planks", 0, 1, 0.5]],
+    "workshop:Grinding room": [["grindstone", 1, 2], ["workbench", 1, 1], ["toolrack", 0, 1, 0.6], ["quench", 0, 1, 0.5]],
+    "Stave store": [["planks", 1, 3], ["barrel", 0, 2]], "Leather store": [["hides", 1, 2], ["shelves", 0, 1]], "Yarn store": [["sacks", 1, 3], ["clothbolts", 0, 2]],
+    "Clay store": [["sacks", 1, 3], ["pots", 0, 2], ["barrel", 0, 1]], "Tallow store": [["barrel", 2, 4], ["candlerack", 0, 1]], "Strong room": [["strongbox", 1, 2], ["chest", 1, 2], ["coins", 0, 1, 0.5]],
+    "Skin store": [["hides", 1, 2], ["sacks", 0, 1]], "workshop:Store": [["crate", 1, 2], ["shelves", 0, 1], ["barrel", 0, 1]],
+    "workshop:Hall": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.5], ["stool", 0, 2]],
+    ...Object.fromEntries([["Cooper", ["barrel", 1, 3]], ["Cobbler", ["shelves", 1, 2]], ["Weaver", ["clothbolts", 1, 3]], ["Potter", ["pots", 1, 3]], ["Chandler", ["candlerack", 1, 2]], ["Goldsmith", ["strongbox", 1, 1]], ["Glover", ["hides", 0, 1]], ["Bowyer", ["weaponrack", 1, 1]], ["Wheelwright", ["wheel", 1, 2]], ["Cutler", ["weaponrack", 0, 1]]]
+      .map(([who, ware]) => [`${who}'s shop`, [["counter>counter2>stallboard", 1, 1], ware, ["shelves", 0, 1, 0.6], ["display", 0, 1, 0.5], ["crate", 0, 1, 0.4]]])),
   };
 })();
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
@@ -294,7 +390,8 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   const inRoom = (x, y) => x >= rm.x && y >= rm.y && x < rm.x + rm.w && y < rm.y + rm.h, K = (x, y) => x + "," + y;
   const solid = new Set(), clear = new Set(), keys = [], access = [], placed = [];
   const sideKey = (x, y, s) => s === "t" ? `h,${x},${y}` : s === "b" ? `h,${x},${y + 1}` : s === "l" ? `v,${x},${y}` : `v,${x + 1},${y}`;
-  const wallAt = (x, y, s) => { const k = sideKey(x, y, s); return edges.has(k) && !L.doors.has(k); }, winAt = (x, y, s) => L.wins.has(sideKey(x, y, s));
+  const outAt = (x, y, s) => { const [dx, dy] = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0] }[s]; return L.own(x + dx, y + dy) < 0; };
+  const wallAt = (x, y, s) => { const k = sideKey(x, y, s); return (edges.has(k) && !L.doors.has(k)) || (rm.arcade && outAt(x, y, s)); }, winAt = (x, y, s) => L.wins.has(sideKey(x, y, s));
   // Squares to keep clear: inside every door, the ends of the stairs, in front of a fire.
   const doorCells = [];
   [...L.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); (d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]).forEach(([cx, cy]) => { if (inRoom(cx, cy)) { clear.add(K(cx, cy)); keys.push(K(cx, cy)); doorCells.push([cx, cy]); } }); });
@@ -416,6 +513,9 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
       if (!got) break;
     }
   }
+  // Nothing fitted at all (a cramped room the stairs and doors take most of): at least the smallest thing on its list that will.
+  if (!placed.length) { const ids = [...new Set(list.flatMap(e => e.ids))].map(id => byId.get(id)).filter(a => a && !a.seats).sort((a, b) => a.w * a.h - b.w * b.h);
+    for (const a of ids) { let ok2 = false; for (const s of spots(a).slice(0, 60)) if (tryAt(a, s)) { ok2 = true; break; } if (ok2) break; } }
   placed.forEach(p => L.furn.push({ a: p.a, x: p.x, y: p.y, w: p.w, h: p.h, k: p.k, room: ri }));
 }
 // The pieces as pictures: where each one's box goes when turned (its own w × h, centred on its footprint), for the map.
