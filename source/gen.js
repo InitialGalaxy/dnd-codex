@@ -396,7 +396,7 @@ const GEN_TOWN = [
       const ch = (n, best) => Array.from({ length: n }, (_, i) => genR(i === 0 && best ? "Best chamber" : "Guest chamber", "bed"));
       const units = [genU(genInt(r, 4, 5), wb ? [genR("Parlour", "living"), genR("Kitchen", "kitchen", { w: 1.3 }), genR("Buttery", "store")] : [genR("Parlour", "living"), genR("Kitchen", "kitchen")], Object.assign({ back: wb }, up ? { up: ch(wb ? 3 : 2, 0), landName: "Gallery" } : {})),
         genU(size === "large" ? genInt(r, 7, 9) : genInt(r, 5, 7), genR("Tap room", "tavern"), Object.assign({ entry: 1 }, up ? { up: ch(size === "large" ? 4 : 3, 1), landName: "Gallery" } : {})),
-        genU(3, genR("Carriage way", "passage"), Object.assign({ pass: 1, doorW: 2 }, up ? { upJoin: 1 } : {})),
+        genU(3, genR("Carriage way", "passage", { gate: 1 }), Object.assign({ pass: 1, doorW: 3 }, up ? { upJoin: 1 } : {})),
         genU(genInt(r, 4, 5), wb ? [genR("Ostler's room", "bed"), genR("Stables", "stall", { w: 1.6 }), genR("Hay store", "hay")] : genR("Stables", "stall"), Object.assign({ back: wb }, up ? { up: [genR("Groom's room", "bed"), genR("Feed loft", "hay")], landName: "Hayloft" } : {}))];
       return { D, name: wb ? "Courtyard inn" : "Wayside inn", units }; } },
   { id: "markethall", name: "Market hall", icon: "⚖", blurb: "An open arcade on posts for the market stalls, the toll booth and its stair at one end, the court or council room above.",
@@ -764,14 +764,14 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
       ? `<rect x="${x0 + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><rect x="${mx + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${mx - 5}" cy="${y}" r="2" fill="#e8c27a"/><circle cx="${mx + 5}" cy="${y}" r="2" fill="#e8c27a"/>`
       : `<rect x="${x0 + 2}" y="${y - 4}" width="${x1 - x0 - 4}" height="8" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${x1 - 8}" cy="${y}" r="1.8" fill="${tier === "plain" ? "#3a3530" : "#c9a45e"}"/>`;
     if (tier === "plain") // a plain door: a timber frame in the wall and one rough doorstep
-      grand = `<rect x="${x0 - P * 0.12}" y="${y}" width="${x1 - x0 + P * 0.24}" height="${P * 0.3}" rx="4" fill="#9a9283" stroke="#2b2520" stroke-width="1.5"/>
+      grand = gateSvg + `<rect x="${x0 - P * 0.12}" y="${y}" width="${x1 - x0 + P * 0.24}" height="${P * 0.3}" rx="4" fill="#9a9283" stroke="#2b2520" stroke-width="1.5"/>
         <rect x="${x0 - 4}" y="${y - WE / 2}" width="${x1 - x0 + 8}" height="${WE}" fill="#5a4330" stroke="#2b2520" stroke-width="1.5"/>${leaves}`;
     else if (tier === "framed") { // a framed door: a heavy lintel, a squared post each side and a stone step
       const post = cx => `<rect x="${cx - P * 0.13}" y="${y - P * 0.13}" width="${P * 0.26}" height="${P * 0.26}" fill="#6e5236" stroke="#2b2520" stroke-width="2"/><rect x="${cx - P * 0.13}" y="${y - P * 0.13}" width="${P * 0.26}" height="3" fill="rgba(255,255,255,.18)"/>`;
-      grand = `<rect x="${x0 - P * 0.4}" y="${y}" width="${x1 - x0 + P * 0.8}" height="${P * 0.42}" rx="3" fill="#a8a092" stroke="#2b2520" stroke-width="2"/>
+      grand = gateSvg + `<rect x="${x0 - P * 0.4}" y="${y}" width="${x1 - x0 + P * 0.8}" height="${P * 0.42}" rx="3" fill="#a8a092" stroke="#2b2520" stroke-width="2"/>
         <rect x="${x0 - P * 0.3}" y="${y - WE / 2 - 2}" width="${x1 - x0 + P * 0.6}" height="${WE + 4}" fill="#5f4630" stroke="#2b2520" stroke-width="2"/>${leaves}${post(x0 - P * 0.17)}${post(x1 + P * 0.17)}`; }
     else {    const pr = P * 0.25, pillar = cx => `<circle cx="${cx + 2}" cy="${y + P * 0.3 + 3}" r="${pr + 1}" fill="rgba(0,0,0,.35)"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr}" fill="#d8d0c0" stroke="#2b2520" stroke-width="2.5"/><circle cx="${cx}" cy="${y + P * 0.3}" r="${pr * 0.7}" fill="none" stroke="rgba(43,37,32,.35)" stroke-width="1.5"/><circle cx="${cx - pr * 0.3}" cy="${y + P * 0.3 - pr * 0.3}" r="${pr * 0.35}" fill="#f4efe4"/>`;
-    grand = `<rect x="${x0 - P * 0.6}" y="${y + P * 0.45}" width="${x1 - x0 + P * 1.2}" height="${P * 0.45}" rx="3" fill="#958d80" stroke="#2b2520" stroke-width="2"/>
+    grand = gateSvg + `<rect x="${x0 - P * 0.6}" y="${y + P * 0.45}" width="${x1 - x0 + P * 1.2}" height="${P * 0.45}" rx="3" fill="#958d80" stroke="#2b2520" stroke-width="2"/>
       <rect x="${x0 - P * 0.85}" y="${y}" width="${x1 - x0 + P * 1.7}" height="${P * 0.55}" rx="3" fill="#aea697" stroke="#2b2520" stroke-width="2"/>
       <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="${WE + 8}" fill="#6e5c48" stroke="#2b2520" stroke-width="2.5"/>
       <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="3" fill="rgba(255,255,255,.18)"/>
