@@ -422,6 +422,18 @@ function vgTerrainSvg(V, s, vb, opts) {
   for (let y = Math.max(0, Math.floor(box[1]) - 7); y < Math.min(H, box[1] + box[3] + 7); y++) for (let x = Math.max(0, Math.floor(box[0]) - 7); x < Math.min(W, box[0] + box[2] + 7); x++) {
     const t = at(x, y), c = COL[t] || COL[VGT.GRASS]; cell(x, y, t === VGT.ROAD || t === VGT.LANE || t === VGT.WATER || t === VGT.POND || t === VGT.BRIDGE || t === VGT.PATH ? shade(x, y, COL[VGT.MEADOW], 6) : shade(x, y, c, t === VGT.ROCK ? 14 : 8)); }
   out.push(`</g>`);
+  // Close up, the grass of the building yards: lighter and darker patches, tufts, a few flowers; and later pebbles and
+  // grass along the roads and paths. Each square gets its own fixed scatter, so tiles meet without seams.
+  const fine = s >= 14, sq = (x, y) => genRng(((x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995) >>> 0), GR = new Set([VGT.GRASS, VGT.MEADOW, VGT.PASTURE, VGT.GREEN, VGT.PLOT, VGT.BUILD, VGT.YARD, VGT.WOOD]);
+  const tuft = (rr, x, y, z) => { const c = `hsl(${85 + rr() * 25} 35% ${28 + rr() * 14}%)`; let t = ""; for (let k = 0; k < 3; k++) { const a = -0.6 + k * 0.6 + (rr() - 0.5) * 0.4; t += `M${x.toFixed(1)} ${y.toFixed(1)}l${(Math.sin(a) * z).toFixed(1)} ${(-Math.cos(a) * z).toFixed(1)}`; } return [c, t]; };
+  const tuftPaths = {}, addTuft = (rr, x, y, z) => { const [c, t] = tuft(rr, x, y, z), k = c.slice(4, 6) + c.slice(-4, -2); (tuftPaths[k] = tuftPaths[k] || [c, ""])[1] += t; };
+  const ix0 = Math.max(0, Math.floor(box[0]) - 1), ix1 = Math.min(W, Math.ceil(box[0] + box[2]) + 1), iy0 = Math.max(0, Math.floor(box[1]) - 1), iy1 = Math.min(H, Math.ceil(box[1] + box[3]) + 1);
+  { let patches = ""; for (let y = iy0; y < iy1; y++) for (let x = ix0; x < ix1; x++) { if (!GR.has(at(x, y))) continue; const rr = sq(x, y);
+      if (rr() < 0.45) patches += `<ellipse cx="${((x + rr()) * s).toFixed(1)}" cy="${((y + rr()) * s).toFixed(1)}" rx="${(s * (0.5 + rr() * 1.8)).toFixed(1)}" ry="${(s * (0.4 + rr() * 1.2)).toFixed(1)}" fill="hsl(${(88 + rr() * 20).toFixed(0)} ${(20 + rr() * 15).toFixed(0)}% ${(36 + rr() * 16).toFixed(0)}%)" opacity="${(0.25 + rr() * 0.3).toFixed(2)}"/>`;
+      if (!fine || at(x, y) === VGT.WOOD) continue; const k = s / 40;
+      for (let i = 0, n = 1 + (rr() < 0.5 ? 1 : 0); i < n; i++) addTuft(rr, (x + rr()) * s, (y + rr()) * s, (3 + rr() * 4) * k);
+      if (rr() < 0.04) patches += `<circle cx="${((x + rr()) * s).toFixed(1)}" cy="${((y + rr()) * s).toFixed(1)}" r="${((1.5 + rr() * 1.5) * k).toFixed(1)}" fill="${["#e8d25a", "#e9e4f0", "#c86a8a"][Math.floor(rr() * 3)]}" opacity=".85"/>`; }
+    out.push(patches); }
   for (let y = Math.max(0, Math.floor(box[1]) - 1); y < Math.min(H, box[1] + box[3] + 1); y++) for (let x = Math.max(0, Math.floor(box[0]) - 1); x < Math.min(W, box[0] + box[2] + 1); x++) if (at(x, y) === VGT.POND) out.push(`<circle cx="${(x + 0.5) * s}" cy="${(y + 0.5) * s}" r="${s * 0.85}" fill="#3d6f8f"/>`);
   // Fields: strips (selions) across each furlong; wheat, barley or fallow by great field.
   const crop = { wheat: ["#c9a94a", "#b8963c"], barley: ["#a9b45a", "#98a24c"], fallow: ["#8a7048", "#7a6240"] };
@@ -463,6 +475,15 @@ function vgTerrainSvg(V, s, vb, opts) {
   out.push(`<g filter="url(#vgrd)" opacity=".75"><path d="${all.join("")}" stroke="#4e4128" stroke-width="${ww + s * 0.7}" ${rl}/></g><g filter="url(#vgrd)"><path d="${all.join("")}" stroke="#a68c5e" stroke-width="${ww}" ${rl}/></g>`);
   out.push(`<path d="${RS.map(rd => pd(rd.d)).join("")}" stroke="rgba(70,55,30,.28)" stroke-width="${Math.max(1, s * 0.16)}" ${rl} stroke-dasharray="${s * 1.4} ${s * 0.9}"/>`);
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
+  // Pebbles and grass along the roads and paths.
+  if (fine) { const k = s / 40; let peb = ""; const pebble = (rr, x, y) => { peb += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${((1 + rr() * 2.2) * k).toFixed(1)}" fill="hsl(30 ${(10 + rr() * 15).toFixed(0)}% ${(40 + rr() * 25).toFixed(0)}%)" opacity=".8"/>`; };
+    for (let y = iy0; y < iy1; y++) for (let x = ix0; x < ix1; x++) { const t = at(x, y); if (t !== VGT.ROAD) continue; const rr = sq(x + 7, y + 3);
+      for (let i = 0; i < 4; i++) pebble(rr, (x + rr()) * s, (y + rr()) * s);
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => GR.has(at(x + a, y + b))) && rr() < 0.7) addTuft(rr, (x + rr()) * s, (y + rr()) * s, (3 + rr() * 4) * k); }
+    (V.paths || []).concat(V.tracks || []).forEach((d, pi) => d.forEach(([x, y], i) => { if (i % 2 || x < ix0 || y < iy0 || x > ix1 || y > iy1) return; const rr = sq(Math.round(x * 4) + pi, Math.round(y * 4));
+      pebble(rr, (x + (rr() - 0.5) * 0.7) * s, (y + (rr() - 0.5) * 0.7) * s); if (rr() < 0.5) addTuft(rr, (x + (rr() - 0.5) * 1.3) * s, (y + (rr() - 0.5) * 1.3) * s, (3 + rr() * 3) * k); }));
+    out.push(peb); }
+  out.push(Object.values(tuftPaths).map(([c, d]) => `<path d="${d}" stroke="${c}" stroke-width="${(1.6 * s / 40).toFixed(2)}" stroke-linecap="round" fill="none"/>`).join(""));
   { const deck = (lines, wd) => { const runs = []; lines.forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
       const bd = runs.filter(rn => rn.length > 1).map(rn => { const a = rn[0], b = rn[rn.length - 1], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, e = 1.2; return pd([[a[0] - dx / l * e, a[1] - dy / l * e]].concat(rn, [[b[0] + dx / l * e, b[1] + dy / l * e]])); }).join("");
       if (bd) out.push(`<path d="${bd}" stroke="#3b2a1a" stroke-width="${wd + s * 0.7}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#8a6038" stroke-width="${wd}" fill="none" stroke-linecap="butt" stroke-linejoin="round"/><path d="${bd}" stroke="#5e4027" stroke-width="${wd}" fill="none" stroke-linecap="butt" stroke-dasharray="${Math.max(1, s * 0.08)} ${s * 0.5}"/>`); };
@@ -501,7 +522,7 @@ function vgVillagePage(o) {
   let minL = 0, maxL = 1;
   // The land, in tiles (so no one picture is too big to draw).
   const TS = 32; for (let ty = 0; ty < V.H; ty += TS) for (let tx = 0; tx < V.W; tx += TS) { const w = Math.min(TS, V.W - tx), h = Math.min(TS, V.H - ty);
-    objs.push({ id: id(), layer: "map", level: 0, x: tx, y: ty, w, h, px: 32, land: 1, img: "", vb: [tx, ty, w, h] }); }
+    objs.push({ id: id(), layer: "map", level: 0, x: tx, y: ty, w, h, px: 40, land: 1, img: "", vb: [tx, ty, w, h] }); }
   V.buildings.forEach((b, bi) => {
     const { page } = genPage(b.o), m = 3, BW = b.B.W, BH = b.B.H, tf = vgTurn(b.k, BW, BH), to = (x, y) => { const [a, c] = tf(x - m, y - m); return [a + b.x, c + b.y]; };
     page.objs.forEach((ob, i) => { if (i === 0 || ob.layer === "gm") return; // the building's own yard and room names (redone below, upright)
@@ -576,7 +597,7 @@ function vgNamesHtml(V, lvl) {
 }
 function vgStageHtml(V) {
   const o = VG.o, s = Math.max(4, Math.min(8, Math.floor(1100 / V.W)));
-  return `<img class="vgland" src="${genUrl(vgTerrainSvg(V, s))}" alt="The village" draggable="false"><div class="vgbs">${V.buildings.map(b => vgBuildingHtml(V, b, VG.lvl, o)).join("")}</div>${o.names !== false ? vgNamesHtml(V, VG.lvl) : ""}${VG.edit ? vgEditSvg(V) : ""}`;
+  return `<img class="vgland" src="${genUrl(vgTerrainSvg(V, s))}" alt="The village" draggable="false"><div class="vgdetail"></div><div class="vgbs">${V.buildings.map(b => vgBuildingHtml(V, b, VG.lvl, o)).join("")}</div>${o.names !== false ? vgNamesHtml(V, VG.lvl) : ""}${VG.edit ? vgEditSvg(V) : ""}`;
 }
 function vgSummary(V) {
   const order = ["chapel", "manor", "mill", "blacksmith", "bakehouse", "tavern", "stable", "farmhouse", "barn", "house", "cottage"];
@@ -604,9 +625,20 @@ function vgRender(keepView) {
   if (!keepView || !VG.view || VG.view.W !== V.W) vgFit(); else vgApply();
 }
 const vgRefresh = () => vgRender(true);
+// Zoomed in, the ground is redrawn in tiles at full detail (grass tufts, flowers, pebbles), only where you're looking.
+let vgDetT = 0; const vgDetailSoon = () => { clearTimeout(vgDetT); vgDetT = setTimeout(vgDetail, 120); };
+function vgDetail() { const st = document.getElementById("gv-stage"), vw = document.getElementById("gv-view"), v = VG.view, V = VG.V; if (!st || !vw || !v || !V) return; const lay = st.querySelector(".vgdetail"); if (!lay) return;
+  if (v.S < 12) { lay.innerHTML = ""; return; }
+  if (!VG.det || VG.det.V !== V) VG.det = { V, map: new Map() }; const T = 16, r = vw.getBoundingClientRect();
+  const x0 = Math.max(0, Math.floor(-v.x / v.S / T)), y0 = Math.max(0, Math.floor(-v.y / v.S / T)), x1 = Math.min(Math.ceil(V.W / T), Math.ceil((r.width - v.x) / v.S / T)), y1 = Math.min(Math.ceil(V.H / T), Math.ceil((r.height - v.y) / v.S / T));
+  const want = []; for (let ty = y0; ty < y1; ty++) for (let tx = x0; tx < x1; tx++) want.push([tx, ty]); if (want.length > 40) { lay.innerHTML = ""; return; }
+  const have = new Set([...lay.children].map(e => e.dataset.k)); [...lay.children].forEach(e => { if (!want.some(([a, b]) => a + "," + b === e.dataset.k)) e.remove(); });
+  want.forEach(([tx, ty]) => { const k = tx + "," + ty; if (have.has(k)) return; let url = VG.det.map.get(k); if (!url) { const w = Math.min(T, V.W - tx * T), h = Math.min(T, V.H - ty * T); url = genUrl(vgTerrainSvg(V, 24, [tx * T, ty * T, w, h])); VG.det.map.set(k, url); }
+    const w = Math.min(T, V.W - tx * T), h = Math.min(T, V.H - ty * T), im = document.createElement("img"); im.dataset.k = k; im.src = url; im.alt = ""; im.draggable = false;
+    im.style.cssText = `left:${vgPct(tx * T, V.W)};top:${vgPct(ty * T, V.H)};width:${vgPct(w, V.W)};height:${vgPct(h, V.H)}`; lay.appendChild(im); }); }
 function vgFit() { const vw = document.getElementById("gv-view"); if (!vw || !VG.V) return; vw.style.height = Math.round(Math.min(innerHeight * 0.72, 820, vw.clientWidth * VG.V.H / VG.V.W + 12)) + "px"; const r = vw.getBoundingClientRect(), S = Math.max(2, Math.min((r.width - 8) / VG.V.W, (r.height - 8) / VG.V.H));
   VG.view = { S, x: (r.width - VG.V.W * S) / 2, y: (r.height - VG.V.H * S) / 2, W: VG.V.W }; vgApply(); }
-function vgApply() { const st = document.getElementById("gv-stage"), v = VG.view; if (!st || !v || !VG.V) return; st.style.width = VG.V.W * v.S + "px"; st.style.height = VG.V.H * v.S + "px"; st.style.setProperty("--vgS", v.S); st.classList.toggle("vgfar", v.S < 9); st.style.transform = `translate(${v.x}px,${v.y}px)`;
+function vgApply() { const st = document.getElementById("gv-stage"), v = VG.view; if (!st || !v || !VG.V) return; st.style.width = VG.V.W * v.S + "px"; st.style.height = VG.V.H * v.S + "px"; st.style.setProperty("--vgS", v.S); st.classList.toggle("vgfar", v.S < 9); vgDetailSoon(); st.style.transform = `translate(${v.x}px,${v.y}px)`;
   const ed = st.querySelector(".vgedit"); if (ed && VG.edit) { const tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); ed.replaceWith(tmp.firstChild); } }
 function vgZoomAt(f, px, py) { const v = VG.view; if (!v) return; const nS = Math.max(1.5, Math.min(60, v.S * f)); v.x = px - (px - v.x) * nS / v.S; v.y = py - (py - v.y) * nS / v.S; v.S = nS; vgApply(); }
 const vgRedrawEdit = () => { const st = document.getElementById("gv-stage"); if (!st || !VG.V) return; const ed = st.querySelector(".vgedit"), tmp = document.createElement("div"); tmp.innerHTML = vgEditSvg(VG.V); if (ed) ed.replaceWith(tmp.firstChild); else st.appendChild(tmp.firstChild); };
