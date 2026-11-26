@@ -32,6 +32,8 @@ function tnTurn(B, f) { const k = TN_K[f]; return { k, w: k % 2 ? B.H : B.W, h: 
 function tnCells(B, k, bx, by) { const tf = vgTurn(k, B.W, B.H), out = []; (B.F.body || new Set()).forEach(c => { const [x, y] = c.split(",").map(Number), [a, b] = tf(x, y), [d, e] = tf(x + 1, y + 1); out.push([bx + Math.min(a, d), by + Math.min(b, e)]); }); return out; }
 function tnRectTurn(tf, r) { const [a, b] = tf(r.x, r.y), [c, d] = tf(r.x + r.w, r.y + r.h); return { x: Math.min(a, c), y: Math.min(b, d), w: Math.abs(c - a), h: Math.abs(d - b) }; }
 
+// An entrance [side, along] as a point on the map's edge.
+const tnEntPt = (e, W, H) => { const t = Math.max(0.03, Math.min(0.97, Number(e[1]) || 0.5)); return e[0] === "N" ? [t * W, 0.5] : e[0] === "S" ? [t * W, H - 0.5] : e[0] === "W" ? [0.5, t * H] : [W - 0.5, t * H]; };
 // What goes where: [type, size weights small/medium/large].
 const TN_ZONES = {
   market: [["merchant", 5], ["inn", 2], ["townhouse", 3], ["apothecary", 1], ["guild", 1]],
@@ -57,7 +59,9 @@ function genTown(o) {
   // straightened where each gate will be, so the gatehouse stands in a flat run of wall.
   const mw = SZ.mk[0] + genInt(r, -2, 3), mh = SZ.mk[1] + genInt(r, -2, 2), M = { x: cx - Math.floor(mw / 2), y: cy - Math.floor(mh / 2), w: mw, h: mh };
   const nG = o.gates && o.gates !== "auto" ? Math.max(2, Math.min(4, Number(o.gates))) : SZ.gates;
-  const order = r() < 0.5 ? ["E", "W", "N", "S"] : ["N", "S", "E", "W"], gateDirs = order.slice(0, nG), dirs = order.filter(d => gateDirs.includes(d) || r() < 0.85);
+  // Road entrances you've picked on the map's edges ([side, how far along it]): a gate on each side of the town that has one.
+  const ent = (o.entries || []).filter(e => TN_DIR[e[0]]);
+  const order = r() < 0.5 ? ["E", "W", "N", "S"] : ["N", "S", "E", "W"], gateDirs = ent.length ? order.filter(d => ent.some(e => e[0] === d)) : order.slice(0, nG), dirs = order.filter(d => gateDirs.includes(d) || r() < 0.85);
   const C0 = {}; dirs.forEach(d => { C0[d] = d === "E" || d === "W" ? genInt(r, M.y + 3, M.y + M.h - 4) : genInt(r, M.x + 3, M.x + M.w - 4); });
   gateDirs.forEach(d => { if (!dirs.includes(d)) return; const [ux, uy] = TN_DIR[d], horiz = !uy, c0 = C0[d];
     let px = horiz ? cx : c0, py = horiz ? c0 : cy; while (isIn(px + ux, py + uy)) { px += ux; py += uy; } // the last square inside, on the street's line
@@ -73,7 +77,7 @@ function genTown(o) {
   const streets = [], buildings = [], towers = [], gates = [], towerWall = [];
   dirs.forEach((d, si) => { const [ux, uy] = TN_DIR[d], horiz = !uy;
     const x0 = d === "E" ? M.x + M.w : d === "W" ? M.x - 1 : 0, y0 = d === "S" ? M.y + M.h : d === "N" ? M.y - 1 : 0;
-    const c0 = C0[d], edges = o.roads === "edges";
+    const c0 = C0[d], edges = o.roads === "edges" || ent.length > 0;
     const cellAt = (t, c) => horiz ? [x0 + ux * t, c] : [c, y0 + uy * t];
     let tEnd = 0; while (ok(...cellAt(tEnd, c0))) tEnd++; tEnd = Math.max(0, tEnd);
     let tW = -1; for (let t = 0; t < tEnd; t++) { const [x, y] = cellAt(t, c0); if (!isIn(x, y)) { tW = t; break; } } if (tW < 0) tW = tEnd;
@@ -88,17 +92,21 @@ function genTown(o) {
       if (v === TNT.MARKET) continue; if (!gated && (v === TNT.RING || v === TNT.WALL)) continue; put(x, y, isIn(x, y) && dIn(x, y) > 1 ? TNT.STREET : isIn(x, y) && walled ? TNT.WALL : TNT.ROAD); } }
     // From the map edges: on from there the road bends away to somewhere along the edge of the map (now and then round the
     // corner onto the next side), a smooth curve 5 squares wide.
-    let end = null;
-    if (gated && edges && tOut < tEnd) { const [sx, sy] = cellAt(tOut - 1, cAt(tOut - 1)), S0 = horiz ? [sx + 0.5, sy + 0.5] : [sx + 0.5, sy + 0.5];
-      const side = r() < 0.7 ? d : (horiz ? (r() < 0.5 ? "N" : "S") : (r() < 0.5 ? "E" : "W")), [ox, oy] = TN_DIR[side];
-      let E; if (side === d) { const span = horiz ? H : W, at0 = Math.max(10, Math.min(span - 10, c0 + (r() - 0.5) * span * 0.6)); E = horiz ? [ux > 0 ? W - 0.5 : 0.5, at0] : [at0, uy > 0 ? H - 0.5 : 0.5]; }
-      else { const along = horiz ? (ux > 0 ? W * (0.72 + r() * 0.2) : W * (0.08 + r() * 0.2)) : (uy > 0 ? H * (0.72 + r() * 0.2) : H * (0.08 + r() * 0.2)); E = ox ? [ox > 0 ? W - 0.5 : 0.5, along] : [along, oy > 0 ? H - 0.5 : 0.5]; }
-      const Ld = Math.hypot(E[0] - S0[0], E[1] - S0[1]), P1 = [S0[0] + ux * Ld * 0.4, S0[1] + uy * Ld * 0.4], P2 = [E[0] - ox * Ld * 0.3, E[1] - oy * Ld * 0.3];
+    let end = null; const ends = [];
+    // A curve from S0 (just out of the gate) to E on the map's edge (side: which edge), 5 squares wide.
+    const curve = (S0, E, side) => { const [ox, oy] = TN_DIR[side], Ld = Math.hypot(E[0] - S0[0], E[1] - S0[1]), P1 = [S0[0] + ux * Ld * 0.4, S0[1] + uy * Ld * 0.4], P2 = [E[0] - ox * Ld * 0.3, E[1] - oy * Ld * 0.3];
       const n = Math.ceil(Ld * 3); for (let i = 0; i <= n; i++) { const t = i / n, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, e = t ** 3, X = a * S0[0] + b * P1[0] + c * P2[0] + e * E[0], Y = a * S0[1] + b * P1[1] + c * P2[1] + e * E[1];
         for (let yy = Math.floor(Y - 3); yy <= Math.ceil(Y + 3); yy++) for (let xx = Math.floor(X - 3); xx <= Math.ceil(X + 3); xx++) { if (Math.hypot(xx + 0.5 - X, yy + 0.5 - Y) > 2.6 || !ok(xx, yy) || isIn(xx, yy)) continue; const v = at(xx, yy); if (v === TNT.GRASS || v === TNT.ROAD) put(xx, yy, TNT.ROAD); } }
-      end = [Math.min(W - 1, Math.max(0, Math.floor(E[0]))), Math.min(H - 1, Math.max(0, Math.floor(E[1])))]; }
-    if (gated && !end) { const [ex, ey] = cellAt(tEnd - 1, cAt(tEnd - 1)); end = [ex, ey]; }
-    streets.push({ d, horiz, ux, uy, x0, y0, c0, cAt, cellAt, tEnd: gated ? tOut : tEnd, tW, tWall: gated ? tWall : tEnd + 3, jogs, shambles: false, gated, end });
+      ends.push([Math.min(W - 1, Math.max(0, Math.floor(E[0]))), Math.min(H - 1, Math.max(0, Math.floor(E[1])))]); };
+    if (gated && edges && tOut < tEnd) { const [sx, sy] = cellAt(tOut - 1, cAt(tOut - 1)), S0 = [sx + 0.5, sy + 0.5];
+      if (ent.length) ent.filter(e => e[0] === d).forEach(e => curve(S0, tnEntPt(e, W, H), d)); // the entrances you chose on this side
+      else { const side = r() < 0.7 ? d : (horiz ? (r() < 0.5 ? "N" : "S") : (r() < 0.5 ? "E" : "W")), [ox, oy] = TN_DIR[side];
+        let E; if (side === d) { const span = horiz ? H : W, at0 = Math.max(10, Math.min(span - 10, c0 + (r() - 0.5) * span * 0.6)); E = horiz ? [ux > 0 ? W - 0.5 : 0.5, at0] : [at0, uy > 0 ? H - 0.5 : 0.5]; }
+        else { const along = horiz ? (ux > 0 ? W * (0.72 + r() * 0.2) : W * (0.08 + r() * 0.2)) : (uy > 0 ? H * (0.72 + r() * 0.2) : H * (0.08 + r() * 0.2)); E = ox ? [ox > 0 ? W - 0.5 : 0.5, along] : [along, oy > 0 ? H - 0.5 : 0.5]; }
+        curve(S0, E, side); }
+      end = ends[0] || null; }
+    if (gated && !end) { const [ex, ey] = cellAt(tEnd - 1, cAt(tEnd - 1)); end = [ex, ey]; ends.push(end); }
+    streets.push({ d, horiz, ux, uy, x0, y0, c0, cAt, cellAt, tEnd: gated ? tOut : tEnd, tW, tWall: gated ? tWall : tEnd + 3, jogs, shambles: false, gated, end, ends });
     // The gatehouse where it goes through the wall: its gate passage on the street, its front to the outside.
     if (walled && gated) { const B = tnB({ type: "gatehouse", seed: tnH(o.seed, "gate", d), size: "large" }), T = tnTurn(B, d);
       const G0 = B.levels.find(L => L.level === 0), pr = G0.rooms.find(rm => rm.gate) || G0.rooms[0], pp = tnRectTurn(T.tf, pr), L = horiz ? T.w : T.h;
@@ -233,7 +241,7 @@ function genTown(o) {
       towers.push({ x: tx, y: ty, cx: tcx, cy: tcy }); last = [x, y]; }); }
   // The rest of the town's ground is yards and gardens.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === TNT.GRASS && isIn(x, y)) put(x, y, TNT.YARD);
-  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, roadEnds: streets.filter(st => st.end).map(st => st.end), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
+  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, roadEnds: streets.flatMap(st => st.ends || []), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
   tnAccess(T); return T;
 }
 // Can a 2×2 creature get to every door and every yard, and a 3×6 wagon from every road in to the market? Where a yard is
@@ -551,6 +559,8 @@ function viewTownGen(camp) {
       <label><span>Walls</span>${seg("walls", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
       <label><span>Gates <small class="muted">main roads in</small></span>${seg("gates", [["auto", "Any"], [2, "2"], [3, "3"], [4, "4"]])}</label>
       <label><span>Roads in <small class="muted">to the gates</small></span>${seg("roads", [["centre", "From the centre"], ["edges", "From the map edges"]])}</label>
+      <div class="tvents"><button class="btn small ${TNV.pick ? "" : "ghost"}" data-act="tvpick" aria-pressed="${!!TNV.pick}">📍 ${TNV.pick ? "Done picking" : "Pick road entrances"}</button>${(o.entries || []).length ? `<span class="small muted">${o.entries.length} entrance${o.entries.length === 1 ? "" : "s"} · <button class="linkbtn" data-act="tventclear">let it choose</button></span>` : ""}</div>
+      ${TNV.pick ? `<p class="small muted gedhint">Click near the edge of the map to add an entrance, drag one along the edge to move it, click one to take it away. Each side with an entrance gets a gate.</p>` : ""}
       <label><span>Streets</span>${seg("streets", [["dirt", "Dirt"], ["mixed", "Mixed"], ["stone", "Stone"]])}</label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">in every building</small></span></label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="names"${o.names !== false ? " checked" : ""}> <span>Names <small class="muted">for the GM, over the roofs</small></span></label>
@@ -562,7 +572,7 @@ function viewTownGen(camp) {
       <p class="muted small">A medium town takes a minute to draw. Insides open up on the GM's screen as tokens come near, so keep it open while you play.</p>
     </div><div class="genpreview"><div id="tv-stats" class="small"></div><div class="tvview" id="tv-view"><div class="tvstage" id="tv-stage"></div></div><p class="muted small">Scroll or pinch to zoom, drag to look round. Click a building to look inside.</p><div id="tv-look"></div></div></div></section>`;
 }
-const tvKey = () => JSON.stringify([TNV.o.seed, TNV.o.size, TNV.o.walls, TNV.o.gates, TNV.o.streets, TNV.o.roads]);
+const tvKey = () => JSON.stringify([TNV.o.seed, TNV.o.size, TNV.o.walls, TNV.o.gates, TNV.o.streets, TNV.o.roads, TNV.o.entries || []]);
 // The loading screen: a spinner (it keeps turning while the town is worked out) and, when there's a count, a bar.
 // A long job (drawing a whole town) shows a progress bar at the foot of the screen instead, and doesn't block anything.
 function tnProgress(msg, pct) {
@@ -573,14 +583,24 @@ function tnBusy(msg, pct, over) {
   let el = document.getElementById("tnbusy"); if (!msg) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement("div"); el.id = "tnbusy"; el.className = "tnbusy" + (over ? " inside" : ""); el.setAttribute("role", "status"); el.innerHTML = `<div class="tnbox"><div class="tnspin" aria-hidden="true"></div><p></p><div class="tnbar" hidden><i></i></div></div>`; (over || document.body).appendChild(el); }
   el.querySelector("p").textContent = msg; const bar = el.querySelector(".tnbar"); bar.hidden = pct == null; if (pct != null) bar.firstChild.style.width = Math.round(pct * 100) + "%"; }
+// Redraw the options column (keeping the preview as it is).
+function tvSideRefresh() { const box = document.querySelector(".genpage .genopts"), c = TNV.o && TNV.o.camp; if (!box || !c) return; const tmp = document.createElement("div"); tmp.innerHTML = viewTownGen(c); const nb = tmp.querySelector(".genopts"); if (nb) box.innerHTML = nb.innerHTML; }
 function tvBuild() { const o = TNV.o, t0 = performance.now(); TNV.T = genTown(o); TNV.ms = Math.round(performance.now() - t0); TNV.sel = null; }
 function tvRender() {
   const st = document.getElementById("tv-stage"); if (!st || !TNV.o) return; if (!TNV.T || TNV.T.o !== TNV.o || TNV.T.key !== tvKey()) { if (!TNV.building) { TNV.building = 1; tnBusy("Laying out the town…", null, document.getElementById("tv-view")); setTimeout(() => { try { tvBuild(); TNV.T.key = tvKey(); } finally { TNV.building = 0; tnBusy(null); } tvRender(); }, 40); } return; }
   const T = TNV.T, s = 4; st.style.width = T.W * s + "px"; st.style.height = T.H * s + "px";
-  st.innerHTML = `<img src="${genUrl(tnTerrainSvg(T, s))}" alt="" draggable="false"><svg class="tvroofs" viewBox="0 0 ${T.W * s} ${T.H * s}">${tnRoofsSvg(T, s)}${T.buildings.map(b => `<rect class="tvhit${TNV.sel === b.id ? " on" : ""}" data-b="${b.id}" x="${b.x * s}" y="${b.y * s}" width="${b.w * s}" height="${b.h * s}"/>`).join("")}</svg>`;
+  st.innerHTML = `<img src="${genUrl(tnTerrainSvg(T, s))}" alt="" draggable="false"><svg class="tvroofs" viewBox="0 0 ${T.W * s} ${T.H * s}">${tnRoofsSvg(T, s)}${T.buildings.map(b => `<rect class="tvhit${TNV.sel === b.id ? " on" : ""}" data-b="${b.id}" x="${b.x * s}" y="${b.y * s}" width="${b.w * s}" height="${b.h * s}"/>`).join("")}<g id="tv-ents">${tvEntsSvg()}</g></svg>`;
   const by = {}; T.buildings.forEach(b => { const n = tnName(b); by[n] = (by[n] || 0) + 1; });
   const ss = document.getElementById("tv-stats"); if (ss) ss.innerHTML = `<strong>${T.W} × ${T.H} squares</strong> <span class="muted">(${T.W * 5} × ${T.H * 5} ft) · ${T.buildings.length} buildings · ${T.walled ? `walled, ${T.gates.length} gates, ${T.towers.length} towers` : "no wall"} · made in ${TNV.ms} ms</span><br><span class="muted">${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([n, k]) => `${k} ${esc(n.toLowerCase())}`).join(", ")}</span>`;
   if (!TNV.view) tvFit(); else tvApply(); }
+// The entrances on the preview: a marker on the map's edge, numbered.
+function tvEntsSvg() { const T = TNV.T, s = 4; if (!T) return ""; const show = TNV.pick || (TNV.o.entries || []).length; if (!show) return "";
+  return (TNV.o.entries || []).map((e, i) => { const [x, y] = tnEntPt(e, T.W, T.H), r = 13 / (TNV.view ? Math.min(1, TNV.view.z) : 1), [nx, ny] = TN_DIR[e[0]], X = x * s - nx * r * 1.2, Y = y * s - ny * r * 1.2;
+    return `<g class="tvent" data-i="${i}"><circle cx="${X}" cy="${Y}" r="${r * 1.6}" fill="transparent"/><circle cx="${X}" cy="${Y}" r="${r}" fill="#e8c27a" stroke="#2b2520" stroke-width="2"/><text x="${X}" y="${Y}" font-size="${r * 1.1}" font-weight="700" text-anchor="middle" dominant-baseline="central" fill="#2b2520">${i + 1}</text></g>`; }).join("")
+    + (TNV.pick ? `<rect x="1" y="1" width="${T.W * s - 2}" height="${T.H * s - 2}" fill="none" stroke="#e8c27a" stroke-width="3" stroke-dasharray="10 6" opacity=".8"/>` : ""); }
+// Where on the preview a pointer is, in squares, and the nearest point on the map's edge as an entrance.
+function tvAt(ev) { const vw = document.getElementById("tv-view").getBoundingClientRect(), v = TNV.view; return [((ev.clientX - vw.left) - v.x) / v.z / 4, ((ev.clientY - vw.top) - v.y) / v.z / 4]; }
+function tvEdge(x, y) { const T = TNV.T, d = [["N", y], ["S", T.H - y], ["W", x], ["E", T.W - x]].sort((a, b) => a[1] - b[1])[0][0]; return [d, +(d === "N" || d === "S" ? x / T.W : y / T.H).toFixed(4)]; }
 function tvFit() { const vw = document.getElementById("tv-view"); if (!vw || !TNV.T) return; vw.style.height = Math.round(Math.min(innerHeight * 0.72, 820, vw.clientWidth * TNV.T.H / TNV.T.W)) + "px"; const S0 = Math.min(vw.clientWidth / (TNV.T.W * 4), vw.clientHeight / (TNV.T.H * 4)); TNV.view = { z: S0, x: (vw.clientWidth - TNV.T.W * 4 * S0) / 2, y: (vw.clientHeight - TNV.T.H * 4 * S0) / 2 }; tvApply(); }
 function tvApply() { const st = document.getElementById("tv-stage"), v = TNV.view; if (st && v) st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`; }
 function tvLook(bid) { const el = document.getElementById("tv-look"); if (!el || !TNV.T) return; const b = TNV.T.buildings.find(x => x.id === bid); if (!b) { el.innerHTML = ""; return; } TNV.sel = bid;
@@ -590,6 +610,8 @@ document.addEventListener("click", async ev => {
   const el = ev.target.closest && ev.target.closest("[data-act^=tv]"); if (!el || !TNV.o) return; const a = el.dataset.act, o = TNV.o;
   if (a === "tvopt") { o[el.dataset.k] = el.dataset.v; el.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === el); x.setAttribute("aria-pressed", x === el); }); TNV.view = null; tvRender(); return; }
   if (a === "tvchk") { o[el.dataset.k] = el.checked; return; }
+  if (a === "tvpick") { TNV.pick = !TNV.pick; tvSideRefresh(); const g = document.getElementById("tv-ents"); if (g) g.innerHTML = tvEntsSvg(); return; }
+  if (a === "tventclear") { o.entries = []; tvSideRefresh(); tvRender(); return; }
   if (a === "tvroll") { o.seed = genSeed(); const s = document.getElementById("tv-seed"); if (s) s.value = o.seed; tvRender(); document.getElementById("tv-look").innerHTML = ""; return; }
   if (a === "tvplace") { const n = document.getElementById("tv-name"); if (n) o.name = n.value.trim(); el.disabled = true; try { await tnPlace(el.dataset.camp, Object.assign({}, o, { camp: undefined })); } finally { el.disabled = false; } return; }
 });
@@ -598,11 +620,16 @@ document.addEventListener("change", ev => { if (ev.target && ev.target.id === "t
 const TVP = { ptrs: new Map(), drag: null };
 document.addEventListener("wheel", ev => { const vw = ev.target.closest && ev.target.closest("#tv-view"); if (!vw || !TNV.view) return; ev.preventDefault(); const r = vw.getBoundingClientRect(), px = ev.clientX - r.left, py = ev.clientY - r.top, v = TNV.view, f = Math.exp(-ev.deltaY * 0.0015), nz = Math.max(0.05, Math.min(12, v.z * f));
   v.x = px - (px - v.x) * nz / v.z; v.y = py - (py - v.y) * nz / v.z; v.z = nz; tvApply(); }, { passive: false });
-document.addEventListener("pointerdown", ev => { const vw = ev.target.closest && ev.target.closest("#tv-view"); if (!vw || !TNV.view) return; TVP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]); vw.setPointerCapture(ev.pointerId); TVP.drag = { x: ev.clientX, y: ev.clientY, vx: TNV.view.x, vy: TNV.view.y, moved: false, t: ev.target }; });
-document.addEventListener("pointermove", ev => { if (!TVP.ptrs.has(ev.pointerId) || !TNV.view) return; const prev = TVP.ptrs.get(ev.pointerId); TVP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
+document.addEventListener("pointerdown", ev => { const vw = ev.target.closest && ev.target.closest("#tv-view"); if (!vw || !TNV.view) return;
+  if (TNV.pick && TNV.T) { const m = ev.target.closest(".tvent"); if (m) { vw.setPointerCapture(ev.pointerId); TVP.ent = { i: Number(m.dataset.i), moved: false, x: ev.clientX, y: ev.clientY }; ev.preventDefault(); return; } } TVP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]); vw.setPointerCapture(ev.pointerId); TVP.drag = { x: ev.clientX, y: ev.clientY, vx: TNV.view.x, vy: TNV.view.y, moved: false, t: ev.target }; });
+document.addEventListener("pointermove", ev => { if (TVP.ent && TNV.T) { if (Math.abs(ev.clientX - TVP.ent.x) + Math.abs(ev.clientY - TVP.ent.y) > 4) TVP.ent.moved = true;
+    if (TVP.ent.moved) { const [x, y] = tvAt(ev); TNV.o.entries[TVP.ent.i] = tvEdge(x, y); const g = document.getElementById("tv-ents"); if (g) g.innerHTML = tvEntsSvg(); } return; }
+  if (!TVP.ptrs.has(ev.pointerId) || !TNV.view) return; const prev = TVP.ptrs.get(ev.pointerId); TVP.ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
   if (TVP.ptrs.size === 2) { const [a, b] = [...TVP.ptrs.values()], d1 = Math.hypot(a[0] - b[0], a[1] - b[1]), pa = [...TVP.ptrs.entries()].find(([k]) => k !== ev.pointerId)[1], d0 = Math.hypot(prev[0] - pa[0], prev[1] - pa[1]) || d1, vw = document.getElementById("tv-view").getBoundingClientRect(), mx = (a[0] + b[0]) / 2 - vw.left, my = (a[1] + b[1]) / 2 - vw.top, v = TNV.view, nz = Math.max(0.05, Math.min(12, v.z * d1 / d0));
     v.x = mx - (mx - v.x) * nz / v.z; v.y = my - (my - v.y) * nz / v.z; v.z = nz; if (TVP.drag) TVP.drag.moved = true; tvApply(); return; }
   const d = TVP.drag; if (!d) return; if (Math.abs(ev.clientX - d.x) + Math.abs(ev.clientY - d.y) > 4) d.moved = true; TNV.view.x = d.vx + ev.clientX - d.x; TNV.view.y = d.vy + ev.clientY - d.y; tvApply(); });
-const tvUp = ev => { if (!TVP.ptrs.has(ev.pointerId)) return; TVP.ptrs.delete(ev.pointerId); const d = TVP.drag; if (!TVP.ptrs.size) { TVP.drag = null; if (d && !d.moved) { const h = d.t.closest && d.t.closest(".tvhit"); if (h) tvLook(h.dataset.b); } } else if (TVP.ptrs.size === 1 && d) { const [p] = [...TVP.ptrs.values()]; d.x = p[0]; d.y = p[1]; d.vx = TNV.view.x; d.vy = TNV.view.y; } };
+const tvUp = ev => { if (TVP.ent) { const e = TVP.ent; TVP.ent = null; if (!e.moved) TNV.o.entries.splice(e.i, 1); tvRender(); tvSideRefresh(); return; }
+  if (!TVP.ptrs.has(ev.pointerId)) return; TVP.ptrs.delete(ev.pointerId); const d = TVP.drag; if (!TVP.ptrs.size) { TVP.drag = null; if (d && !d.moved) { if (TNV.pick && TNV.T) { const [x, y] = tvAt(ev); TNV.o.entries = (TNV.o.entries || []).concat([tvEdge(x, y)]).slice(0, 8); tvRender(); tvSideRefresh(); return; }
+      const h = d.t.closest && d.t.closest(".tvhit"); if (h) tvLook(h.dataset.b); } } else if (TVP.ptrs.size === 1 && d) { const [p] = [...TVP.ptrs.values()]; d.x = p[0]; d.y = p[1]; d.vx = TNV.view.x; d.vy = TNV.view.y; } };
 document.addEventListener("pointerup", tvUp); document.addEventListener("pointercancel", tvUp);
 new MutationObserver(() => { const st = document.getElementById("tv-stage"); if (st && !st.firstChild) { TNV.view = null; tvRender(); } }).observe(document.documentElement, { childList: true, subtree: true });
