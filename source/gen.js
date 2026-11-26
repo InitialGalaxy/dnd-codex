@@ -861,8 +861,8 @@ function genYardSvg(W, H, path, seed) {
 const genUrl = svg => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 
 // ----- Turning a building into a tabletop page -----
-function genPage(o) {
-  const B = genBuilding(o), F = B.F, m = 3, ox = m, oy = m, W = B.W + m * 2, H = B.H + m * 2 + 1, id = () => vid("o");
+function genPage(o, opt) {
+  const B = genBuilding(o), ext = [], F = B.F, m = 3, ox = m, oy = m, W = B.W + m * 2, H = B.H + m * 2 + 1, id = () => vid("o");
   const objs = [], walls = [], areas = [], links = [], names = {}, P = GEN_PX;
   const cells = set => [...set].map(k => { const [x, y] = k.split(",").map(Number); return [ox + x, oy + y]; });
   const porchCells = F.porch ? Array.from({ length: F.porch.w * F.porch.h }, (_, i) => (F.porch.x + i % F.porch.w) + "," + (F.porch.y + Math.floor(i / F.porch.w))) : [];
@@ -877,9 +877,9 @@ function genPage(o) {
     objs.push({ id: id(), layer: "gm", level: L.level, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${L.rooms.map(rm => `<text x="${(rm.x + rm.w / 2) * P}" y="${(rm.y + rm.h / 2) * P}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " (secret)" : ""}</text>`).join("")}</svg>`) });
     const gt = L.gates || new Set();
     genEdges(L, B.W, B.H).forEach(e => { if (gt.has(e.k)) return; const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
-      walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); });
+      walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); ext.push(!!e.ext); });
     // A gate is one door the whole width of the passage, opened all at once.
-    genGateRuns(gt).forEach(g => walls.push(g.d === "h" ? [ox + g.a, oy + g.c, ox + g.b, oy + g.c, L.level, { k: "door", id: vid("d"), open: false, gate: true }] : [ox + g.c, oy + g.a, ox + g.c, oy + g.b, L.level, { k: "door", id: vid("d"), open: false, gate: true }]));
+    genGateRuns(gt).forEach(g => ext.push(true) && walls.push(g.d === "h" ? [ox + g.a, oy + g.c, ox + g.b, oy + g.c, L.level, { k: "door", id: vid("d"), open: false, gate: true }] : [ox + g.c, oy + g.a, ox + g.c, oy + g.b, L.level, { k: "door", id: vid("d"), open: false, gate: true }]));
     if (L.level > 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); } // only where there's a floor (a loft, not the open hall)
     if (L.level < 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); }
     names[L.level] = L.name;
@@ -890,6 +890,7 @@ function genPage(o) {
   if (porchCells.length) areas.push({ id: vid("a"), level: roofLvl, cells: cells(new Set(porchCells)) }); // its own roof: stepping onto the porch lifts only that
   // One stairs link per staircase: each joins its two floors only.
   (B.stairs || []).forEach(t => links.push({ id: vid("l"), kind: "stairs", x: ox + t.x, y: oy + t.y, w: t.w, h: t.h, levels: [t.lo, t.lo + 1] }));
+  if (opt && opt.split) return { B, walls, ext, page: { objs, areas, links, roofLvl } }; // a town loads a building's inside on its own (town.js)
   return { B, page: { w: W, h: H, bg: "#6f8f4f", grid: true, light: false, fogMem: true, objs, walls: genMergeWalls(walls), areas, links, levelNames: names, minLevel: B.cellar ? -1 : 0, maxLevel: roofLvl } };
 }
 function genMergeWalls(walls) {
@@ -916,10 +917,11 @@ function viewGen(camp, kind, type) {
   if (!kind) {
     const card = (k, icon, t, d, ready) => ready ? `<a class="gencard" href="#gen-${esc(camp)}/${k}"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span></a>` : `<div class="gencard soon" aria-disabled="true"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span><span class="gensoon">Coming later</span></div>`;
     return `<section class="page">${back}<h1>Generator</h1><p class="muted">Make maps for ${esc(c.name || "this campaign")}, ready to play on the tabletop.</p>
-      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets, districts and walls.")}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
+      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets from the gates to the market place, burgage plots, lanes, the church, the wall: every building opens up as you come near.", true)}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
   }
   if (kind === "furniture") return genFurnView(camp, back);
   if (kind === "village") return viewVillageGen(camp);
+  if (kind === "town") return viewTownGen(camp);
   if (kind === "building" && !type) {
     const saved = vPages(VGEN).filter(([, p]) => p.gen), tagSet = new Set(saved.flatMap(([, p]) => p.gen.tags || [])), tf = GEN.tag || "";
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));

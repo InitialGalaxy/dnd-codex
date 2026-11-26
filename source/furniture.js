@@ -353,7 +353,9 @@ const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "
 
 // The pieces in use: the built-in ones (less any you've removed, with your changes to which rooms they go in) and your own.
 // Kept on the hidden "Generated buildings" campaign as furniture: { hidden: [id], rooms: { id: { room: [min, max, chance] } }, custom: [piece] }.
-const genFurnStore = () => ((S.vttCamps && S.vttCamps.get(VGEN)) || {}).furniture || {};
+// (A town keeps the furniture library as it was when the town was made, so its buildings always furnish the same: GEN_FURN_FROZEN.)
+let GEN_FURN_FROZEN = null;
+const genFurnStore = () => GEN_FURN_FROZEN || ((S.vttCamps && S.vttCamps.get(VGEN)) || {}).furniture || {};
 const genFurnImg = a => a.img || genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${a.w * GEN_PX} ${a.h * GEN_PX}" width="${a.w * GEN_PX}" height="${a.h * GEN_PX}">${a.draw(GEN_PX)}</svg>`);
 const GEN_FURN_IMG = new Map();
 function genFurnLib() {

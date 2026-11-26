@@ -695,6 +695,7 @@ function vSideHtml() {
       <div class="frow tight"><label><span>Width</span><input type="number" min="0.25" step="0.25" data-vf="w" value="${+o.w.toFixed(2)}"></label><label><span>Height</span><input type="number" min="0.25" step="0.25" data-vf="h" value="${+o.h.toFixed(2)}"></label></div>
       <div class="frow tight vrotrow"><label><span>Rotation (°)</span><input type="number" step="15" data-vf="rot" value="${Number(o.rot) || 0}"></label><button class="btn ghost small" data-act="vttobjrot" data-v="-90" aria-label="Rotate 90° left">↺ 90°</button><button class="btn ghost small" data-act="vttobjrot" data-v="90" aria-label="Rotate 90° right">↻ 90°</button></div>
       <p class="muted small">In grid squares. Drag the corner handle to resize (hold Shift to stretch freely) and the ⟳ handle to rotate.</p>
+      ${typeof tnSideHtml === "function" ? tnSideHtml(p, o) : ""}
       <div class="acts wrap"><button class="btn ghost small" data-act="vttobjfit">Fit to board</button><button class="btn ghost small" data-act="vttobjz" data-v="back">Send to back</button><button class="btn ghost small" data-act="vttobjz" data-v="front">Bring to front</button><button class="btn ghost small danger" data-act="vttdel">Delete image</button></div></div>`;
   }
   if (sel && sel.kind === "light") { const l = (p.lights || []).find(x => x.id === sel.id); return l ? vLightSideHtml(p, l) : vSideHelp(p); }
@@ -2392,7 +2393,10 @@ const vWallOpen = w => !!(w[5] && (w[5].k === "window" || (w[5].k === "door" && 
 const vWallPassable = w => !!(w[5] && (w[5].k === "window" || (w[5].k === "door" && w[5].open)));
 function vDoorMarks(p, gm) {
   const C = VCELL;
-  return `<div class="vdoors">${(p.walls || []).map((w, i) => { const m = w[5]; if (!m || (m.secret && !gm)) return "";
+  // A town is hundreds of buildings: there, doors and windows show only within 10 squares of a token.
+  const cur = p.town ? vPageNow() : null, nearT = cur ? [...S.vttTokens.values()].filter(t => t.page === cur.id && (gm || t.layer !== "gm")).map(t => [t.x + vTokSz(t) / 2, t.y + vTokSz(t) / 2]) : null;
+  return `<div class="vdoors">${(p.walls || []).map((w, i) => { const m = w[5]; if (!m || !m.k || m.k === "wall" || (m.secret && !gm)) return "";
+    if (nearT && !nearT.some(([tx, ty]) => Math.abs(tx - (w[0] + w[2]) / 2) < 10 && Math.abs(ty - (w[1] + w[3]) / 2) < 10)) return "";
     const x = (w[0] + w[2]) / 2, y = (w[1] + w[3]) / 2, lvl = w[4] || 0, other = gm && lvl !== VTT.lvl; if (gm && vLvlHid(lvl)) return "";
     const label = m.k === "window" ? "Window · climb through" : m.locked && !gm ? "Locked" : m.open ? "Close door" : "Open door";
     const icon = m.k === "window" ? "🪟" : m.locked ? "🔒" : m.open ? "🚪" : "🚪";
