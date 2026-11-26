@@ -365,6 +365,85 @@ const GEN_VILLAGE = [
       return { D, name: wing ? "Hall house with cross-wings" : "Hall house", units }; } },
 ];
 GEN_BUILDINGS.push(...GEN_VILLAGE);
+// ===== Town buildings, laid out in bays like the village ones =====
+// From the research on medieval towns: most of a town was burgage houses, narrow to the street and deep, shop in front, hall
+// and kitchen behind, chambers over, a side passage to the yard; the market house was an open arcade on posts with the court
+// or council room above; a courtyard inn was entered through a carriage way into a yard with the lodgings round it; a
+// merchant's house had its shop and counting house to the street, an open hall with chamber blocks each end and a vaulted
+// undercroft for the goods; a town gate a vaulted passage between guard towers with the portcullis chamber over the arch.
+const GEN_TOWN = [
+  { id: "townhouse", name: "Townhouse", icon: "🏘", blurb: "A burgage house: narrow to the street and deep, the shop at the front, the hall and kitchen behind, chambers above, often a side passage through to the yard.",
+    cellar: 0.35, porch: 0, floorsMax: 2, doorBonus: -0.5, under: [{ n: "Undercroft", k: "cellar", w: 1 }],
+    plan(r, size, up) { const w0 = size === "small" ? genInt(r, 3, 4) : size === "large" ? genInt(r, 5, 6) : genInt(r, 4, 5);
+      if (size === "small") return { D: genInt(r, 6, 7), name: "Shop and chamber", units: [genU(w0, [genR("Shop", "shop"), genR("Living room", "living", { w: 1.2 })], Object.assign({ entry: 1 }, up ? { up: [genR("Chamber", "bed")] } : {}))] };
+      const D = size === "large" ? genInt(r, 10, 12) : genInt(r, 8, 10), side = r() < 0.6;
+      const rooms = size === "large" ? [genR("Shop", "shop"), genR("Hall", "living", { w: 1.4 }), genR("Kitchen", "kitchen")] : [genR("Shop", "shop"), genR("Hall", "living", { w: 1.3 }), genR("Kitchen", "kitchen", { w: 0.8 })];
+      const units = [genU(w0, rooms, Object.assign({ entry: 1 }, up ? { up: size === "large" ? [genR("Great chamber", "bed"), genR("Chamber", "bed"), genR("Chamber", "bed")] : [genR("Chamber", "bed"), genR("Chamber", "bed")] } : {}))];
+      if (side) units.push(genU(2, genR("Side passage", "passage"), Object.assign({ pass: 1 }, up ? { upJoin: 1 } : {})));
+      return { D, name: side ? "Burgage house with side passage" : "Burgage house", units }; } },
+  { id: "merchant", name: "Merchant's house", icon: "💰", blurb: "The shop and counting house to the street, an entry passage, an open hall, chamber blocks above either end, and a vaulted undercroft for the goods.",
+    cellar: 0.85, porch: 0.2, floorsMax: 2, doorBonus: 1, under: [{ n: "Undercroft", k: "vault", w: 1.6 }, { n: "Wine cellar", k: "cellar", w: 1, opt: 0.6 }],
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 6, 7) : genInt(r, 7, 8);
+      const units = [genU(genInt(r, 4, 5), [genR("Shop", "shop"), genR("Counting house", "office")], up ? { up: [genR("Solar", "bed"), genR("Chamber", "bed")] } : {}),
+        genU(2, genR("Entry passage", "passage"), { entry: 1, pass: 1, porch: r() < 0.3 ? [2, 2] : null }),
+        genU(size === "large" ? genInt(r, 6, 7) : genInt(r, 4, 6), genR("Hall", "hall")),
+        genU(genInt(r, 3, 4), size === "small" ? genR("Parlour", "living") : [genR("Parlour", "living"), genR("Buttery", "store")], up ? { up: size === "small" ? [genR("Chamber", "bed")] : [genR("Chamber", "bed"), genR("Clerk's room", "office")] } : {})];
+      if (size !== "small") units.push(genU(genInt(r, 3, 4), [genR("Kitchen", "kitchen"), genR("Warehouse", "store", { w: 1.3 })], { back: size === "large" ? genInt(r, 3, 4) : 0 }));
+      return { D, name: "Merchant's hall house", units }; } },
+  { id: "inn", name: "Inn", icon: "🛏", blurb: "A courtyard inn: a carriage way from the street into the yard, the tap room on the front, kitchen and stables in the wings round the yard, guest chambers above.",
+    cellar: 0.5, porch: 0, floorsMax: 2, doorBonus: 0.5, under: [{ n: "Beer cellar", k: "cellar", w: 1.4 }, { n: "Wine cellar", k: "cellar", w: 1, opt: 0.5 }],
+    plan(r, size, up) { const D = genInt(r, 5, 6), wb = size === "small" ? 0 : genInt(r, 5, 7);
+      const ch = (n, best) => Array.from({ length: n }, (_, i) => genR(i === 0 && best ? "Best chamber" : "Guest chamber", "bed"));
+      const units = [genU(genInt(r, 4, 5), wb ? [genR("Parlour", "living"), genR("Kitchen", "kitchen", { w: 1.3 }), genR("Buttery", "store")] : [genR("Parlour", "living"), genR("Kitchen", "kitchen")], Object.assign({ back: wb }, up ? { up: ch(wb ? 3 : 2, 0), landName: "Gallery" } : {})),
+        genU(size === "large" ? genInt(r, 7, 9) : genInt(r, 5, 7), genR("Tap room", "tavern"), Object.assign({ entry: 1 }, up ? { up: ch(size === "large" ? 4 : 3, 1), landName: "Gallery" } : {})),
+        genU(3, genR("Carriage way", "passage"), Object.assign({ pass: 1, doorW: 2 }, up ? { upJoin: 1 } : {})),
+        genU(genInt(r, 4, 5), wb ? [genR("Ostler's room", "bed"), genR("Stables", "stall", { w: 1.6 }), genR("Hay store", "hay")] : genR("Stables", "stall"), Object.assign({ back: wb }, up ? { up: [genR("Groom's room", "bed"), genR("Feed loft", "hay")], landName: "Hayloft" } : {}))];
+      return { D, name: wb ? "Courtyard inn" : "Wayside inn", units }; } },
+  { id: "markethall", name: "Market hall", icon: "⚖", blurb: "An open arcade on posts for the market stalls, the toll booth and its stair at one end, the court or council room above.",
+    cellar: 0, porch: 0, floorsMax: 2, doorBonus: 0,
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 4, 5) : genInt(r, 5, 6), n = { small: 2, medium: 3, large: 4 }[size] || 3;
+      const units = [genU(3, genR("Toll booth", "office"), Object.assign({ entry: 1 }, up ? { upSlice: 1, up: size === "small" ? [genR("Court room", "hall")] : size === "medium" ? [genR("Council chamber", "office"), genR("Court room", "hall", { w: 3 })] : [genR("Council chamber", "office"), genR("Court room", "hall", { w: 3 }), genR("Muniment room", "loft", { w: 0.8 })] } : {}))];
+      for (let i = 0; i < n; i++) units.push(genU(genInt(r, 3, 4), genR("Market arcade", "market", { zone: "mk", hub: 1, arcade: 1 }), up ? { upJoin: 1 } : {}));
+      return { D, name: up ? "Market house" : "Market shed", units }; } },
+  { id: "gatehouse", name: "Gatehouse", icon: "🏯", blurb: "The town gate: a vaulted gate passage between two guard towers, the porter's lodge, and the portcullis chamber over the arch.",
+    cellar: 0.2, porch: 0, floorsMax: 2, doorBonus: 2, under: [{ n: "Lock-up", k: "cellar", w: 1 }],
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 4, 5) : genInt(r, 5, 6), tw = size === "large" ? genInt(r, 4, 5) : genInt(r, 3, 4), gw = size === "small" ? 3 : genInt(r, 3, 4), back = size === "small" ? 0 : genInt(r, 1, 2);
+      const units = [genU(tw, size === "small" ? genR("Guard room", "work") : [genR("Guard room", "work"), genR("Armoury", "store")], Object.assign({ back }, up ? { up: [genR("Portcullis chamber", "work", { w: 1.4 }), genR("Guard chamber", "bed"), genR("Captain's room", "office")] } : {})),
+        genU(gw, genR("Gate passage", "passage", { dark: 1 }), Object.assign({ entry: 1, pass: 1, doorW: gw - 1 }, up ? { upJoin: 1 } : {})),
+        genU(tw, genR("Porter's lodge", "living"), Object.assign({ back }, up ? { upJoin: 1 } : {}))];
+      return { D, name: "Gate between towers", units }; } },
+  { id: "butcher", name: "Butcher", icon: "🥩", blurb: "A shambles shop: the open-fronted shop with its stall board, the cutting room, the salting room and the slaughterhouse at the back, a passage through to the yard.",
+    cellar: 0.25, porch: 0, floorsMax: 2, doorBonus: -1, under: [{ n: "Cold cellar", k: "cellar", w: 1 }],
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 7, 8) : genInt(r, 8, 10), w0 = size === "large" ? genInt(r, 5, 6) : genInt(r, 4, 5);
+      const rooms = size === "small" ? [genR("Butcher's shop", "shop", { w: 1.2 }), genR("Slaughterhouse", "slaughter", { w: 1.2 })] : [genR("Butcher's shop", "shop", { w: 1.2 }), genR("Cutting room", "work"), genR("Salting room", "store", { w: 0.7 }), genR("Slaughterhouse", "slaughter", { w: 1.3 })];
+      const units = [genU(w0, rooms, Object.assign({ entry: 1, doorW: 2 }, up ? { up: [genR("Living room", "living"), genR("Chamber", "bed")] } : {})), genU(2, genR("Yard passage", "passage"), Object.assign({ pass: 1 }, up ? { upJoin: 1 } : {}))];
+      return { D, name: "Shambles shop", units }; } },
+  { id: "apothecary", name: "Apothecary", icon: "⚗", blurb: "The shop with its jars and counter at the front, the still room behind where the medicines are made, a store and grinding room, herbs drying in the loft.",
+    cellar: 0.3, porch: 0.1, floorsMax: 2, doorBonus: 0, under: [{ n: "Cool store", k: "cellar", w: 1 }],
+    plan(r, size, up) { const D = size === "small" ? genInt(r, 6, 7) : genInt(r, 7, 9), w0 = genInt(r, 4, 5);
+      const units = [genU(w0, size === "small" ? [genR("Apothecary's shop", "shop", { w: 1.2 }), genR("Still room", "lab")] : [genR("Apothecary's shop", "shop", { w: 1.2 }), genR("Still room", "lab", { w: 1.1 }), genR("Store", "store", { w: 0.7 })], Object.assign({ entry: 1 }, up ? { up: [genR("Drying loft", "loft"), genR("Apothecary's chamber", "bed")] } : {}))];
+      if (size !== "small") units.push(genU(genInt(r, 3, 4), [genR("Grinding room", "work"), size === "large" ? genR("Study", "library") : genR("Kitchen", "kitchen")], up ? { upJoin: 1 } : {}));
+      return { D, name: "Apothecary's shop", units }; } },
+  { id: "carpenter", name: "Carpenter", icon: "🪚", blurb: "A carpenter's shop: the big workshop with wide doors for the timber, an open saw shed for sawing on trestles, the timber store, the family's rooms at the end.",
+    cellar: 0.05, porch: 0, floorsMax: 2, doorBonus: -1,
+    plan(r, size, up) { const D = genInt(r, 5, 6);
+      const units = [genU(genInt(r, 3, 4), size === "small" ? genR("Living room", "living") : [genR("Hall", "living"), genR("Kitchen", "kitchen")], up ? { up: [genR("Chamber", "bed"), genR("Chamber", "bed")] } : {}),
+        genU(size === "large" ? genInt(r, 6, 8) : genInt(r, 5, 6), genR("Workshop", "work"), Object.assign({ entry: 1, doorW: 2 }, up && size !== "small" ? { up: [genR("Timber loft", "loft")] } : {})),
+        genU(3, genR("Timber store", "store"), { endDoor: size === "small" ? "right" : null })];
+      if (size !== "small") units.push(genU(genInt(r, 3, 4), genR("Saw shed", "work", { arcade: 1 })));
+      return { D, name: "Carpenter's shop", units }; } },
+  { id: "workshop", name: "Workshop", icon: "🔨", blurb: "A craftsman's shop-house (cooper, cobbler, weaver, potter, chandler, goldsmith and more): the shop at the front, the workroom behind, the family above.",
+    cellar: 0.15, porch: 0, floorsMax: 2, doorBonus: -0.5, under: [{ n: "Cellar", k: "cellar", w: 1 }],
+    plan(r, size, up) { const T = [["Cooper", "Cooperage", "Stave store"], ["Cobbler", "Workroom", "Leather store"], ["Weaver", "Loom room", "Yarn store"], ["Potter", "Kiln room", "Clay store"], ["Chandler", "Dipping room", "Tallow store"], ["Goldsmith", "Workroom", "Strong room"], ["Glover", "Workroom", "Skin store"], ["Bowyer", "Workroom", "Stave store"], ["Wheelwright", "Wheel shop", "Timber store"], ["Cutler", "Grinding room", "Store"]];
+      const [who, work, store] = T[Math.floor(r() * T.length)], D = size === "small" ? genInt(r, 6, 7) : genInt(r, 7, 9), w0 = size === "large" ? genInt(r, 5, 6) : genInt(r, 4, 5);
+      const units = [genU(w0, size === "small" ? [genR(`${who}'s shop`, "shop"), genR(work, "work", { w: 1.3 })] : [genR(`${who}'s shop`, "shop"), genR(work, "work", { w: 1.4 }), genR(store, "store", { w: 0.7 })], Object.assign({ entry: 1 }, up ? { up: [genR("Living room", "living"), genR("Chamber", "bed")] } : {}))];
+      if (size === "large") units.push(genU(genInt(r, 3, 4), [genR("Hall", "living"), genR("Kitchen", "kitchen")], up ? { upJoin: 1 } : {}));
+      else if (r() < 0.5) units.push(genU(2, genR("Side passage", "passage"), Object.assign({ pass: 1 }, up ? { upJoin: 1 } : {})));
+      return { D, name: `${who}'s workshop`, units, trade: who }; } },
+];
+GEN_BUILDINGS.push(...GEN_TOWN);
+Object.assign(GEN_KIND, { market: "stone", slaughter: "stone", lab: "stone", loft: "wood" });
+Object.assign(GEN_FIRE, { lab: 0.7, slaughter: 0.5 });
 Object.assign(GEN_KIND, { byre: "straw", stall: "straw", hay: "straw", threshing: "stone", aisle: "earth", passage: "stone", water: "water", mill: "stone", bake: "stone" });
 Object.assign(GEN_FIRE, { bake: 1 });
 GEN_FLOOR.straw = { base: [44, 38, 58], line: "#a8904f" }; GEN_FLOOR.water = { base: [205, 38, 34], line: "#2e5670" };
@@ -400,7 +479,7 @@ function genPlanLayout(r, T, o) {
   units.forEach((u, i) => { const rs = split(rects[i], u.rooms, u.split === "length", u.sizes); rs.forEach(rm => { rm.unit = i; if (u.entry && rm === rs[0]) rm.entry = 1; if (u.pass) rm.pass = 1; }); unitRooms.push(rs); gRooms.push(...rs); });
   if (porch) gRooms.push(Object.assign({ n: "Porch", k: "porch", porch: 1 }, porch));
   // The parts with a floor above: a unit with up rooms, joined by the units after it marked upJoin.
-  const regions = []; units.forEach((u, i) => { if (u.up) regions.push({ units: [i], rooms: u.up.map(x => Object.assign({}, x)), landName: u.landName }); else if (u.upJoin && regions.length && regions[regions.length - 1].units.includes(i - 1)) regions[regions.length - 1].units.push(i); });
+  const regions = []; units.forEach((u, i) => { if (u.up) regions.push({ units: [i], rooms: u.up.map(x => Object.assign({}, x)), landName: u.landName, slice: u.upSlice }); else if (u.upJoin && regions.length && regions[regions.length - 1].units.includes(i - 1)) regions[regions.length - 1].units.push(i); });
   regions.forEach(g => { const rs = g.units.map(i => rects[i]); const y0 = Math.max(...rs.map(q => q.y)), y1 = Math.min(...rs.map(q => q.y + q.h)); g.rect = { x: rs[0].x, y: y0, w: rs.reduce((a, q) => a + q.w, 0), h: y1 - y0 }; g.below = g.units.flatMap(i => unitRooms[i]); });
   const entry = gRooms.find(x => x.entry) || gRooms[0];
   return { F, gRooms, entry, regions, units, rects, plan };
@@ -419,7 +498,7 @@ function genPlanTry(o, attempt) {
     const cands = g.below.filter(rm => !rm.pass && !rm.hub && rm.k !== "water").concat(g.below.filter(rm => rm.hub && !rm.pass)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
     if (!s) return; s.lo = 0; stairs.push(s);
-    upRooms.push(...(g.rooms.length > 1 ? genUpper(r, g.rect, s, g.rooms, minD, 1, g.landName || "Landing") : [Object.assign({}, g.rooms[0], g.rect)])); });
+    upRooms.push(...(g.rooms.length > 1 ? (g.slice ? genSlice(r, g.rect, g.rooms, minD) : genUpper(r, g.rect, s, g.rooms, minD, 1, g.landName || "Landing")) : [Object.assign({}, g.rooms[0], g.rect)])); }); // slice: rooms opening one into the next, no landing
   const floors = upRooms.length ? 2 : 1;
   if (upRooms.length) levels.push({ level: 1, rooms: upRooms, name: "Upper floor" });
   let down = null;
@@ -487,7 +566,7 @@ function genHearths(o, B) {
       for (let x = rm.x + 1; x < rm.x + rm.w - 1; x++) for (let y = rm.y + 1; y < rm.y + rm.h - 1; y++) cand.push([Math.abs(x - cx) + Math.abs(y - cy), x, y]);
       const best = cand.sort((a, b) => a[0] - b[0]).find(([, x, y]) => !blocked(x, y) && roomOk(i, x, y, null, false)); if (!best) return;
       used.add(best[1] + "," + best[2]); rm._fire = 1; L.hearths.push({ x: best[1], y: best[2], central: 1, fire: true, k: rm.k }); });
-    L.rooms.forEach((rm, i) => { if (rm._fire || rm.porch || rm.circ || !(r() < (GEN_FIRE[rm.k] || 0))) return;
+    L.rooms.forEach((rm, i) => { if (rm._fire || rm.porch || rm.arcade || rm.circ || !(r() < (GEN_FIRE[rm.k] || 0))) return;
       if (rm.w * rm.h < 6 && rm.k !== "kitchen" && rm.k !== "forge") return; // no room for a fire and anything else
       const cands = [];
       for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) sides.forEach(([sd, dx, dy, key]) => {
@@ -590,8 +669,8 @@ function genOpenings(r, L, F, stairs, front) {
 }
 // Every wall edge of a floor: between two rooms, or a room and the outside. A porch has no walls to the outside, only posts.
 function genEdges(L, W, H) {
-  const out = [], own = L.own, porch = i => i >= 0 && L.rooms[i].porch;
-  const wall = (a, b) => a !== b && !(porch(a) && b < 0) && !(porch(b) && a < 0) && !(a >= 0 && b >= 0 && genOpen(L.rooms[a], L.rooms[b]));
+  const out = [], own = L.own, porch = i => i >= 0 && L.rooms[i].porch, arc = i => i >= 0 && L.rooms[i].arcade;
+  const wall = (a, b) => a !== b && !((porch(a) || arc(a)) && b < 0) && !((porch(b) || arc(b)) && a < 0) && !(a >= 0 && b >= 0 && genOpen(L.rooms[a], L.rooms[b]));
   for (let y = 0; y <= H; y++) for (let x = 0; x < W; x++) { const a = own(x, y - 1), b = own(x, y); if (wall(a, b)) out.push({ k: `h,${x},${y}`, x1: x, y1: y, x2: x + 1, y2: y, ext: a < 0 || b < 0 || porch(a) || porch(b) }); }
   for (let x = 0; x <= W; x++) for (let y = 0; y < H; y++) { const a = own(x - 1, y), b = own(x, y); if (wall(a, b)) out.push({ k: `v,${x},${y}`, x1: x, y1: y, x2: x, y2: y + 1, ext: a < 0 || b < 0 || porch(a) || porch(b) }); }
   return out;
@@ -703,6 +782,13 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
     over += (L.stairs || []).map(t => `<rect x="${t.x * P + 2}" y="${t.y * P + 2}" width="${t.w * P - 4}" height="${t.h * P - 4}" fill="none" stroke="#ffd23c" stroke-width="2.5" stroke-dasharray="6 4"/>`).join("");
   }
   const posts = porchI >= 0 ? (rm => { const pts = [[rm.x, rm.y + rm.h], [rm.x + rm.w, rm.y + rm.h]]; for (let x = rm.x + 2; x < rm.x + rm.w - 1; x += 2) pts.push([x, rm.y + rm.h]); return pts.map(([x, y]) => `<rect x="${x * P - 5}" y="${y * P - 5}" width="10" height="10" fill="#5a4330" stroke="#2b2520" stroke-width="2"/>`).join(""); })(L.rooms[porchI]) : "";
+  // An arcade (a market house's open ground floor, a saw shed) stands on posts all round its open sides, about every 2 squares.
+  const arcPosts = (() => { const own = L.own || (() => -1), pts = new Set();
+    L.rooms.forEach((rm, i) => { if (!rm.arcade) return; const add = (x, y) => pts.add(x + "," + y);
+      const side = (x0, y0, dx, dy, n, out) => { let run = []; for (let k = 0; k <= n; k++) { const x = x0 + dx * k, y = y0 + dy * k; run.push([x, y, k < n && own(x + out[0] + (dx ? 0 : 0), y + out[1]) < 0]); }
+        for (let k = 0; k < n; k++) { const [x, y, o] = run[k]; if (!o) continue; if (k === 0 || !run[k - 1][2] || k % 2 === 0) add(x, y); if (k === n - 1 || !run[k + 1][2]) add(run[k + 1][0], run[k + 1][1]); } };
+      side(rm.x, rm.y + rm.h, 1, 0, rm.w, [0, 0]); side(rm.x, rm.y, 1, 0, rm.w, [0, -1]); side(rm.x, rm.y, 0, 1, rm.h, [-1, 0]); side(rm.x + rm.w, rm.y, 0, 1, rm.h, [0, 0]); });
+    return [...pts].map(k => { const [x, y] = k.split(",").map(Number); return `<rect x="${x * P - 6}" y="${y * P - 6}" width="12" height="12" fill="#8d8478" stroke="#2b2520" stroke-width="2"/>`; }).join(""); })();
   // A room's name goes in its middle, or beside the stairs if they're in the way.
   const labAt = rm => { let x = rm.x + rm.w / 2, y = rm.y + rm.h / 2; const t = (L.stairs || []).find(q => x > q.x - 1 && x < q.x + q.w + 1 && y > q.y - 0.6 && y < q.y + q.h + 0.6 && q.x >= rm.x && q.x < rm.x + rm.w && q.y >= rm.y && q.y < rm.y + rm.h);
     if (t && x > t.x - 1 && x < t.x + t.w + 1 && y > t.y - 0.6 && y < t.y + t.h + 0.6) {
@@ -711,7 +797,7 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
     return [x, y]; };
   const lab = labels ? L.rooms.map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
   const pd = GEN_PAD * P;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}">${part === "top" ? `${lab}${over}` : `<defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${grand}${part === "base" ? "" : lab + over}`}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}">${part === "top" ? `${lab}${over}` : `<defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${arcPosts}${grand}${part === "base" ? "" : lab + over}`}</svg>`;
 }
 // A hipped roof on every wing (and a lean-to over a porch), shingles each their own shade, maybe a chimney or two.
 function genRoofSvg(B, seed) {

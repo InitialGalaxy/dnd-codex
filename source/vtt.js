@@ -1823,9 +1823,19 @@ function vRoofCells(p, viewers, L) {
   });
   return out;
 }
+// A square of a hole in a floor or roof, a little oversize so the outer half of the walls above goes too (an open arcade
+// under a floor shows no wall line overhead).
+// The holes are cut with even-odd, so the pieces must not overlap: each hole square whole, and round the outside of the hole
+// a thin margin made of separate strips and corners.
+function vHolePath(cells) { const e = VCELL * 0.16, m = VCELL - 2 * e, has = (x, y) => cells.has(x + "," + y), R = (x, y, w, h) => `M${x} ${y}h${w}v${h}h${-w}z`; let d = ""; const near = new Set();
+  cells.forEach(k => { const [x, y] = k.split(",").map(Number); d += R(x * VCELL, y * VCELL, VCELL, VCELL); for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) if (!has(x + a, y + b)) near.add((x + a) + "," + (y + b)); });
+  near.forEach(k => { const [x, y] = k.split(",").map(Number), X = x * VCELL, Y = y * VCELL, off = [0, e, VCELL - e], sz = [e, m, e];
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { if (i === 1 && j === 1) continue; const dx = i - 1, dy = j - 1;
+      const on = (dx && dy) ? (has(x + dx, y) || has(x, y + dy) || has(x + dx, y + dy)) : has(x + dx, y + dy); if (on) d += R(X + off[i], Y + off[j], sz[i], sz[j]); } });
+  return d; }
 function vRoofHoles(p, viewers, L) {
   let d = "";
-  const seen = new Set();
+  const seen = new Set(), hole = new Set();
   (p.areas || []).filter(a => a.level === L).forEach(a => {
     const below = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = vTokSz(t) / 2; return [t.x + s, t.y + s]; });
     const under = below.filter(([x, y]) => vInArea(a, x, y));
@@ -1833,7 +1843,7 @@ function vRoofHoles(p, viewers, L) {
     // it, when the roof (or a floor) over where they stand covers part of it — a floor that's only over some rooms.
     if (!under.length && Array.isArray(a.cells)) { const mine = new Set(a.cells.map(c => c[0] + "," + c[1]));
       const inside = below.find(([x, y]) => (p.areas || []).some(b => b !== a && (b.level || 0) > L && Array.isArray(b.cells) && vInArea(b, x, y) && b.cells.some(c => mine.has(c[0] + "," + c[1]))));
-      if (inside) { a.cells.forEach(c => { const k = c[0] + "," + c[1]; if (seen.has(k)) return; seen.add(k); d += `M${c[0] * VCELL} ${c[1] * VCELL}h${VCELL}v${VCELL}h${-VCELL}z`; }); return; } }
+      if (inside) { a.cells.forEach(c => { const k = c[0] + "," + c[1]; if (seen.has(k)) return; seen.add(k); hole.add(k); }); return; } }
     if (!under.length) return;
     if (!Array.isArray(a.cells)) { d += "M" + a.pts.map(q => q[0] * VCELL + " " + q[1] * VCELL).join("L") + "Z"; return; }
     const has = new Set(a.cells.map(c => c[0] + "," + c[1]));
@@ -1842,12 +1852,12 @@ function vRoofHoles(p, viewers, L) {
       const todo = [start]; seen.add(start);
       while (todo.length) {
         const k = todo.pop(), [cx, cy] = k.split(",").map(Number);
-        d += `M${cx * VCELL} ${cy * VCELL}h${VCELL}v${VCELL}h${-VCELL}z`;
+        hole.add(k);
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const n = (cx + dx) + "," + (cy + dy); if (has.has(n) && !seen.has(n)) { seen.add(n); todo.push(n); } }
       }
     });
   });
-  return d;
+  return d + vHolePath(hole);
 }
 function vRoofs(p, viewers) {
   const W = p.w * VCELL, H = p.h * VCELL;
