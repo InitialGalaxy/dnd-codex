@@ -470,7 +470,13 @@ function vgTerrainSvg(V, s, vb, opts) {
   { const sp = genRng(99), blobs = [], ln = [];
     const add = (d, wd) => { ln.push(`<path d="${pd(d)}" stroke-width="${(s * wd).toFixed(1)}"/>`); for (let i = 3; i < d.length - 2; i += 3) if (sp() < 0.5) blobs.push(`<circle cx="${((d[i][0] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" cy="${((d[i][1] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" r="${(s * wd * (0.45 + sp() * 0.25)).toFixed(1)}"/>`); };
     (V.paths || []).forEach(d => add(d, 1.1)); (V.tracks || []).forEach(d => add(d, 2.1));
-    out.push(`<g filter="url(#vgrd)" fill="none" stroke="hsl(34 30% 56%)" stroke-linecap="round" stroke-linejoin="round"><path d="${all.join("")}" stroke-width="${ww}"/>${ln.join("")}<g fill="hsl(34 30% 56%)" stroke="none">${blobs.join("")}</g></g>`); }
+    // Colour variation: lighter, darker, redder and greyer patches of earth, kept well inside the road or path.
+    let tint = ""; const tc = rr => `hsl(${(28 + rr() * 12).toFixed(0)} ${(22 + rr() * 16).toFixed(0)}% ${(46 + rr() * 18).toFixed(0)}%)`, ROADY = t => t === VGT.ROAD || t === VGT.BRIDGE;
+    for (let y = Math.max(1, Math.floor(box[1]) - 2); y < Math.min(H - 1, box[1] + box[3] + 2); y++) for (let x = Math.max(1, Math.floor(box[0]) - 2); x < Math.min(W - 1, box[0] + box[2] + 2); x++) {
+      if (at(x, y) !== VGT.ROAD) continue; let inner = true; for (let b = -1; b <= 1 && inner; b++) for (let a = -1; a <= 1; a++) if (!ROADY(at(x + a, y + b))) { inner = false; break; } if (!inner) continue;
+      const rr = genRng(((x * 2654435761) ^ (y * 40503) ^ 77) >>> 0); if (rr() < 0.55) tint += `<ellipse cx="${((x + 0.2 + rr() * 0.6) * s).toFixed(1)}" cy="${((y + 0.2 + rr() * 0.6) * s).toFixed(1)}" rx="${(s * (0.5 + rr() * 0.6)).toFixed(1)}" ry="${(s * (0.4 + rr() * 0.5)).toFixed(1)}" fill="${tc(rr)}" opacity="${(0.5 + rr() * 0.4).toFixed(2)}"/>`; }
+    (V.paths || []).concat(V.tracks || []).forEach((d, pi) => { const wd = pi < (V.paths || []).length ? 1.1 : 2.1; d.forEach(([x, y], i) => { if (i % 3) return; const rr = genRng(((Math.round(x * 4) * 2654435761) ^ (Math.round(y * 4) * 40503) ^ pi) >>> 0); if (rr() < 0.6) tint += `<circle cx="${(x * s).toFixed(1)}" cy="${(y * s).toFixed(1)}" r="${(s * wd * (0.2 + rr() * 0.15)).toFixed(1)}" fill="${tc(rr)}" opacity="${(0.5 + rr() * 0.4).toFixed(2)}"/>`; }); });
+    out.push(`<g filter="url(#vgrd)" fill="none" stroke="hsl(34 30% 56%)" stroke-linecap="round" stroke-linejoin="round"><path d="${all.join("")}" stroke-width="${ww}"/>${ln.join("")}<g fill="hsl(34 30% 56%)" stroke="none">${blobs.join("")}</g><g stroke="none">${tint}</g></g>`); }
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
   // Pebbles and grass along the roads and paths.
   if (fine) { const k = s / 40; let peb = ""; const pebble = (rr, x, y) => { peb += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${((1 + rr() * 2.2) * k).toFixed(1)}" fill="hsl(30 ${(10 + rr() * 15).toFixed(0)}% ${(40 + rr() * 25).toFixed(0)}%)" opacity=".8"/>`; };
@@ -480,6 +486,13 @@ function vgTerrainSvg(V, s, vb, opts) {
       if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => GR.has(at(x + a, y + b))) && rr() < 0.7) addTuft(rr, (x + rr()) * s, (y + rr()) * s, (3 + rr() * 4) * k); }
     (V.paths || []).concat(V.tracks || []).forEach((d, pi) => d.forEach(([x, y], i) => { if (i % 2 || x < ix0 || y < iy0 || x > ix1 || y > iy1) return; const rr = sq(Math.round(x * 4) + pi, Math.round(y * 4));
       pebble(rr, (x + (rr() - 0.5) * 0.7) * s, (y + (rr() - 0.5) * 0.7) * s); if (rr() < 0.5) addTuft(rr, (x + (rr() - 0.5) * 1.3) * s, (y + (rr() - 0.5) * 1.3) * s, (3 + rr() * 3) * k); }));
+    // An edge of grass tufts along both sides of every road, lane, track and path.
+    const edgeT = (d, half, key) => { for (let i = 1; i < d.length - 1; i++) { const rr = sq(Math.round(d[i][0] * 4) + key, Math.round(d[i][1] * 4) - key); if (rr() < 0.25) continue;
+        const a = d[i - 1], b = d[i + 1], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, nx = -ty / l, ny = tx / l;
+        [1, -1].forEach(sd => { if (rr() < 0.3) return; const o = half + (rr() - 0.35) * 0.45, ex = d[i][0] + nx * o * sd, ey = d[i][1] + ny * o * sd; if (ex < ix0 || ey < iy0 || ex > ix1 || ey > iy1) return;
+          const t = at(Math.floor(ex + nx * sd * 0.5), Math.floor(ey + ny * sd * 0.5)); if (!GR.has(t) || t === VGT.WOOD) return; addTuft(rr, ex * s, ey * s, (3.5 + rr() * 4) * k); }); } };
+    V.roads.concat(V.lanes).forEach((rd, i) => edgeT(rd.d, VG_RW, i * 31)); (V.fillets || []).forEach((d, i) => edgeT(d, VG_RW, 500 + i));
+    (V.paths || []).forEach((d, i) => edgeT(d, 0.55, 900 + i)); (V.tracks || []).forEach((d, i) => edgeT(d, 1.05, 1500 + i));
     out.push(peb); }
   out.push(Object.values(tuftPaths).map(([c, d]) => `<path d="${d}" stroke="${c}" stroke-width="${(1.6 * s / 40).toFixed(2)}" stroke-linecap="round" fill="none"/>`).join(""));
   { const deck = (lines, wd) => { const runs = []; lines.forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
