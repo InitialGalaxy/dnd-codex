@@ -999,12 +999,13 @@ async function genPyramid(svgUrl, w, h, px) {
 // instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
 async function genStoreImages(page, msg) {
   if (!S.assets || !S.assets.upload) return page;
-  toast((msg || "Drawing the building") + "…"); const done = new Map(), px = genDetailPx(); // the same picture (a chair, say) is uploaded once
-  for (const o of page.objs) {
-    if (!String(o.img).startsWith("data:image/svg")) continue;
+  const done = new Map(), px = genDetailPx(), todo = page.objs.filter(o => String(o.img).startsWith("data:image/svg")); let n = 0; // the same picture (a chair, say) is uploaded once
+  const bar = typeof tnProgress === "function" ? tnProgress : () => {}; bar((msg || "Drawing the building") + "…", 0);
+  try { for (const o of page.objs) {
+    if (!String(o.img).startsWith("data:image/svg")) continue; if (++n % 3 === 0) bar(`${msg || "Drawing the building"}… ${n} of ${todo.length} pictures`, n / todo.length);
     if (done.has(o.img)) { Object.assign(o, done.get(o.img)); continue; } const was = o.img;
     try { const r = await genPyramid(o.img, o.w, o.h, px); o.img = r.img; if (r.lod) o.lod = r.lod; done.set(was, r.lod ? { img: r.img, lod: r.lod } : { img: r.img }); } catch (e) { /* keep the drawing in the map */ }
-  }
+  } } finally { bar(null); }
   return page;
 }
 async function genSaveLib(o) {

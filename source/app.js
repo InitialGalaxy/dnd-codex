@@ -146,12 +146,18 @@ const newId = () => "e" + Date.now().toString(36) + Math.random().toString(36).s
 const fmt = n => Number(n || 0).toLocaleString();
 const byName = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
 
+// A message at the foot of the screen. The same message again while it's still showing doesn't add another: it stacks on
+// the one there (×2, ×3…) and stays a little longer.
 function toast(msg, kind) {
+  const box = $("#toasts"); if (!box) return; const same = [...box.children].find(t => t.dataset.msg === msg && t.dataset.kind === (kind || ""));
+  const life = kind === "bad" ? 7000 : 3500;
+  if (same) { const n = (Number(same.dataset.n) || 1) + 1; same.dataset.n = n; let c = same.querySelector(".tcount"); if (!c) { c = document.createElement("span"); c.className = "tcount"; same.appendChild(c); } c.textContent = "×" + n;
+    clearTimeout(same._t); same._t = setTimeout(() => same.remove(), life); same.classList.remove("bump"); void same.offsetWidth; same.classList.add("bump"); return; }
   const t = document.createElement("div");
-  t.className = "toast" + (kind ? " " + kind : "");
-  t.textContent = msg;
-  $("#toasts").appendChild(t);
-  setTimeout(() => t.remove(), kind === "bad" ? 7000 : 3500);
+  t.className = "toast" + (kind ? " " + kind : ""); t.dataset.msg = msg; t.dataset.kind = kind || "";
+  const m = document.createElement("span"); m.textContent = msg; t.appendChild(m);
+  box.appendChild(t);
+  t._t = setTimeout(() => t.remove(), life);
 }
 
 // ---------- tags ----------

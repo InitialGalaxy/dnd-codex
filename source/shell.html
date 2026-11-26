@@ -793,6 +793,10 @@ body.readonly .brand::after { content: "Read-only"; font: 600 .65rem var(--ui); 
 #toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: 8px; width: min(520px, calc(100% - 32px)); }
 .toast { background: var(--panel-2); border: 1px solid var(--brass-dim); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
 .toast.bad { border-color: var(--bad); }
+.toast { display:flex; align-items:center; gap:10px; } .toast > span:first-child { flex:1; } .toast .tcount { flex:none; font:600 .8rem var(--ui); padding:1px 8px; border-radius:10px; background:var(--brass-dim); color:var(--text); }
+.toast.bump { animation:tbump .25s ease; } @keyframes tbump { 50% { transform:scale(1.03); } }
+.tnprog { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:61; width:min(520px, calc(100% - 32px)); padding:9px 14px 11px; border:1px solid var(--brass-dim); border-radius:10px; background:var(--panel-2); box-shadow:0 8px 30px rgba(0,0,0,.4); font-size:.9rem; }
+.tnprog .tnbar { margin-top:7px; } body:has(.tnprog) #toasts { bottom:84px; }
 
 @media (max-width: 1200px) {
   .topin { gap: 8px 10px; padding-top: 8px; padding-bottom: 0; }
@@ -2293,6 +2297,10 @@ a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gen
 .genreroom { position:absolute; z-index:2; width:26px; height:26px; padding:0; border-radius:50%; border:1px solid rgba(0,0,0,.5); background:rgba(20,22,28,.72); font-size:14px; line-height:24px; cursor:pointer; opacity:.6; transition:opacity .15s, transform .15s; } .genreroom:hover, .genreroom:focus-visible { opacity:1; transform:scale(1.15); } @media (hover:none) { .genreroom { opacity:.85; } }
 .linkbtn { background:none; border:0; padding:0; color:var(--accent, #e8c27a); text-decoration:underline; cursor:pointer; font:inherit; }
 .genflw { background:#7d9a5c; padding:10px; border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.4); box-sizing:border-box; } @media (max-width:860px) { .genflw { padding:6px; } }
+.tnbusy { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; background:rgba(10,12,16,.62); backdrop-filter:blur(2px); } .tnbusy.inside { position:absolute; z-index:5; }
+.tnbox { min-width:260px; max-width:80vw; padding:22px 26px; border:1px solid var(--line); border-radius:14px; background:var(--panel); text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.5); } .tnbox p { margin:12px 0 0; }
+.tnspin { width:42px; height:42px; margin:0 auto; border-radius:50%; border:4px solid rgba(232,194,122,.25); border-top-color:var(--brass); animation:tnspin .9s linear infinite; } @keyframes tnspin { to { transform:rotate(360deg); } }
+.tnbar { height:6px; margin-top:12px; border-radius:3px; background:rgba(255,255,255,.1); overflow:hidden; } .tnbar i { display:block; height:100%; width:0; background:var(--brass); transition:width .2s; }
 .tvview { position:relative; overflow:hidden; border-radius:10px; background:#3d5226; touch-action:none; cursor:grab; user-select:none; } .tvstage { position:absolute; left:0; top:0; transform-origin:0 0; }
 .tvstage > img { position:absolute; inset:0; width:100%; height:100%; image-rendering:auto; } .tvroofs { position:absolute; inset:0; width:100%; height:100%; }
 .tvhit { fill:transparent; cursor:pointer; } .tvhit:hover { fill:rgba(255,220,120,.25); } .tvhit.on { fill:rgba(255,210,60,.35); stroke:#ffd23c; stroke-width:2; }

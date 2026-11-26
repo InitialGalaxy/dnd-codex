@@ -18,7 +18,7 @@ const TN_SIZES = {
   small: { Wi: 120, Hi: 90, band: 24, gates: 2, mk: [22, 14], D: [13, 17], name: "Small town" },
   medium: { Wi: 180, Hi: 140, band: 28, gates: 3, mk: [30, 18], D: [15, 20], name: "Town" },
   large: { Wi: 250, Hi: 200, band: 32, gates: 4, mk: [38, 24], D: [16, 22], name: "Large town" } };
-const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", names: true, furn: true });
+const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", roads: "edges", names: true, furn: true });
 const tnH = (...a) => { let h = 2166136261 >>> 0; a.forEach(v => { const s = String(v); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h ^= 0x9e; h = Math.imul(h, 16777619) >>> 0; }); return (h % 999999937) + 1; };
 const TN_DIR = { E: [1, 0], W: [-1, 0], N: [0, -1], S: [0, 1] }, TN_K = { S: 0, W: 1, N: 2, E: 3 }; // k turns a building so its front faces that way
 const TN_BC = new Map();
@@ -53,34 +53,52 @@ function genTown(o) {
   const IN = new Uint8Array(W * H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const dx = (x + 0.5 - cx) / (Wi / 2), dy = (y + 0.5 - cy) / (Hi / 2), R = radAt(Math.atan2(dy, dx)), p = 2.6;
     IN[y * W + x] = Math.pow(Math.abs(dx), p) + Math.pow(Math.abs(dy), p) <= Math.pow(R, p) ? 1 : 0; }
   const isIn = (x, y) => ok(x, y) && IN[y * W + x] === 1;
+  // The market place, where the main streets meet, and the line of each street out from it, chosen first: the wall is
+  // straightened where each gate will be, so the gatehouse stands in a flat run of wall.
+  const mw = SZ.mk[0] + genInt(r, -2, 3), mh = SZ.mk[1] + genInt(r, -2, 2), M = { x: cx - Math.floor(mw / 2), y: cy - Math.floor(mh / 2), w: mw, h: mh };
+  const nG = o.gates && o.gates !== "auto" ? Math.max(2, Math.min(4, Number(o.gates))) : SZ.gates;
+  const order = r() < 0.5 ? ["E", "W", "N", "S"] : ["N", "S", "E", "W"], gateDirs = order.slice(0, nG), dirs = order.filter(d => gateDirs.includes(d) || r() < 0.85);
+  const C0 = {}; dirs.forEach(d => { C0[d] = d === "E" || d === "W" ? genInt(r, M.y + 3, M.y + M.h - 4) : genInt(r, M.x + 3, M.x + M.w - 4); });
+  gateDirs.forEach(d => { if (!dirs.includes(d)) return; const [ux, uy] = TN_DIR[d], horiz = !uy, c0 = C0[d];
+    let px = horiz ? cx : c0, py = horiz ? c0 : cy; while (isIn(px + ux, py + uy)) { px += ux; py += uy; } // the last square inside, on the street's line
+    for (let j = -11; j <= 11; j++) for (let k = -9; k <= 9; k++) { const x = horiz ? px + k : px + j, y = horiz ? py + j : py + k; if (!ok(x, y)) continue;
+      const inside = horiz ? (ux > 0 ? x <= px : x >= px) : (uy > 0 ? y <= py : y >= py); IN[y * W + x] = inside ? 1 : 0; } });
   // How far each square inside is from the edge (the wall is the outer 2, the lane inside it the next 3).
   const dist = new Int16Array(W * H).fill(-1), q = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (!IN[y * W + x]) continue; let edge = false; for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) if (!isIn(x + dx, y + dy)) { edge = true; break; } if (edge) { dist[y * W + x] = 0; q.push(y * W + x); } }
   for (let i = 0; i < q.length; i++) { const c = q[i], x = c % W, y = (c - x) / W; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (!isIn(nx, ny) || dist[ny * W + nx] >= 0) continue; dist[ny * W + nx] = dist[c] + 1; q.push(ny * W + nx); } }
   const dIn = (x, y) => ok(x, y) ? dist[y * W + x] : -1;
   if (walled) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const d = dIn(x, y); if (d >= 0 && d <= 1) put(x, y, TNT.WALL); else if (d >= 2 && d <= 4) put(x, y, TNT.RING); }
-  // The market place, where the main streets meet.
-  const mw = SZ.mk[0] + genInt(r, -2, 3), mh = SZ.mk[1] + genInt(r, -2, 2), M = { x: cx - Math.floor(mw / 2), y: cy - Math.floor(mh / 2), w: mw, h: mh };
   for (let y = M.y; y < M.y + M.h; y++) for (let x = M.x; x < M.x + M.w; x++) put(x, y, TNT.MARKET);
-  // The main streets: out from the market to the gates and on as roads to the edge of the map; a jog or two along the way.
-  const nG = o.gates && o.gates !== "auto" ? Math.max(2, Math.min(4, Number(o.gates))) : SZ.gates;
-  const order = r() < 0.5 ? ["E", "W", "N", "S"] : ["N", "S", "E", "W"], gateDirs = order.slice(0, nG), dirs = order.filter(d => gateDirs.includes(d) || r() < 0.85);
   const streets = [], buildings = [], towers = [], gates = [], towerWall = [];
   dirs.forEach((d, si) => { const [ux, uy] = TN_DIR[d], horiz = !uy;
     const x0 = d === "E" ? M.x + M.w : d === "W" ? M.x - 1 : 0, y0 = d === "S" ? M.y + M.h : d === "N" ? M.y - 1 : 0;
-    const c0 = horiz ? genInt(r, M.y + 3, M.y + M.h - 4) : genInt(r, M.x + 3, M.x + M.w - 4);
+    const c0 = C0[d], edges = o.roads === "edges";
     const cellAt = (t, c) => horiz ? [x0 + ux * t, c] : [c, y0 + uy * t];
     let tEnd = 0; while (ok(...cellAt(tEnd, c0))) tEnd++; tEnd = Math.max(0, tEnd);
     let tW = -1; for (let t = 0; t < tEnd; t++) { const [x, y] = cellAt(t, c0); if (!isIn(x, y)) { tW = t; break; } } if (tW < 0) tW = tEnd;
     const tWall = walled ? (() => { for (let t = 0; t < tEnd; t++) if (dIn(...cellAt(t, c0)) === 1) return t; return tW - 2; })() : tW;
     // Jogs: inside (clear of the market and the gate) and outside (the road bends a little on its way out).
     const jogs = []; const addJogs = (a, b, n) => { for (let i = 0; i < n; i++) if (b - a > 16) jogs.push([genInt(r, a + 6, b - 6), (r() < 0.5 ? -1 : 1) * genInt(r, 1, 2)]); };
-    addJogs(6, tWall - 10, genInt(r, 0, 2)); addJogs(tWall + 12, tEnd - 4, genInt(r, 0, 2)); jogs.sort((a, b) => a[0] - b[0]);
+    addJogs(6, tWall - 10, genInt(r, 0, 2)); if (!edges) addJogs(tWall + 12, tEnd - 4, genInt(r, 0, 2)); jogs.sort((a, b) => a[0] - b[0]);
+    const tOut = edges && gateDirs.includes(d) ? Math.min(tEnd, tW + 7) : tEnd; // from the map edges: straight only a little way out of the gate
     const cAt = t => { let c = c0; jogs.forEach(([jt, dc]) => { if (t >= jt) c += dc; }); return Math.max(horiz ? 4 : 4, Math.min(horiz ? H - 5 : W - 5, c)); };
     const gated = gateDirs.includes(d); if (!gated) { let t = 0; while (t < tEnd) { const [x, y] = cellAt(t, c0); if (!isIn(x, y) || dIn(x, y) <= (walled ? 4 : 1)) break; t++; } tEnd = t; jogs.length = 0; jogs.push(...[]); }
-    for (let t = 0; t < tEnd; t++) { const c = cAt(t); for (let j = -2; j <= 2; j++) { const [x, y] = cellAt(t, c + j), v = at(x, y);
+    for (let t = 0; t < (gated ? tOut : tEnd); t++) { const c = cAt(t); for (let j = -2; j <= 2; j++) { const [x, y] = cellAt(t, c + j), v = at(x, y);
       if (v === TNT.MARKET) continue; if (!gated && (v === TNT.RING || v === TNT.WALL)) continue; put(x, y, isIn(x, y) && dIn(x, y) > 1 ? TNT.STREET : isIn(x, y) && walled ? TNT.WALL : TNT.ROAD); } }
-    streets.push({ d, horiz, ux, uy, x0, y0, c0, cAt, cellAt, tEnd, tW, tWall: gated ? tWall : tEnd + 3, jogs, shambles: false, gated });
+    // From the map edges: on from there the road bends away to somewhere along the edge of the map (now and then round the
+    // corner onto the next side), a smooth curve 5 squares wide.
+    let end = null;
+    if (gated && edges && tOut < tEnd) { const [sx, sy] = cellAt(tOut - 1, cAt(tOut - 1)), S0 = horiz ? [sx + 0.5, sy + 0.5] : [sx + 0.5, sy + 0.5];
+      const side = r() < 0.7 ? d : (horiz ? (r() < 0.5 ? "N" : "S") : (r() < 0.5 ? "E" : "W")), [ox, oy] = TN_DIR[side];
+      let E; if (side === d) { const span = horiz ? H : W, at0 = Math.max(10, Math.min(span - 10, c0 + (r() - 0.5) * span * 0.6)); E = horiz ? [ux > 0 ? W - 0.5 : 0.5, at0] : [at0, uy > 0 ? H - 0.5 : 0.5]; }
+      else { const along = horiz ? (ux > 0 ? W * (0.72 + r() * 0.2) : W * (0.08 + r() * 0.2)) : (uy > 0 ? H * (0.72 + r() * 0.2) : H * (0.08 + r() * 0.2)); E = ox ? [ox > 0 ? W - 0.5 : 0.5, along] : [along, oy > 0 ? H - 0.5 : 0.5]; }
+      const Ld = Math.hypot(E[0] - S0[0], E[1] - S0[1]), P1 = [S0[0] + ux * Ld * 0.4, S0[1] + uy * Ld * 0.4], P2 = [E[0] - ox * Ld * 0.3, E[1] - oy * Ld * 0.3];
+      const n = Math.ceil(Ld * 3); for (let i = 0; i <= n; i++) { const t = i / n, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, e = t ** 3, X = a * S0[0] + b * P1[0] + c * P2[0] + e * E[0], Y = a * S0[1] + b * P1[1] + c * P2[1] + e * E[1];
+        for (let yy = Math.floor(Y - 3); yy <= Math.ceil(Y + 3); yy++) for (let xx = Math.floor(X - 3); xx <= Math.ceil(X + 3); xx++) { if (Math.hypot(xx + 0.5 - X, yy + 0.5 - Y) > 2.6 || !ok(xx, yy) || isIn(xx, yy)) continue; const v = at(xx, yy); if (v === TNT.GRASS || v === TNT.ROAD) put(xx, yy, TNT.ROAD); } }
+      end = [Math.min(W - 1, Math.max(0, Math.floor(E[0]))), Math.min(H - 1, Math.max(0, Math.floor(E[1])))]; }
+    if (gated && !end) { const [ex, ey] = cellAt(tEnd - 1, cAt(tEnd - 1)); end = [ex, ey]; }
+    streets.push({ d, horiz, ux, uy, x0, y0, c0, cAt, cellAt, tEnd: gated ? tOut : tEnd, tW, tWall: gated ? tWall : tEnd + 3, jogs, shambles: false, gated, end });
     // The gatehouse where it goes through the wall: its gate passage on the street, its front to the outside.
     if (walled && gated) { const B = tnB({ type: "gatehouse", seed: tnH(o.seed, "gate", d), size: "large" }), T = tnTurn(B, d);
       const G0 = B.levels.find(L => L.level === 0), pr = G0.rooms.find(rm => rm.gate) || G0.rooms[0], pp = tnRectTurn(T.tf, pr), L = horiz ? T.w : T.h;
@@ -215,7 +233,7 @@ function genTown(o) {
       towers.push({ x: tx, y: ty, cx: tcx, cy: tcy }); last = [x, y]; }); }
   // The rest of the town's ground is yards and gardens.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === TNT.GRASS && isIn(x, y)) put(x, y, TNT.YARD);
-  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
+  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, roadEnds: streets.filter(st => st.end).map(st => st.end), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
   tnAccess(T); return T;
 }
 // Can a 2×2 creature get to every door and every yard, and a 3×6 wagon from every road in to the market? Where a yard is
@@ -436,13 +454,16 @@ async function tnUpload(svgUrl, w, h, cache, px) {
   const key = tnH(svgUrl) + ":" + svgUrl.length + ":" + (px || 40); if (cache[key]) return typeof cache[key] === "string" ? { img: cache[key] } : cache[key]; if (!S.assets || !S.assets.upload) return { img: svgUrl };
   try { const r = await genPyramid(svgUrl, w, h, px || genDetailPx()); cache[key] = r.lod ? { img: r.img, lod: r.lod } : { img: r.img }; return cache[key]; } catch (e) { return { img: svgUrl }; } }
 async function tnPlace(camp, o) {
-  toast("Laying out the town…"); await new Promise(res => setTimeout(res, 30));
+  tnProgress("Laying out the town…", 0); await new Promise(res => setTimeout(res, 40));
+  try { await tnPlaceRun(camp, o); } finally { tnProgress(null); } }
+async function tnPlaceRun(camp, o) {
   const { T, page } = tnTownPage(o), cache = page.town.img, todo = page.objs.filter(ob => ob.land || String(ob.img).startsWith("data:image/svg"));
   // A few at a time: while one picture is drawn the others upload.
   let n = 0; const one = async ob => { if (ob.land) { const svg = genUrl(tnTerrainSvg(T, ob.px, ob.vb)); delete ob.vb; delete ob.land; delete ob.px; ob.img = svg; }
-    const r = await tnUpload(ob.img, ob.w, ob.h, cache, page.town.px); ob.img = r.img; if (r.lod) ob.lod = r.lod; if (++n % 10 === 0) toast(`Drawing the town… ${Math.round(n / todo.length * 100)}%`); };
+    const r = await tnUpload(ob.img, ob.w, ob.h, cache, page.town.px); ob.img = r.img; if (r.lod) ob.lod = r.lod; if (++n % 2 === 0) tnProgress(`Drawing the town… ${n} of ${todo.length} pictures`, n / todo.length); };
+  tnProgress(`Drawing the town… 0 of ${todo.length} pictures`, 0);
   for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(one));
-  const pid = vid("p"), order = vPages(camp).length, nm = o.name || (TN_SIZES[o.size] || TN_SIZES.medium).name;
+  const pid = vid("p"), order = vPages(camp).length, nm = o.name || (TN_SIZES[o.size] || TN_SIZES.medium).name; tnProgress("Saving the map…", 1);
   await vSave("vttpages/" + pid, Object.assign(page, { camp, name: nm, order, folder: "Towns", open: false, created: new Date().toISOString() }));
   for (let i = 0; i < 60 && !S.vttPages.has(pid); i++) await new Promise(res => setTimeout(res, 50));
   VTT.camp = camp; VTT.page = pid; if (location.hash === "#vtt-" + camp) render(); else location.hash = "vtt-" + camp;
@@ -529,6 +550,7 @@ function viewTownGen(camp) {
       <label><span>Size</span>${seg("size", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</label>
       <label><span>Walls</span>${seg("walls", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
       <label><span>Gates <small class="muted">main roads in</small></span>${seg("gates", [["auto", "Any"], [2, "2"], [3, "3"], [4, "4"]])}</label>
+      <label><span>Roads in <small class="muted">to the gates</small></span>${seg("roads", [["centre", "From the centre"], ["edges", "From the map edges"]])}</label>
       <label><span>Streets</span>${seg("streets", [["dirt", "Dirt"], ["mixed", "Mixed"], ["stone", "Stone"]])}</label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">in every building</small></span></label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="names"${o.names !== false ? " checked" : ""}> <span>Names <small class="muted">for the GM, over the roofs</small></span></label>
@@ -540,9 +562,20 @@ function viewTownGen(camp) {
       <p class="muted small">A medium town takes a minute to draw. Insides open up on the GM's screen as tokens come near, so keep it open while you play.</p>
     </div><div class="genpreview"><div id="tv-stats" class="small"></div><div class="tvview" id="tv-view"><div class="tvstage" id="tv-stage"></div></div><p class="muted small">Scroll or pinch to zoom, drag to look round. Click a building to look inside.</p><div id="tv-look"></div></div></div></section>`;
 }
+const tvKey = () => JSON.stringify([TNV.o.seed, TNV.o.size, TNV.o.walls, TNV.o.gates, TNV.o.streets, TNV.o.roads]);
+// The loading screen: a spinner (it keeps turning while the town is worked out) and, when there's a count, a bar.
+// A long job (drawing a whole town) shows a progress bar at the foot of the screen instead, and doesn't block anything.
+function tnProgress(msg, pct) {
+  let el = document.getElementById("tnprog"); if (!msg) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement("div"); el.id = "tnprog"; el.className = "tnprog"; el.setAttribute("role", "status"); el.innerHTML = `<span></span><div class="tnbar"><i></i></div>`; document.body.appendChild(el); }
+  el.firstChild.textContent = msg; el.querySelector(".tnbar i").style.width = Math.round((pct || 0) * 100) + "%"; }
+function tnBusy(msg, pct, over) {
+  let el = document.getElementById("tnbusy"); if (!msg) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement("div"); el.id = "tnbusy"; el.className = "tnbusy" + (over ? " inside" : ""); el.setAttribute("role", "status"); el.innerHTML = `<div class="tnbox"><div class="tnspin" aria-hidden="true"></div><p></p><div class="tnbar" hidden><i></i></div></div>`; (over || document.body).appendChild(el); }
+  el.querySelector("p").textContent = msg; const bar = el.querySelector(".tnbar"); bar.hidden = pct == null; if (pct != null) bar.firstChild.style.width = Math.round(pct * 100) + "%"; }
 function tvBuild() { const o = TNV.o, t0 = performance.now(); TNV.T = genTown(o); TNV.ms = Math.round(performance.now() - t0); TNV.sel = null; }
 function tvRender() {
-  const st = document.getElementById("tv-stage"); if (!st || !TNV.o) return; if (!TNV.T || TNV.T.o !== TNV.o || TNV.T.key !== JSON.stringify([TNV.o.seed, TNV.o.size, TNV.o.walls, TNV.o.gates, TNV.o.streets])) { tvBuild(); TNV.T.key = JSON.stringify([TNV.o.seed, TNV.o.size, TNV.o.walls, TNV.o.gates, TNV.o.streets]); }
+  const st = document.getElementById("tv-stage"); if (!st || !TNV.o) return; if (!TNV.T || TNV.T.o !== TNV.o || TNV.T.key !== tvKey()) { if (!TNV.building) { TNV.building = 1; tnBusy("Laying out the town…", null, document.getElementById("tv-view")); setTimeout(() => { try { tvBuild(); TNV.T.key = tvKey(); } finally { TNV.building = 0; tnBusy(null); } tvRender(); }, 40); } return; }
   const T = TNV.T, s = 4; st.style.width = T.W * s + "px"; st.style.height = T.H * s + "px";
   st.innerHTML = `<img src="${genUrl(tnTerrainSvg(T, s))}" alt="" draggable="false"><svg class="tvroofs" viewBox="0 0 ${T.W * s} ${T.H * s}">${tnRoofsSvg(T, s)}${T.buildings.map(b => `<rect class="tvhit${TNV.sel === b.id ? " on" : ""}" data-b="${b.id}" x="${b.x * s}" y="${b.y * s}" width="${b.w * s}" height="${b.h * s}"/>`).join("")}</svg>`;
   const by = {}; T.buildings.forEach(b => { const n = tnName(b); by[n] = (by[n] || 0) + 1; });

@@ -572,7 +572,7 @@ function vgVillagePage(o) {
 }
 // Draw the land tiles (and upload them with the buildings' pictures).
 async function vgPlace(camp, o) {
-  toast("Laying out the village…"); await new Promise(res => setTimeout(res, 30));
+  if (typeof tnProgress === "function") tnProgress("Laying out the village…", 0); await new Promise(res => setTimeout(res, 30));
   const { V, page } = vgVillagePage(o), land = page.objs.filter(ob => ob.land);
   if (!(S.assets && S.assets.upload)) { // nowhere to upload: the land as one drawing
     page.objs = page.objs.filter(ob => !ob.land); page.objs.unshift({ id: vid("o"), layer: "map", level: 0, x: 0, y: 0, w: V.W, h: V.H, img: genUrl(vgTerrainSvg(V, 12)) });
