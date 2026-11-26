@@ -466,7 +466,7 @@ function vgTerrainSvg(V, s, vb, opts) {
   const fx = (box[0] - 12) * s, fy = (box[1] - 12) * s, fw = (box[2] + 24) * s, fh = (box[3] + 24) * s;
   // Roads, lanes, tracks and footpaths as one patch of packed earth, like a building's yard path: the shapes run together,
   // the edges wander a little (noise), then the blur is cut back to a clean edge. No border, no lines.
-  out.push(`<filter id="vgrd" filterUnits="userSpaceOnUse" x="${fx}" y="${fy}" width="${fw}" height="${fh}" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="${(0.55 / s).toFixed(5)}" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="${(s * 0.9).toFixed(1)}" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="${(s * 0.5).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 14 -6.5"/></filter>`);
+  out.push(`<filter id="vgrd" filterUnits="userSpaceOnUse" x="${fx}" y="${fy}" width="${fw}" height="${fh}" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="${(0.55 / s).toFixed(5)}" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="${(s * 0.5).toFixed(1)}" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="${(s * 0.5).toFixed(2)}"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 14 -6.5"/></filter>`);
   { const sp = genRng(99), blobs = [], ln = [];
     const add = (d, wd) => { ln.push(`<path d="${pd(d)}" stroke-width="${(s * wd).toFixed(1)}"/>`); for (let i = 3; i < d.length - 2; i += 3) if (sp() < 0.5) blobs.push(`<circle cx="${((d[i][0] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" cy="${((d[i][1] + (sp() - 0.5) * 0.5) * s).toFixed(1)}" r="${(s * wd * (0.45 + sp() * 0.25)).toFixed(1)}"/>`); };
     (V.paths || []).forEach(d => add(d, 1.1)); (V.tracks || []).forEach(d => add(d, 2.1));
@@ -476,7 +476,9 @@ function vgTerrainSvg(V, s, vb, opts) {
       if (at(x, y) !== VGT.ROAD) continue; let inner = true; for (let b = -1; b <= 1 && inner; b++) for (let a = -1; a <= 1; a++) if (!ROADY(at(x + a, y + b))) { inner = false; break; } if (!inner) continue;
       const rr = genRng(((x * 2654435761) ^ (y * 40503) ^ 77) >>> 0); if (rr() < 0.55) tint += `<ellipse cx="${((x + 0.2 + rr() * 0.6) * s).toFixed(1)}" cy="${((y + 0.2 + rr() * 0.6) * s).toFixed(1)}" rx="${(s * (0.5 + rr() * 0.6)).toFixed(1)}" ry="${(s * (0.4 + rr() * 0.5)).toFixed(1)}" fill="${tc(rr)}" opacity="${(0.5 + rr() * 0.4).toFixed(2)}"/>`; }
     (V.paths || []).concat(V.tracks || []).forEach((d, pi) => { const wd = pi < (V.paths || []).length ? 1.1 : 2.1; d.forEach(([x, y], i) => { if (i % 3) return; const rr = genRng(((Math.round(x * 4) * 2654435761) ^ (Math.round(y * 4) * 40503) ^ pi) >>> 0); if (rr() < 0.6) tint += `<circle cx="${(x * s).toFixed(1)}" cy="${(y * s).toFixed(1)}" r="${(s * wd * (0.2 + rr() * 0.15)).toFixed(1)}" fill="${tc(rr)}" opacity="${(0.5 + rr() * 0.4).toFixed(2)}"/>`; }); });
-    out.push(`<g filter="url(#vgrd)" fill="none" stroke="hsl(34 30% 56%)" stroke-linecap="round" stroke-linejoin="round"><path d="${all.join("")}" stroke-width="${ww}"/>${ln.join("")}<g fill="hsl(34 30% 56%)" stroke="none">${blobs.join("")}</g><g stroke="none">${tint}</g></g>`); }
+    const shape = `<path d="${all.join("")}" stroke-width="${ww}"/>${ln.join("")}<g fill="hsl(34 30% 56%)" stroke="none">${blobs.join("")}</g>`;
+    out.push(`<g filter="url(#vgrd)" fill="none" stroke="hsl(34 30% 56%)" stroke-linecap="round" stroke-linejoin="round">${shape}<g stroke="none">${tint}</g></g>`);
+  }
   // Bridges where roads cross water: a plank deck with its rails, as wide as the road.
   // Pebbles and grass along the roads and paths.
   if (fine) { const k = s / 40; let peb = ""; const pebble = (rr, x, y) => { peb += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${((1 + rr() * 2.2) * k).toFixed(1)}" fill="hsl(30 ${(10 + rr() * 15).toFixed(0)}% ${(40 + rr() * 25).toFixed(0)}%)" opacity=".8"/>`; };
@@ -486,13 +488,30 @@ function vgTerrainSvg(V, s, vb, opts) {
       if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => GR.has(at(x + a, y + b))) && rr() < 0.7) addTuft(rr, (x + rr()) * s, (y + rr()) * s, (3 + rr() * 4) * k); }
     (V.paths || []).concat(V.tracks || []).forEach((d, pi) => d.forEach(([x, y], i) => { if (i % 2 || x < ix0 || y < iy0 || x > ix1 || y > iy1) return; const rr = sq(Math.round(x * 4) + pi, Math.round(y * 4));
       pebble(rr, (x + (rr() - 0.5) * 0.7) * s, (y + (rr() - 0.5) * 0.7) * s); if (rr() < 0.5) addTuft(rr, (x + (rr() - 0.5) * 1.3) * s, (y + (rr() - 0.5) * 1.3) * s, (3 + rr() * 3) * k); }));
-    // An edge of grass tufts along both sides of every road, lane, track and path.
-    const edgeT = (d, half, key) => { for (let i = 1; i < d.length - 1; i++) { const rr = sq(Math.round(d[i][0] * 4) + key, Math.round(d[i][1] * 4) - key); if (rr() < 0.25) continue;
-        const a = d[i - 1], b = d[i + 1], tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, nx = -ty / l, ny = tx / l;
-        [1, -1].forEach(sd => { if (rr() < 0.3) return; const o = half + (rr() - 0.35) * 0.45, ex = d[i][0] + nx * o * sd, ey = d[i][1] + ny * o * sd; if (ex < ix0 || ey < iy0 || ex > ix1 || ey > iy1) return;
-          const t = at(Math.floor(ex + nx * sd * 0.5), Math.floor(ey + ny * sd * 0.5)); if (!GR.has(t) || t === VGT.WOOD) return; addTuft(rr, ex * s, ey * s, (3.5 + rr() * 4) * k); }); } };
-    V.roads.concat(V.lanes).forEach((rd, i) => edgeT(rd.d, VG_RW, i * 31)); (V.fillets || []).forEach((d, i) => edgeT(d, VG_RW, 500 + i));
-    (V.paths || []).forEach((d, i) => edgeT(d, 0.55, 900 + i)); (V.tracks || []).forEach((d, i) => edgeT(d, 1.05, 1500 + i));
+    // The grass is taller than the packed earth: along both sides of every road and path it leans out over the edge in clumps
+    // of blades, each throwing a little shadow onto the earth under it.
+    const blades = {}, shade = [], BC = ["hsl(95 32% 38%)", "hsl(92 34% 43%)", "hsl(98 30% 34%)", "hsl(88 36% 47%)"];
+    const clump = (rr, x, y, nx, ny, len) => { // rooted at (x, y) on the grass side, leaning along (nx, ny) over the road
+      shade.push(`<ellipse cx="${((x + nx * len * 0.55) * s).toFixed(1)}" cy="${((y + ny * len * 0.55 + 0.08) * s).toFixed(1)}" rx="${(len * 0.5 * s).toFixed(1)}" ry="${(len * 0.32 * s).toFixed(1)}"/>`);
+      for (let j = 0, n = 4 + Math.floor(rr() * 4); j < n; j++) { const a = Math.atan2(ny, nx) + (rr() - 0.5) * 1.3, L = len * (0.55 + rr() * 0.55), w = 0.05 + rr() * 0.05, bx = x + (rr() - 0.5) * 0.3, by = y + (rr() - 0.5) * 0.3;
+        const tx = bx + Math.cos(a) * L, ty = by + Math.sin(a) * L, px = -Math.sin(a) * w, py = Math.cos(a) * w, c = BC[Math.floor(rr() * BC.length)];
+        blades[c] = (blades[c] || "") + `M${((bx + px) * s).toFixed(1)} ${((by + py) * s).toFixed(1)}Q${((bx + tx) / 2 * s + px * s * 0.6).toFixed(1)} ${((by + ty) / 2 * s + py * s * 0.6).toFixed(1)} ${(tx * s).toFixed(1)} ${(ty * s).toFixed(1)}Q${((bx + tx) / 2 * s - px * s * 0.6).toFixed(1)} ${((by + ty) / 2 * s - py * s * 0.6).toFixed(1)} ${((bx - px) * s).toFixed(1)} ${((by - py) * s).toFixed(1)}Z`; } };
+    // Where the edge really is: the outline of all the roads and paths together (each a line with a half-width), sampled
+    // every quarter square; every sample just outside it, on grass, may root a clump leaning in toward the nearest line.
+    const segs = []; const addSeg = (d, half, len) => { for (let i = 0; i < d.length - 1; i += 1) segs.push([d[i][0], d[i][1], d[i + 1][0], d[i + 1][1], half, len]); };
+    V.roads.concat(V.lanes).forEach(rd => addSeg(rd.loop ? rd.d.concat([rd.d[0]]) : rd.d, VG_RW, 0.55)); (V.fillets || []).forEach(d => addSeg(d, VG_RW, 0.55));
+    (V.paths || []).forEach(d => addSeg(d, 0.55, 0.32)); (V.tracks || []).forEach(d => addSeg(d, 1.05, 0.45));
+    const bucket = new Map(), bk = (x, y) => Math.floor(x / 3) + "," + Math.floor(y / 3);
+    segs.forEach((g, i) => { const x0 = Math.min(g[0], g[2]) - g[4] - 1, x1 = Math.max(g[0], g[2]) + g[4] + 1, y0 = Math.min(g[1], g[3]) - g[4] - 1, y1 = Math.max(g[1], g[3]) + g[4] + 1;
+      if (x1 < ix0 - 3 || y1 < iy0 - 3 || x0 > ix1 + 3 || y0 > iy1 + 3) return; for (let by = Math.floor(y0 / 3); by <= Math.floor(y1 / 3); by++) for (let bx = Math.floor(x0 / 3); bx <= Math.floor(x1 / 3); bx++) { const k2 = bx + "," + by; (bucket.get(k2) || bucket.set(k2, []).get(k2)).push(i); } });
+    for (let y = iy0; y < iy1; y += 0.25) for (let x = ix0; x < ix1; x += 0.25) { const near = bucket.get(bk(x, y)); if (!near) continue;
+      let best = Infinity, bq = null, bl = 0.5; for (const i of near) { const [ax, ay, bx2, by2, half, len] = segs[i], dx = bx2 - ax, dy = by2 - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1))), qx = ax + dx * t, qy = ay + dy * t, dd = Math.hypot(x - qx, y - qy) - half; if (dd < best) { best = dd; bq = [qx, qy]; bl = len; } }
+      if (best < 0.0 || best > 0.35) continue; const t0 = at(Math.floor(x), Math.floor(y)); if (t0 === VGT.WOOD || t0 === VGT.WATER || t0 === VGT.BRIDGE || t0 === VGT.POND || t0 === VGT.ROCK || t0 === VGT.FIELD || t0 === 255) continue;
+      const rr = sq(Math.round(x * 4) + 4099, Math.round(y * 4) - 77); if (rr() < 0.4) continue; const l = Math.hypot(bq[0] - x, bq[1] - y) || 1;
+      clump(rr, x + (rr() - 0.5) * 0.1, y + (rr() - 0.5) * 0.1, (bq[0] - x) / l, (bq[1] - y) / l, bl * (0.7 + rr() * 0.6)); if (rr() < 0.15) addTuft(rr, (x - (bq[0] - x) / l * 0.4) * s, (y - (bq[1] - y) / l * 0.4) * s, (3.5 + rr() * 4) * k); }
+    out.push(peb); peb = "";
+    if (shade.length) out.push(`<filter id="vgbs" filterUnits="userSpaceOnUse" x="${(box[0] - 4) * s}" y="${(box[1] - 4) * s}" width="${(box[2] + 8) * s}" height="${(box[3] + 8) * s}"><feGaussianBlur stdDeviation="${(s * 0.12).toFixed(2)}"/></filter><g filter="url(#vgbs)" fill="#2e2414" opacity=".35">${shade.join("")}</g>`);
+    out.push(Object.entries(blades).map(([c, d]) => `<path d="${d}" fill="${c}"/>`).join(""));
     out.push(peb); }
   out.push(Object.values(tuftPaths).map(([c, d]) => `<path d="${d}" stroke="${c}" stroke-width="${(1.6 * s / 40).toFixed(2)}" stroke-linecap="round" fill="none"/>`).join(""));
   { const deck = (lines, wd) => { const runs = []; lines.forEach(d => { let cur = null; d.forEach(p => { const t = at(Math.floor(p[0]), Math.floor(p[1])); if (t === VGT.BRIDGE) { if (!cur) { cur = []; runs.push(cur); } cur.push(p); } else cur = null; }); });
