@@ -551,7 +551,7 @@ function vgVillagePage(o) {
   const V = genVillage(o), objs = [], walls = [], areas = [], links = [], id = () => vid("o"), P = GEN_PX;
   let minL = 0, maxL = 1;
   // The land, in tiles (so no one picture is too big to draw).
-  const TS = 32; for (let ty = 0; ty < V.H; ty += TS) for (let tx = 0; tx < V.W; tx += TS) { const w = Math.min(TS, V.W - tx), h = Math.min(TS, V.H - ty);
+  const TS = Math.min(32, Math.floor(2600 / genDetailPx())); for (let ty = 0; ty < V.H; ty += TS) for (let tx = 0; tx < V.W; tx += TS) { const w = Math.min(TS, V.W - tx), h = Math.min(TS, V.H - ty);
     objs.push({ id: id(), layer: "map", level: 0, x: tx, y: ty, w, h, px: 40, land: 1, img: "", vb: [tx, ty, w, h] }); }
   V.buildings.forEach((b, bi) => {
     const { page } = genPage(b.o), m = 3, BW = b.B.W, BH = b.B.H, tf = vgTurn(b.k, BW, BH), to = (x, y) => { const [a, c] = tf(x - m, y - m); return [a + b.x, c + b.y]; };
@@ -697,6 +697,7 @@ function viewVillageGen(camp) {
       <label><span>Mine <small class="muted">in the mountains</small></span>${seg("mine", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
       <label class="genchk"><input type="checkbox" data-act="gvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture in the buildings</span></label>
       <label class="genchk"><input type="checkbox" data-act="gvchk" data-k="names"${o.names !== false ? " checked" : ""}> <span>Names <small class="muted">buildings and rooms, for the GM</small></span></label>
+      ${genDetailSeg()}
       <button class="btn" data-act="gvroll">🎲 New village</button>
       <label><span>Seed <small class="muted">the same seed makes the same village</small></span><input id="gv-seed" type="number" value="${o.seed}"></label>
       <p class="muted small" id="gv-custom">${o.roads ? "Your own roads: a new seed keeps them and regrows the village round them." : ""}</p>

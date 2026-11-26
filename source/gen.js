@@ -949,6 +949,7 @@ function viewGen(camp, kind, type) {
         <label><span>Porch</span>${seg("porch", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
         <label class="genchk"><input type="checkbox" data-act="genchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">each piece movable on the tabletop · <a href="#gen-${esc(camp)}/furniture">the pieces</a></small></span></label>
         <label class="genchk"><input type="checkbox" data-act="genchk" data-k="overlay"${o.overlay ? " checked" : ""}> <span>Show grid, walls, doors &amp; windows <small class="muted">as the tabletop will use them</small></span></label>
+        ${genDetailSeg()}
         <button class="btn" data-act="genroll">🎲 New layout</button>
         <label><span>Seed <small class="muted">the same seed makes the same building</small></span><input id="gen-seed" type="number" value="${o.seed}"></label>
         <hr>
@@ -972,19 +973,37 @@ const genRefresh = () => { const el = document.getElementById("genpreview"); if 
 const genReadForm = () => { const o = GEN.o; if (!o) return; const n = document.getElementById("gen-name"), t = document.getElementById("gen-tags"); if (n) o.name = n.value.trim(); if (t) o.tags = t.value.split(",").map(x => x.trim()).filter(Boolean); };
 // The pictures as files: each drawn once onto a canvas and uploaded (WebP where the browser can, else PNG), so a map is a
 // few small links instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
+// How sharp generated maps are drawn: pixels per square of the most detailed copy (the board shows smaller copies when
+// zoomed out, so more detail costs only upload time and space, not speed). Kept on this device.
+const GEN_DETAIL = { standard: 40, high: 80, ultra: 120 };
+const genDetail = () => { try { return GEN_DETAIL[localStorage.getItem("codex.mapDetail")] ? localStorage.getItem("codex.mapDetail") : "high"; } catch (e) { return "high"; } };
+const genDetailPx = () => GEN_DETAIL[genDetail()];
+const genDetailSeg = () => `<label><span>Detail <small class="muted">how sharp it is close up</small></span><div class="seg" role="group">${[["standard", "Standard"], ["high", "High"], ["ultra", "Ultra"]].map(([v, l]) => `<button class="${genDetail() === v ? "on" : ""}" data-act="gendetail" data-v="${v}" aria-pressed="${genDetail() === v}">${l}</button>`).join("")}</div></label>`;
+document.addEventListener("click", ev => { const b = ev.target.closest && ev.target.closest("[data-act=gendetail]"); if (!b) return; try { localStorage.setItem("codex.mapDetail", b.dataset.v); } catch (e) { }
+  b.parentElement.querySelectorAll("button").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", x === b); }); });
+// One picture as an image pyramid: drawn once at full detail, then halved again and again down to about 10 pixels a square
+// (small pictures, a chair, just the one copy). Returns { img, lod: [[px, url], …] } (most detailed copy first in lod).
+async function genPyramid(svgUrl, w, h, px) {
+  if (!S.assets || !S.assets.upload) return { img: svgUrl };
+  const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = svgUrl; });
+  const up = async cv => { const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.88)); if (!blob) throw new Error("no image"); const type = blob.type || "image/png";
+    return assetPath(await S.assets.upload(new File([blob], "generated." + (type.includes("webp") ? "webp" : "png"), { type }))); };
+  let cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(w * px)); cv.height = Math.max(1, Math.round(h * px)); cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+  const img = await up(cv); if (w * h <= 6) { cv.width = cv.height = 0; return { img }; }
+  const lod = []; let p = px;
+  while (p / 2 >= 10) { p /= 2; const c2 = document.createElement("canvas"); c2.width = Math.max(1, Math.round(w * p)); c2.height = Math.max(1, Math.round(h * p)); const g = c2.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(cv, 0, 0, c2.width, c2.height);
+    cv.width = cv.height = 0; cv = c2; lod.push([p, await up(cv)]); }
+  cv.width = cv.height = 0; return { img, lod };
+}
+// The pictures as files: each drawn once onto a canvas and uploaded, with its smaller copies, so a map is a few small links
+// instead of megabytes of drawing that every screen redraws. Without uploads they stay in the map as drawings.
 async function genStoreImages(page, msg) {
   if (!S.assets || !S.assets.upload) return page;
-  toast((msg || "Drawing the building") + "…"); const done = new Map(); // the same picture (a chair, say) is uploaded once
+  toast((msg || "Drawing the building") + "…"); const done = new Map(), px = genDetailPx(); // the same picture (a chair, say) is uploaded once
   for (const o of page.objs) {
     if (!String(o.img).startsWith("data:image/svg")) continue;
-    if (done.has(o.img)) { o.img = done.get(o.img); continue; } const was = o.img;
-    try {
-      const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = o.img; });
-      const cv = document.createElement("canvas"); cv.width = Math.round(o.w * GEN_PX); cv.height = Math.round(o.h * GEN_PX); cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
-      const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.88)); if (!blob) continue;
-      const type = blob.type || "image/png", res = await S.assets.upload(new File([blob], "generated." + (type.includes("webp") ? "webp" : "png"), { type }));
-      o.img = assetPath(res); done.set(was, o.img); cv.width = cv.height = 0;
-    } catch (e) { /* keep the drawing in the map */ }
+    if (done.has(o.img)) { Object.assign(o, done.get(o.img)); continue; } const was = o.img;
+    try { const r = await genPyramid(o.img, o.w, o.h, px); o.img = r.img; if (r.lod) o.lod = r.lod; done.set(was, r.lod ? { img: r.img, lod: r.lod } : { img: r.img }); } catch (e) { /* keep the drawing in the map */ }
   }
   return page;
 }

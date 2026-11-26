@@ -506,7 +506,7 @@ function vDraw() {
   if (VTT.lvlShowPid !== cur.id) { VTT.lvlShowPid = cur.id; VTT.lvlShow = null; }
   { const sig = cur.id + "|" + vMinLevel(p) + "|" + vMaxLevel(p) + "|" + JSON.stringify(p.levelNames || {}); if (VTT.lvlSig !== sig || !document.querySelector("#vtools .vlvgroup")) { VTT.lvlSig = sig; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); } }
   const lvlCls = l => vLvlHid(l) ? " lvlhid" : gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : gm && !VTT.preview && (l || 0) < 0 && (l || 0) < VTT.lvl ? " lvlhid" : "";
-  const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}" src="${esc(o.img)}" alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
+  const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}" ${vImgAttr(o)} alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
   const tok = ([id, t]) => { const src = vTokSrc(t), s = vTokSz(t) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
     return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t) : ""}
       ${vDead(t) ? `<span class="vdeadx" aria-label="Down"></span>` : vBarsHtml(t)}${src ? `<img src="${esc(src)}" alt="" draggable="false">` : `<span class="vinit">${esc((t.name || "?")[0])}</span>`}<span class="vname">${esc(t.name || "")}</span></div>`; };
@@ -541,7 +541,25 @@ function vDraw() {
   const hint = document.getElementById("vhint");
   if (hint) hint.textContent = VTT.tool === "measure" ? "Drag to measure · Esc to clear" : gm ? (VTT.tool === "wall" ? (VTT.draft ? "Click to add points · double-click or Enter to finish · Esc to cancel" : "Click to start a wall") : VTT.tool === "area" ? `Drag over squares that are up on ${vLevelName(p, VTT.lvl || 1)} · hold Alt to remove squares` : VTT.tool === "link" ? "Drag over the squares for stairs or a lift" : VTT.layer === "walls" ? "Select a wall to delete it, or pick the wall tool to draw" : "") : (p.light ? "" : "");
 }
-function vApplyView() { const st = document.getElementById("vstage"); if (st) { st.style.transform = `translate(${VTT.panX}px,${VTT.panY}px) scale(${VTT.zoom})`; st.style.setProperty("--vinv", Math.max(1, 1 / VTT.zoom).toFixed(3)); } }
+function vApplyView() { const st = document.getElementById("vstage"); if (st) { st.style.transform = `translate(${VTT.panX}px,${VTT.panY}px) scale(${VTT.zoom})`; st.style.setProperty("--vinv", Math.max(1, 1 / VTT.zoom).toFixed(3)); vCullSoon(); } }
+// ----- Drawing big maps: only what's on screen, at the detail the zoom needs -----
+// As on web maps (a tile pyramid, only the tiles in the viewport loaded): a picture can carry smaller copies of itself
+// (o.lod = [[pixels per square, url], …], from most detailed down), and the board shows the smallest copy that is still sharp
+// at the current zoom, full detail only when zoomed right in. Pictures more than a screen away from the view aren't
+// loaded at all (their image is dropped once they're two screens away, so a big map doesn't fill memory as you pan).
+function vViewRect(pad) { const vw = document.getElementById("vview"); if (!vw) return null; const k = VCELL * VTT.zoom, w = vw.clientWidth / k, h = vw.clientHeight / k, x = -VTT.panX / k, y = -VTT.panY / k; pad = pad || 0; return [x - w * pad, y - h * pad, w * (1 + 2 * pad), h * (1 + 2 * pad)]; }
+function vLodSrc(o) { if (!o.lod || !o.lod.length) return o.img; const need = VCELL * VTT.zoom * (window.devicePixelRatio || 1) * 0.85; let best = o.img;
+  for (const [px, url] of o.lod) { if (px >= need) best = url; else break; } return best; }
+const vObjIn = (o, R) => { const m = o.rot ? Math.max(o.w, o.h) / 2 : 0, cx = o.x + o.w / 2, cy = o.y + o.h / 2, hw = o.rot ? m : o.w / 2, hh = o.rot ? m : o.h / 2; return cx + hw >= R[0] && cx - hw <= R[0] + R[2] && cy + hh >= R[1] && cy - hh <= R[1] + R[3]; };
+function vImgAttr(o) { if (!o.lod && !(o.w * o.h > 64)) return `src="${esc(o.img)}"`; const R = vViewRect(1); if (!R || vObjIn(o, R)) return `src="${esc(vLodSrc(o))}"`; return `data-lazy="1"`; }
+let vCullRaf = 0; const vCullSoon = () => { if (!vCullRaf) vCullRaf = requestAnimationFrame(() => { vCullRaf = 0; vCull(); }); };
+function vCull() {
+  const cur = vPageNow(); if (!cur || !cur.p) return; const near = vViewRect(1), far = vViewRect(2); if (!near) return;
+  if (VTT.cullFor !== cur.p.objs) { VTT.cullFor = cur.p.objs; VTT.cullIdx = new Map((cur.p.objs || []).map(o => [o.id, o])); }
+  document.querySelectorAll("#vstage img.vobj").forEach(el => { const o = VTT.cullIdx.get(el.dataset.oid); if (!o || (!o.lod && !(o.w * o.h > 64))) return;
+    if (vObjIn(o, near)) { const want = vLodSrc(o); if (el.getAttribute("src") !== want) el.setAttribute("src", want); }
+    else if (!vObjIn(o, far) && el.hasAttribute("src")) el.removeAttribute("src"); });
+}
 function vFit() {
   const cur = vPageNow(), view = document.getElementById("vview"); if (!cur || !view) return;
   const W = cur.p.w * VCELL, H = cur.p.h * VCELL, r = view.getBoundingClientRect();
@@ -580,6 +598,14 @@ function vVisPoly(x, y, segs) {
 function vInPoly(x, y, poly) { let inside = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside; } return inside; }
 const vB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); };
 const vUnB64 = (s, n) => { const out = new Uint8Array(n); try { const b = atob(s || ""); for (let i = 0; i < Math.min(n, b.length); i++) out[i] = b.charCodeAt(i); } catch (e) {} return out; };
+// The whole map counts as explored: it all shows, dimmed, to the players, but tokens and what moves are still hidden
+// wherever their tokens can't see right now. (Turns on "remember explored areas" if it was off.)
+async function vFogAll(cur) {
+  const p = cur && cur.p; if (!p) return; const gw = p.w * VFOG_RES, gh = p.h * VFOG_RES, bits = new Uint8Array(Math.ceil(gw * gh / 8)).fill(255);
+  if (p.fogMem === false) await vPatch("vttpages/" + cur.id, { fogMem: true });
+  VTT.fogKey = cur.id + "|" + gw + "x" + gh; VTT.fogBits = bits; clearTimeout(VTT.fogTimer);
+  await S.db.doc("vttfog/" + cur.id).set({ w: p.w, h: p.h, res: VFOG_RES, bits: vB64(bits), at: new Date().toISOString() }).catch(() => {});
+  toast("The whole map is explored: players see it all dimmed, and what's out of their sight stays hidden."); vDraw(); }
 function vFogLoad(pid, p) {
   const gw = p.w * VFOG_RES, gh = p.h * VFOG_RES, n = Math.ceil(gw * gh / 8), key = pid + "|" + gw + "x" + gh;
   const f = (S.vttFog || new Map()).get(pid);
@@ -1205,13 +1231,14 @@ function vSettings() {
     <label class="check"><input id="vs-grid" type="checkbox"${p.grid !== false ? " checked" : ""}> Show the grid</label>
     <label class="check"><input id="vs-light" type="checkbox"${p.light ? " checked" : ""}> Dynamic lighting <small class="muted">players only see what their tokens can see past walls</small></label>
     <label class="check"><input id="vs-mem" type="checkbox"${p.fogMem !== false ? " checked" : ""}> Remember explored areas <small class="muted">places a token has seen stay dimly visible</small></label>
-    <div class="acts wrap"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" id="vs-fog">Reset explored areas</button><button class="btn ghost" type="button" id="vs-walls">Remove all walls</button><button class="btn ghost danger" type="button" id="vs-del">Delete page</button><button class="btn ghost" type="button" data-act="closemodal">Cancel</button></div></form>`, m => {
+    <div class="acts wrap"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" id="vs-fog">Reset explored areas</button><button class="btn ghost" type="button" id="vs-fogall">Explore whole map</button><button class="btn ghost" type="button" id="vs-walls">Remove all walls</button><button class="btn ghost danger" type="button" id="vs-del">Delete page</button><button class="btn ghost" type="button" data-act="closemodal">Cancel</button></div></form>`, m => {
     m.querySelector("form").onsubmit = ev => {
       ev.preventDefault();
       const n = (id, lo, hi, d) => Math.max(lo, Math.min(hi, Math.round(Number(m.querySelector(id).value) || d)));
       vPatch("vttpages/" + cur.id, { name: m.querySelector("#vs-name").value.trim() || "Page", w: n("#vs-w", 1, 200, 15), h: n("#vs-h", 1, 200, 15), bg: m.querySelector("#vs-bg").value, grid: m.querySelector("#vs-grid").checked, light: m.querySelector("#vs-light").checked, fogMem: m.querySelector("#vs-mem").checked, folder: m.querySelector("#vs-folder").value, open: m.querySelector("#vs-open").checked });
       VTT.fitDone = ""; closeModal();
     };
+    m.querySelector("#vs-fogall").onclick = async () => { closeModal(); await vFogAll(cur); };
     m.querySelector("#vs-fog").onclick = async () => { closeModal(); if (await confirmBox("Forget everything the players' tokens have explored on this page?", "Reset")) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + cur.id).catch(() => {}); vDraw(); } };
     m.querySelector("#vs-walls").onclick = async () => { closeModal(); if (await confirmBox(`Remove all ${(p.walls || []).length} walls from this page?`, "Remove walls")) vPatch("vttpages/" + cur.id, { walls: [] }); };
     m.querySelector("#vs-del").onclick = async () => {
@@ -2767,7 +2794,7 @@ function vPageSideHtml(p) {
       ${vHexOf(p) ? "" : `<div><span class="flabel">Travel scale</span>${p.scale && p.scale.len ? `<p class="small">${vScaleText(p.scale)} <button class="linkbtn small" data-act="vttscaleclr">Clear</button></p>` : `<p class="muted small">None yet. Use the <strong>📐 Scale</strong> tool to drag a line and say how far a day's travel is; then anyone can plan routes with <strong>🧭 Travel</strong>.</p>`}</div>`}
       <label class="check"><input type="checkbox" data-ps="light"${p.light ? " checked" : ""}> Dynamic lighting <small class="muted">walls block what players' tokens can see</small></label>
       <label class="check"><input type="checkbox" data-ps="fogMem"${p.fogMem !== false ? " checked" : ""}> Remember explored areas</label>
-      <div class="acts wrap"><button class="btn ghost small" data-act="vttpsfog">Reset explored areas</button><button class="btn ghost small" data-act="vttpswalls">Remove all walls</button><button class="btn ghost small danger" data-act="vttpsdel">Delete page</button></div>
+      <div class="acts wrap"><button class="btn ghost small" data-act="vttpsfog">Reset explored areas</button><button class="btn ghost small" data-act="vttpsfogall">Explore whole map</button><button class="btn ghost small" data-act="vttpswalls">Remove all walls</button><button class="btn ghost small danger" data-act="vttpsdel">Delete page</button></div>
     </div>
     <details class="vtipsd"><summary>Tips</summary>${vSideTips(p)}</details>`;
 }
@@ -2796,8 +2823,9 @@ document.addEventListener("click", async ev => {
   await vUndoStep(() => vScalePage(cur.id, k), "scaling the map"); VTT.fitDone = ""; toast(`Scaled to ${Math.round(k * 100)}%. Undo puts it back.`);
 });
 document.addEventListener("click", async ev => {
-  const b = ev.target.closest && ev.target.closest("[data-act=vttpsfog],[data-act=vttpswalls],[data-act=vttpsdel]"); if (!b || !vCanEdit()) return;
+  const b = ev.target.closest && ev.target.closest("[data-act=vttpsfog],[data-act=vttpsfogall],[data-act=vttpswalls],[data-act=vttpsdel]"); if (!b || !vCanEdit()) return;
   const cur = vPageNow(); if (!cur) return; const p = cur.p, a = b.dataset.act;
+  if (a === "vttpsfogall") { await vFogAll(cur); return; }
   if (a === "vttpsfog") { if (await confirmBox("Forget everything the players' tokens have explored on this page?", "Reset")) { VTT.fogBits = null; VTT.fogKey = ""; await vDel("vttfog/" + cur.id).catch(() => {}); vDraw(); } }
   else if (a === "vttpswalls") { if (await confirmBox(`Remove all ${(p.walls || []).length} walls from this page?`, "Remove walls")) vPatch("vttpages/" + cur.id, { walls: [] }); }
   else if (a === "vttpsdel") { if (!(await confirmBox(`Delete the page “${p.name}” and its tokens?`, "Delete page"))) return; for (const [tid] of vTokens(cur.id)) await vDel("vtttokens/" + tid); await vDel("vttfog/" + cur.id).catch(() => {}); await vDel("vttpages/" + cur.id); VTT.page = null; render(); }

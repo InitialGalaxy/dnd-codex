@@ -418,7 +418,7 @@ function tnShell(b, P) {
 function tnName(b) { return b.type === "markethall" ? "Market hall" : b.type === "temple" ? "Parish church" : b.type === "gatehouse" ? `${({ E: "East", W: "West", N: "North", S: "South" })[b.front]} gate` : genType(b.type).name; }
 function tnTownPage(o) {
   const T = genTown(o), objs = [], walls = [], areas = [], id = () => vid("o"), P = GEN_PX; let maxL = 1, minL = 0;
-  const TS = 32; for (let ty = 0; ty < T.H; ty += TS) for (let tx = 0; tx < T.W; tx += TS) { const w = Math.min(TS, T.W - tx), h = Math.min(TS, T.H - ty); objs.push({ id: id(), layer: "map", level: 0, x: tx, y: ty, w, h, px: 40, land: 1, img: "", vb: [tx, ty, w, h] }); }
+  const px = genDetailPx(), TS = Math.min(32, Math.floor(2600 / px)); for (let ty = 0; ty < T.H; ty += TS) for (let tx = 0; tx < T.W; tx += TS) { const w = Math.min(TS, T.W - tx), h = Math.min(TS, T.H - ty); objs.push({ id: id(), layer: "map", level: 0, x: tx, y: ty, w, h, px: 40, land: 1, img: "", vb: [tx, ty, w, h] }); }
   const bld = [];
   T.buildings.forEach(b => { const sh = tnShell(b); objs.push(...sh.objs); walls.push(...sh.walls); areas.push(...sh.areas); maxL = Math.max(maxL, sh.top); if (sh.cellar) minL = -1;
     const name = tnName(b); bld.push({ id: b.id, o: b.o, x: b.x, y: b.y, k: b.k, w: b.w, h: b.h, top: sh.top, name, type: b.type });
@@ -429,22 +429,19 @@ function tnTownPage(o) {
     for (let x = 0; x <= T.W; x++) for (let y = 0; y < T.H; y++) { const a = blk(x - 1, y), c = blk(x, y); if (a !== c && !gb(a ? x : x - 1, y)) walls.push([x, y, x, y + 1, 0]); } }
   const names = { "-1": "Cellars", 0: "Ground" }; for (let l = 1; l <= maxL; l++) names[l] = l === maxL ? "Roofs" : `Floor ${l + 1} & roofs`;
   return { T, page: { w: T.W, h: T.H, bg: "#5d7a3a", grid: true, light: false, fogMem: true, objs, walls: genMergeWalls(walls), areas, links: [], levelNames: names, minLevel: minL, maxLevel: maxL,
-    town: { o: Object.assign({}, o), bld, live: {}, fp: {}, pin: {}, img: {}, flib: JSON.parse(JSON.stringify(genFurnStore())) } } };
+    town: { px, o: Object.assign({}, o), bld, live: {}, fp: {}, pin: {}, img: {}, flib: JSON.parse(JSON.stringify(genFurnStore())) } } };
 }
-// A picture, drawn once onto a canvas and uploaded; the same picture again (a chair, the same floor rebuilt) reuses the file.
-async function tnUpload(svgUrl, w, h, cache) {
-  const key = tnH(svgUrl) + ":" + svgUrl.length; if (cache[key]) return cache[key]; if (!S.assets || !S.assets.upload) return svgUrl;
-  try { const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = svgUrl; });
-    const cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(w * GEN_PX)); cv.height = Math.max(1, Math.round(h * GEN_PX)); cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
-    const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.88)); cv.width = cv.height = 0; if (!blob) return svgUrl;
-    const type = blob.type || "image/png", res = await S.assets.upload(new File([blob], "town." + (type.includes("webp") ? "webp" : "png"), { type })); cache[key] = assetPath(res); return cache[key];
-  } catch (e) { return svgUrl; } }
+// A picture, uploaded with its smaller copies (genPyramid); the same picture again (a chair, the same floor rebuilt) reuses them.
+async function tnUpload(svgUrl, w, h, cache, px) {
+  const key = tnH(svgUrl) + ":" + svgUrl.length + ":" + (px || 40); if (cache[key]) return typeof cache[key] === "string" ? { img: cache[key] } : cache[key]; if (!S.assets || !S.assets.upload) return { img: svgUrl };
+  try { const r = await genPyramid(svgUrl, w, h, px || genDetailPx()); cache[key] = r.lod ? { img: r.img, lod: r.lod } : { img: r.img }; return cache[key]; } catch (e) { return { img: svgUrl }; } }
 async function tnPlace(camp, o) {
   toast("Laying out the town…"); await new Promise(res => setTimeout(res, 30));
   const { T, page } = tnTownPage(o), cache = page.town.img, todo = page.objs.filter(ob => ob.land || String(ob.img).startsWith("data:image/svg"));
-  let n = 0; for (const ob of todo) { n++; if (n % 8 === 1) toast(`Drawing the town… ${Math.round(n / todo.length * 100)}%`);
-    if (ob.land) { const svg = genUrl(tnTerrainSvg(T, ob.px, ob.vb)); delete ob.vb; delete ob.land; ob.img = svg; }
-    ob.img = await tnUpload(ob.img, ob.w, ob.h, cache); }
+  // A few at a time: while one picture is drawn the others upload.
+  let n = 0; const one = async ob => { if (ob.land) { const svg = genUrl(tnTerrainSvg(T, ob.px, ob.vb)); delete ob.vb; delete ob.land; delete ob.px; ob.img = svg; }
+    const r = await tnUpload(ob.img, ob.w, ob.h, cache, page.town.px); ob.img = r.img; if (r.lod) ob.lod = r.lod; if (++n % 10 === 0) toast(`Drawing the town… ${Math.round(n / todo.length * 100)}%`); };
+  for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(one));
   const pid = vid("p"), order = vPages(camp).length, nm = o.name || (TN_SIZES[o.size] || TN_SIZES.medium).name;
   await vSave("vttpages/" + pid, Object.assign(page, { camp, name: nm, order, folder: "Towns", open: false, created: new Date().toISOString() }));
   for (let i = 0; i < 60 && !S.vttPages.has(pid); i++) await new Promise(res => setTimeout(res, 50));
@@ -477,7 +474,7 @@ async function tnLoad(pid, bid) {
   const t0 = performance.now(), inner = tnInner(b, p.town.flib), cache = Object.assign({}, p.town.img || {});
   // The pictures go up a few at a time; ones the town already has (the same chair, the same floor) aren't sent again.
   const todo = inner.objs.filter(ob => String(ob.img).startsWith("data:image/svg")), seen = new Map();
-  for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(async ob => { const k = ob.img; if (!seen.has(k)) seen.set(k, tnUpload(k, ob.w, ob.h, cache)); ob.img = await seen.get(k); }));
+  for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(async ob => { const k = ob.img; if (!seen.has(k)) seen.set(k, tnUpload(k, ob.w, ob.h, cache, p.town.px)); const r = await seen.get(k); ob.img = r.img; if (r.lod) ob.lod = r.lod; }));
   p = S.vttPages.get(pid); if (!p || !p.town || (p.town.live || {})[bid]) return; // (it changed while the pictures went up)
   const objs = (p.objs || []).concat(inner.objs), walls = (p.walls || []).concat(inner.walls), areas = (p.areas || []).concat(inner.areas), links = (p.links || []).concat(inner.links);
   const town = Object.assign({}, p.town, { live: Object.assign({}, p.town.live, { [bid]: 1 }), img: cache }); town.fp = Object.assign({}, p.town.fp, { [bid]: tnFp({ objs, walls }, bid) });
@@ -535,6 +532,7 @@ function viewTownGen(camp) {
       <label><span>Streets</span>${seg("streets", [["dirt", "Dirt"], ["mixed", "Mixed"], ["stone", "Stone"]])}</label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">in every building</small></span></label>
       <label class="genchk"><input type="checkbox" data-act="tvchk" data-k="names"${o.names !== false ? " checked" : ""}> <span>Names <small class="muted">for the GM, over the roofs</small></span></label>
+      ${genDetailSeg()}
       <button class="btn" data-act="tvroll">🎲 New town</button>
       <label><span>Seed</span><input id="tv-seed" type="number" value="${o.seed}"></label><hr>
       <label><span>Name</span><input id="tv-name" type="text" value="${esc(o.name || "")}" placeholder="${esc((TN_SIZES[o.size] || TN_SIZES.medium).name)}"></label>
