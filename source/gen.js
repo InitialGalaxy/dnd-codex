@@ -409,7 +409,7 @@ const GEN_TOWN = [
     cellar: 0.2, porch: 0, floorsMax: 2, doorBonus: 2, under: [{ n: "Lock-up", k: "cellar", w: 1 }],
     plan(r, size, up) { const D = size === "small" ? genInt(r, 4, 5) : genInt(r, 5, 6), tw = size === "large" ? genInt(r, 4, 5) : genInt(r, 3, 4), gw = size === "large" ? 5 : 4, back = size === "small" ? 0 : genInt(r, 1, 2);
       const units = [genU(tw, size === "small" ? genR("Guard room", "work") : [genR("Guard room", "work"), genR("Armoury", "store")], Object.assign({ back }, up ? { up: [genR("Portcullis chamber", "work", { w: 1.4 }), genR("Guard chamber", "bed"), genR("Captain's room", "office")] } : {})),
-        genU(gw, genR("Gate passage", "passage", { dark: 1 }), Object.assign({ entry: 1, pass: 1, doorW: gw - 1 }, up ? { upJoin: 1 } : {})),
+        genU(gw, genR("Gate passage", "passage", { dark: 1, gate: 1 }), Object.assign({ entry: 1, pass: 1, doorW: gw }, up ? { upJoin: 1 } : {})),
         genU(tw, genR("Porter's lodge", "living"), Object.assign({ back }, up ? { upJoin: 1 } : {}))];
       return { D, name: "Gate between towers", units }; } },
   { id: "butcher", name: "Butcher", icon: "🥩", blurb: "A shambles shop: the open-fronted shop with its stall board, the cutting room, the salting room and the slaughterhouse at the back, a passage through to the yard.",
@@ -526,6 +526,8 @@ function genPlanTry(o, attempt) {
     if (G.own(at, rm.y - 1) < 0) for (let i = 0; i < w; i++) G.doors.add(`h,${at + i},${rm.y}`);
     if (rm !== entry && G.own(at, rm.y + rm.h) < 0) for (let i = 0; i < w; i++) G.doors.add(`h,${at + i},${rm.y + rm.h}`); });
   G.rooms.forEach(rm => { const u = Lay.units[rm.unit]; if (!u || !u.endDoor) return; const ex = u.endDoor === "right" ? rm.x + rm.w : rm.x, y = rm.y + Math.floor(rm.h / 2); if (G.own(u.endDoor === "right" ? ex : ex - 1, y) < 0) G.doors.add(`v,${ex},${y}`); });
+  // A gate passage's doors are gates: each end one pair of gates the whole width of the passage.
+  G.gates = new Set(); G.rooms.forEach(rm => { if (!rm.gate) return; [...G.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); if (d === "h" && x >= rm.x && x < rm.x + rm.w && (y === rm.y || y === rm.y + rm.h)) G.gates.add(k); }); });
   G.rooms.forEach(rm => { if (rm.dark) [...G.wins].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); const inside = d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]; if (inside.some(([a, b]) => a >= rm.x && a < rm.x + rm.w && b >= rm.y && b < rm.y + rm.h)) G.wins.delete(k); }); });
   const overlap = levels.some(L => { const seen = new Set(); return (L.stairs || []).some(t => cellsOf(t).some(k => { if (seen.has(k)) return true; seen.add(k); return false; })); });
   const ok = !overlap && stairs.length === Lay.regions.length + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
@@ -740,17 +742,23 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
       <circle cx="${fx}" cy="${fy}" r="${P * 0.13 * big}" fill="#e0762a" opacity=".9"/><circle cx="${fx}" cy="${fy}" r="${P * 0.07 * big}" fill="#ffd36b"/>`; }).join("");
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
   // Outside walls are twice as thick as inside ones. Doors to the outside get stone jambs; the front door a grand entrance.
-  const WI = 5, WE = 10, front = L.front || new Set();
+  const WI = 5, WE = 10, front = L.front || new Set(), gates = L.gates || new Set();
   const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
-    if (front.has(e.k)) return "";
+    if (front.has(e.k) || gates.has(e.k)) return "";
     if (L.doors.has(e.k) && !L.secret.has(e.k)) { if (!e.ext) return ln(4, "#8a6a44", "butt", ` opacity=".9"`);
       const h = e.y1 === e.y2, j = (x, y) => `<rect x="${x * P - 6}" y="${y * P - 6}" width="12" height="12" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`;
       return ln(WE, "#3b2a1a", "butt") + ln(6, "#7a4a26", "butt") + j(e.x1, e.y1) + j(e.x2, e.y2); }
     if (L.wins.has(e.k)) return ln(WE, "#2b2520", "square") + ln(3, "#bfe3f2", "butt");
     return ln(e.ext ? WE : WI, "#2b2520", "square"); }).join("");
   // The front door: double doors under a stone lintel, a pillar each side and a broad step outside.
-  let grand = "";
-  if (front.size) { const tier = B.doorTier || "grand"; const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
+  // Gates: one pair of heavy plank gates the width of the passage, iron-strapped, between stone jambs.
+  const gateRuns = []; [...gates].map(k => k.split(",").map((v, i) => i ? Number(v) : v)).sort((a, b) => a[2] - b[2] || a[1] - b[1]).forEach(([, x, y]) => { const last = gateRuns[gateRuns.length - 1]; if (last && last.y === y && last.x1 === x) last.x1 = x + 1; else gateRuns.push({ x0: x, x1: x + 1, y }); });
+  const gateSvg = gateRuns.map(({ x0, x1, y }) => { const X0 = x0 * P, X1 = x1 * P, Y = y * P, mx = (X0 + X1) / 2, leaf = (a, b) => { let pl = ""; for (let q = a + 8; q < b - 2; q += 8) pl += `<line x1="${q}" y1="${Y - 6}" x2="${q}" y2="${Y + 6}" stroke="rgba(43,37,32,.45)" stroke-width="1"/>`;
+      return `<rect x="${a + 1}" y="${Y - 6}" width="${b - a - 2}" height="12" fill="#6e4524" stroke="#2b2520" stroke-width="1.5"/>${pl}<line x1="${a + 2}" y1="${Y - 3}" x2="${b - 2}" y2="${Y - 3}" stroke="#2b2520" stroke-width="1.6"/><line x1="${a + 2}" y1="${Y + 3}" x2="${b - 2}" y2="${Y + 3}" stroke="#2b2520" stroke-width="1.6"/>`; };
+    const jamb = cx => `<rect x="${cx - 8}" y="${Y - 8}" width="16" height="16" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`;
+    return `<rect x="${X0}" y="${Y - 2}" width="${X1 - X0}" height="4" fill="#5e5548"/>${leaf(X0, mx)}${leaf(mx, X1)}<circle cx="${mx - 5}" cy="${Y}" r="2.2" fill="#3a3530"/><circle cx="${mx + 5}" cy="${Y}" r="2.2" fill="#3a3530"/>${jamb(X0)}${jamb(X1)}`; }).join("");
+  let grand = gateSvg;
+  if (front.size && ![...front].every(k => gates.has(k))) { const tier = B.doorTier || "grand"; const xs = [...front].map(k => Number(k.split(",")[1])), x0 = Math.min(...xs) * P, x1 = (Math.max(...xs) + 1) * P, y = Number([...front][0].split(",")[2]) * P, mx = (x0 + x1) / 2;
     const leaves = tier === "grand" || x1 - x0 > P * 1.5
       ? `<rect x="${x0 + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><rect x="${mx + 1}" y="${y - 5}" width="${(x1 - x0) / 2 - 2}" height="10" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${mx - 5}" cy="${y}" r="2" fill="#e8c27a"/><circle cx="${mx + 5}" cy="${y}" r="2" fill="#e8c27a"/>`
       : `<rect x="${x0 + 2}" y="${y - 4}" width="${x1 - x0 - 4}" height="8" fill="#7a4a26" stroke="#2b2520" stroke-width="1.5"/><circle cx="${x1 - 8}" cy="${y}" r="1.8" fill="${tier === "plain" ? "#3a3530" : "#c9a45e"}"/>`;
@@ -859,8 +867,12 @@ function genPage(o) {
     // The furniture: each piece its own object on the map layer, on the grid, so you can move, turn or delete it.
     genFurnBoxes(L).forEach(f => objs.push(Object.assign({ id: id(), layer: "map", level: L.level, x: ox + f.x, y: oy + f.y, w: f.w, h: f.h, img: f.src, name: f.a.name, furn: 1 }, f.rot ? { rot: f.rot } : {})));
     objs.push({ id: id(), layer: "gm", level: L.level, x: ox, y: oy, w: B.W, h: B.H, img: genUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${L.rooms.map(rm => `<text x="${(rm.x + rm.w / 2) * P}" y="${(rm.y + rm.h / 2) * P}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#fff" stroke="#000" stroke-width="3" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " (secret)" : ""}</text>`).join("")}</svg>`) });
-    genEdges(L, B.W, B.H).forEach(e => { const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
+    const gt = L.gates || new Set();
+    genEdges(L, B.W, B.H).forEach(e => { if (gt.has(e.k)) return; const meta = L.doors.has(e.k) ? Object.assign({ k: "door", id: vid("d"), open: false }, L.secret.has(e.k) ? { secret: true } : {}) : L.wins.has(e.k) ? { k: "window", id: vid("d") } : null;
       walls.push([ox + e.x1, oy + e.y1, ox + e.x2, oy + e.y2, L.level].concat(meta ? [meta] : [])); });
+    // A gate is one door the whole width of the passage, opened all at once.
+    const runs = []; [...gt].map(k => k.split(",").map((v, i) => i ? Number(v) : v)).sort((a, b) => a[2] - b[2] || a[1] - b[1]).forEach(([, x, y]) => { const last = runs[runs.length - 1]; if (last && last.y === y && last.x1 === x) last.x1 = x + 1; else runs.push({ x0: x, x1: x + 1, y }); });
+    runs.forEach(g => walls.push([ox + g.x0, oy + g.y, ox + g.x1, oy + g.y, L.level, { k: "door", id: vid("d"), open: false, gate: true }]));
     if (L.level > 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); } // only where there's a floor (a loft, not the open hall)
     if (L.level < 0) { const set = new Set(); L.rooms.forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) set.add(x + "," + y); }); areas.push({ id: vid("a"), level: L.level, cells: cells(set) }); }
     names[L.level] = L.name;
