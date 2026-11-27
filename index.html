@@ -2294,6 +2294,11 @@ a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gen
 .genopts label { display:flex; flex-direction:column; gap:4px; } .genopts label.genchk { flex-direction:row; align-items:flex-start; gap:8px; cursor:pointer; } .genopts label.genchk input { width:18px; height:18px; margin-top:2px; flex:none; } .genopts hr { border:0; border-top:1px solid var(--line); width:100%; margin:4px 0; } .genopts .acts { display:flex; flex-wrap:wrap; gap:6px; }
 .genrare { color:var(--brass); font-weight:600; }
 .genfloors { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; } .genfloors figure { margin:0; } .genfloors img { display:block; max-width:min(520px, 100%); border-radius:6px; box-shadow:0 2px 10px rgba(0,0,0,.4); background:#7d9a5c; padding:10px; }
+.grmgroup { display:flex; gap:10px; align-items:baseline; margin:6px 0; } .grmgroup > span { min-width:52px; } .grmabout { margin:6px 0 12px; }
+.grmgrid { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); } .grmpic { display:block; padding:10px; border:0; background:#1d1b18; cursor:zoom-in; width:100%; }
+.grmcrop { position:relative; overflow:hidden; margin:0 auto; } .grmcrop.big { margin:10px auto; }
+.grmcrop img { position:absolute; max-width:none; pointer-events:none; } .grmcrop .grmf { transform-origin:center; } .grmhead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.grmdesc { margin:6px 0; font-size:.92em; } .grmpcs { margin:4px 0 0; }
 .gftools { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:10px 0 14px; } .gfgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
 .gfcard { display:flex; flex-direction:column; background:var(--card, rgba(255,255,255,.04)); border:1px solid var(--line); border-radius:10px; overflow:hidden; } .gfcard.off { opacity:.6; }
 .gfprev { position:relative; background-color:#b0844f; background-image:linear-gradient(rgba(0,0,0,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.18) 1px, transparent 1px); background-size:40px 40px; background-position:center; max-height:180px; margin:0 auto; width:100%; } .gfprev img { position:absolute; }
@@ -12923,15 +12928,6 @@ const GEN_BUILDINGS = [
     under: [{ n: "Beer cellar", k: "cellar", w: 1.6 }, { n: "Store", k: "cellar", w: 0.8, opt: 0.6 }],
     rare: [{ n: "Gambling den", k: "meet", w: 1.2, at: "ground", p: 0.15 }, { n: "Bathhouse", k: "bath", w: 1.2, at: "ground", p: 0.1 }, { n: "Bridal suite", k: "bed", w: 1.4, at: "upper", p: 0.12 },
       { n: "Fighting pit", k: "pit", w: 1.4, at: "under", p: 0.1 }, { n: "Smuggler's tunnel", k: "cellar", w: 0.6, at: "under", p: 0.08, secret: 1 }] },
-  { id: "guild", name: "Guild hall", icon: "🏛", blurb: "A great hall for the members, offices, a meeting room and the guildmaster's study.",
-    size: { small: [[9, 11], [8, 10], [2, 2]], medium: [[11, 14], [10, 12], [2, 3]], large: [[14, 17], [11, 14], [3, 3]] }, cellar: 0.4, hall: 2,
-    shapes: { rect: 2, U: 1.5, L: 1 }, porch: 0.2,
-    ground: [{ n: "Great hall", k: "hall", w: 4, front: 1, entry: 1 }, { n: "Reception", k: "office", w: 1 }, { n: "Office", k: "office", w: 1 }, { n: "Archive", k: "store", w: 1, back: 1 }],
-    single: [{ n: "Guildmaster's study", k: "office", w: 1.4 }],
-    upper: [{ n: "Privy", k: "privy", w: 0.35, opt: 0.4 }, { n: "Meeting room", k: "meet", w: 2 }, { n: "Guildmaster's study", k: "office", w: 1.5 }, { n: "Office", k: "office", w: 1 }, { n: "Office", k: "office", w: 1 }, { n: "Library", k: "library", w: 1.5, opt: 0.6 }],
-    under: [{ n: "Vault", k: "vault", w: 1 }, { n: "Store", k: "cellar", w: 1, opt: 0.6 }],
-    rare: [{ n: "Trophy hall", k: "hall", w: 1.4, at: "ground", p: 0.15 }, { n: "Training room", k: "pit", w: 1.4, at: "ground", p: 0.15 }, { n: "Map room", k: "library", w: 1, at: "upper", p: 0.15 },
-      { n: "Inner sanctum", k: "sanctum", w: 0.8, at: "upper", p: 0.08, secret: 1 }, { n: "Secret vault", k: "vault", w: 0.6, at: "under", p: 0.1, secret: 1 }] },
   { id: "temple", name: "Temple", icon: "⛪", blurb: "A long nave for worship, a sanctum at the far end, a vestry and the priest's room.",
     size: { small: [[6, 8], [8, 10], [1, 1]], medium: [[8, 10], [10, 13], [1, 1]], large: [[10, 13], [13, 16], [1, 2]] }, cellar: 0.3, longDeep: 1,
     shapes: { rect: 1, long: 2.5, L: 0.4 }, porch: 0.4,
@@ -12943,7 +12939,7 @@ const GEN_BUILDINGS = [
       { n: "Forbidden shrine", k: "pit", w: 0.6, at: "under", p: 0.06, secret: 1 }] }
 ];
 const GEN_CUSTOM_T = { id: "custom", name: "Custom building", icon: "✏️", blurb: "Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.", cellar: 0 };
-const genType = id => id === "custom" ? GEN_CUSTOM_T : GEN_BUILDINGS.find(b => b.id === id) || GEN_BUILDINGS[0];
+const genType = id => id === "custom" ? GEN_CUSTOM_T : GEN_BUILDINGS.find(b => b.id === (id === "guild" ? "guildbranch" : id)) || GEN_BUILDINGS[0];
 const GEN_SHAPES = { rect: "Rectangle", L: "L-shape", U: "U-shape", long: "Long house" };
 
 // ----- The footprint: a main block at the front, and wings -----
@@ -13159,6 +13155,15 @@ const GEN_FIRE = { kitchen: 1, forge: 1, tavern: 1, living: 0.9, hall: 0.8, libr
 // the bays of a barn). dark: no windows.
 const genU = (len, rooms, extra) => Object.assign({ len, rooms: Array.isArray(rooms) ? rooms : [rooms] }, extra || {});
 const genR = (n, k, extra) => Object.assign({ n, k, w: 1 }, extra || {});
+
+// The Guild's houses (a town's branch, a city's hall): the seating hall with the quest boards, open at the back to the
+// reception (its quest desk and parcel desk); meeting rooms to hire; a tavern partner's bar and kitchen open to the hall;
+// the post wing with the parcel store right behind the reception, the sealed vault and handlers behind it.
+const genGuildMeet = () => genR("Meeting room", "meet", { w: 1.4 });
+const genGuildHall = (len, D, dw, r) => genU(len, [genR("Guild hall", "hall", { zone: "gh", hub: 1 }), genR("Reception", "office", { zone: "gh", zdoor: 1, tall: 1, doorTo: "Parcel store" })], { entry: 1, doorW: dw, sizes: [D - 3, 3], porch: r() < 0.5 ? [3, 2] : null });
+const genGuildBar = (r, D) => genU(genInt(r, 4, 5), [genR("Guild bar", "tavern", { zone: "gh", zdoor: 1, doorTo: "Guild kitchen" }), genR("Guild kitchen", "kitchen")], { sizes: [D - 3, 3] });
+const genGuildPost = (r, D, wb, front, up, big) => genU(genInt(r, 5, 6), [genR(front, front === "Handlers' room" ? "work" : "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1 }), genR(front === "Handlers' room" ? "Post clerks' room" : "Handlers' room", front === "Handlers' room" ? "office" : "work")],
+  Object.assign({ back: wb + 2, endDoor: "right", sizes: [D - 3, 3, 2, wb] }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {}));
 const GEN_VILLAGE = [
   { id: "cottage", name: "Cottage", icon: "🛖", group: "village", blurb: "A peasant's home: one open room round the hearth, or a hall with a chamber and a service end, sometimes a loft.",
     cellar: 0.03, porch: 0.15, floorsMax: 2, doorBonus: -1, under: [{ n: "Root cellar", k: "cellar", w: 1 }],
@@ -13345,18 +13350,16 @@ const GEN_CITY = [
       if (!sm && r() < 0.8) { const cw = genInt(r, 4, 6), extra = genInt(r, 1, 3), top = D - nave - tb - sSz.slice(1).reduce((a, b) => a + b, 0);
         units.push(genU(cw, r() < 0.5 ? [genR("Chapter house", "meet", { tall: 1 })] : [genR("Chapter vestibule", "passage", { low: 1 }), genR("Chapter house", "meet", { tall: 1 })], { inset: [Math.max(0, top - extra), nave + tb], sizes: null })); }
       return { D, name: sm ? "Minster church" : big ? "Great cathedral" : "Cathedral", units }; } },
-  { id: "guildhall", name: "Guild hall", icon: "🛡", group: "city", mirror: 1, blurb: "The Guild's house in a city (defence, transport and most magical matters): the great quest hall with its boards and counters, the licensing, wardens' and transport offices, the records hall, the guild master and the masters' council upstairs, an armoury and muster room for the wardens, and the familiar post in its own wing, its familiars roosting above.",
+  { id: "guildhall", name: "Guild hall", icon: "🛡", group: "city", mirror: 1, blurb: "The Guild's house in a city (defence, transport and most magical matters, and contract work for adventurers): the great seating hall with its quest boards, open at the back to the reception and its quest and parcel desks, meeting rooms to hire for parties and joint exercises, the records hall and clerks, the licensing, wardens' and transport offices, the guild master and the masters' council upstairs, an armoury and muster room for the wardens, often a tavern partner's bar and kitchen, and the familiar post wing behind the parcel desk, its familiars roosting above.",
     cellar: 0.6, porch: 0.6, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.6 }],
-    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 7, 8) : genInt(r, 8, 10), wb = sm ? genInt(r, 3, 4) : genInt(r, 5, 7);
-      const masters = genU(genInt(r, 5, 6), genShuf(r, [genR("Records hall", "library", { w: 1.2 }), genR("Clerks' office", "office")]).concat(big ? [genR("Waiting room", "living", { w: 0.7 })] : []),
-        up ? { up: [genR("Guild master's office", "office", { w: 1.3 }), genR("Masters' council room", "meet", { w: 1.4 })].concat(sm ? [] : [genR("Guild strong room", "vault", { w: 0.6 })]) } : {});
-      const hall = genU(sm ? genInt(r, 8, 9) : big ? genInt(r, 13, 16) : genInt(r, 10, 12), genR("Guild hall", "hall"), { entry: 1, doorW: 3, porch: r() < 0.6 ? [3, 2] : null });
-      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]).concat(sm ? [] : [genR("Transport office", "office")]));
-      const post = genU(genInt(r, 5, 7), [genR("Parcel counter", "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1, w: 0.6 }), genR("Handlers' room", "work")],
-        Object.assign({ back: wb, endDoor: "right" }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {}));
-      const units = [masters, hall, offices];
+    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 8, 9) : genInt(r, 9, 11), wb = sm ? 2 : genInt(r, 3, 5);
+      const masters = genU(genInt(r, 5, 6), (sm ? [genGuildMeet(), genR("Records hall", "library", { w: 1.2 }), genR("Clerks' office", "office")] : [genGuildMeet(), genGuildMeet()].concat(genShuf(r, [genR("Records hall", "library", { w: 1.2 }), genR("Clerks' office", "office")]))),
+        up ? { up: [genR("Guild master's office", "office", { w: 1.3 }), genR("Masters' council room", "meet", { w: 1.4 })].concat(sm ? [] : [genR("Guild strong room", "vault", { w: 0.6 })]).concat(big ? [genGuildMeet()] : []) } : {});
+      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]).concat(big ? [genGuildMeet()] : []));
+      const units = [masters, offices]; if (r() < (sm ? 0.4 : 0.65)) units.push(genGuildBar(r, D));
+      units.push(genGuildHall(sm ? genInt(r, 8, 9) : big ? genInt(r, 13, 16) : genInt(r, 10, 12), D, 3, r));
+      units.push(genGuildPost(r, D, wb, sm ? "Handlers' room" : "Transport office", up));
       if (!sm) units.push(genU(genInt(r, 4, 5), genShuf(r, [genR("Wardens' muster room", "work", { w: 1.3 }), genR("Armoury", "store")]), Object.assign({ back: big ? genInt(r, 2, 4) : 0 }, up && big ? { up: [genR("Wardens' quarters", "bed"), genR("Linen store", "store", { w: 0.6 })] } : {})));
-      units.push(post);
       return { D, name: sm ? "Guild house" : big ? "Great Guild hall" : "Guild hall", units }; } },
   { id: "cityhall", name: "City hall", icon: "🏛", group: "city", mirror: 1, blurb: "The seat of the city's noble mayor or duke and its council, three ways: a great hall on the ground with the council chamber at the high end and buttery and pantry past the screens; the hall upstairs over an undercroft, with the guild's chapel at the end; or the hall raised on posts over an open market. Maybe a lock-up, an armoury, the muniment room for the charters.",
     cellar: 0.5, porch: 0.4, floorsMax: 2, doorBonus: 2, under: [{ n: "Undercroft", k: "vault", w: 1.6 }, { n: "Strong room", k: "vault", w: 0.6, opt: 0.6 }],
@@ -13531,13 +13534,16 @@ const GEN_MAGIC = [
       const annex = genU(genInt(r, 4, 5), genShuf(r, [genR("Ward-feed room", "mana"), genR("Keepers' workshop", "work")]), nf > 1 && !sm ? { up: [genR("Keepers' room", "bed"), genR("Linesman's store", "store")] } : {});
       const units = [tower, annex]; if (!sm && r() < 0.5) units.push(genU(3, genR("Keepers' lodge", "living"), { inset: [1, 0] }));
       return { D, name: sm ? "Bleed post" : "Bleed tower", units }; } },
-  { id: "guildbranch", name: "Guild branch", icon: "🛡", group: "magic", mirror: 1, blurb: "The Guild's house in town: the guild hall with its quest boards and counters, the clerks and the records, the licensing and wardens' offices, the branch master and the masters' meeting room upstairs; and the familiar post in its own wing, the parcel counter, store and sealed vault below, the familiars roosting above.",
+  { id: "guildbranch", name: "Guild branch", icon: "🛡", group: "magic", mirror: 1, blurb: "The Guild's house in town, where adventurers take contract work: the guild hall is a big seating hall with the quest boards, open at the back to the reception with two desks, one to register and take quests for your party, one to send parcels by familiar post. Meeting rooms to hire for a party or a joint exercise, the clerks', licensing and wardens' offices, the branch master and the masters' meeting room upstairs. Many have a tavern partner's bar and kitchen off the hall. The parcel store and sealed vault sit behind the parcel desk, the familiars roosting above.",
     cellar: 0.5, porch: 0.5, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.5 }],
-    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? 6 : genInt(r, 7, 8), wb = sm ? 0 : genInt(r, 4, 6);
-      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Records room", "library"), genR("Clerks' office", "office")]), up ? { up: [genR("Branch master's office", "office", { w: 1.2 }), genR("Masters' meeting room", "meet", { w: 1.2 })].concat(big ? [genR("Guild strong room", "vault", { w: 0.6 })] : []) } : {});
-      const hall = genU(sm ? genInt(r, 6, 7) : big ? genInt(r, 10, 12) : genInt(r, 8, 9), genR("Guild hall", "hall"), { entry: 1, doorW: 2, porch: r() < 0.5 ? [3, 2] : null });
-      const post = genU(genInt(r, 5, 6), (wb ? [genR("Parcel counter", "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1, w: 0.6 }), genR("Handlers' room", "work")] : [genR("Parcel counter", "office"), genR("Parcel store", "store")]), Object.assign({ back: wb, endDoor: "right" }, up ? { up: wb ? [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")] : [genR("Familiar roost", "roost")], landName: "Roost stair" } : {}));
-      const units = [offices, hall]; if (!sm) units.push(genU(genInt(r, 3, 4), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]))); units.push(post);
+    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? 7 : big ? genInt(r, 9, 10) : genInt(r, 8, 9);
+      const side = genU(sm ? 4 : genInt(r, 4, 5), sm ? [genGuildMeet(), genR("Clerks' office", "office")] : [genGuildMeet(), genGuildMeet(), genR("Wardens' office", "office")],
+        up ? { up: [genR("Branch master's office", "office", { w: 1.2 }), genR("Masters' meeting room", "meet", { w: 1.2 })].concat(sm ? [] : [genR("Clerks' office", "office")]).concat(big ? [genGuildMeet()] : []) } : {});
+      const units = [side]; if (r() < (sm ? 0.3 : big ? 0.7 : 0.5)) units.push(genGuildBar(r, D));
+      units.push(genGuildHall(sm ? genInt(r, 6, 8) : big ? genInt(r, 11, 13) : genInt(r, 9, 10), D, sm ? 2 : 3, r));
+      units.push(sm ? genU(genInt(r, 3, 4), genR("Parcel store", "store"), up ? { up: [genR("Familiar roost", "roost")], landName: "Roost stair" } : {})
+        : genU(genInt(r, 5, 6), [genR("Handlers' room", "work"), genR("Sealed vault", "vault", { dark: 1 }), genR("Parcel store", "store")], Object.assign({ endDoor: "right", sizes: [D - 5, 2, 3] }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {})));
+      if (big) units.push(genU(4, genShuf(r, [genR("Licensing office", "office"), genR("Records room", "library")])));
       return { D, name: sm ? "Guild office" : "Guild branch", units }; } },
   { id: "transponder", name: "Transponder shop", icon: "🔮", group: "magic", mirror: 1, blurb: "Sells, attunes and mends transponders: the shop with its crystals on show, a little attunement booth where a new transponder learns its owner's mind, the crystal workshop behind, the family above.",
     cellar: 0.3, porch: 0, floorsMax: 3, doorBonus: 0,
@@ -13794,6 +13800,9 @@ function genOpenings(r, L, F, stairs, front) {
       L.doors.add(pick); if (secretPass) L.secret.add(pick); seen.add(b); if (!secretPass) q.push(b); } } };
   const all = () => { connect(false, false); connect(false, true); connect(true, false); connect(true, true); connect(false, false); connect(false, true); };
   all(); for (;;) { const nx = L.rooms.findIndex((x, i) => !seen.has(i) && !isPorch(i) && (x.circ || (stairs || []).some(t => t.x >= x.x && t.x < x.x + x.w && t.y >= x.y && t.y < x.y + x.h))); if (nx < 0) break; seen.add(nx); all(); } // a second part upstairs with its own stairs
+  // doorTo: a room that must open to a named neighbour (a guild's reception to the parcel store, its bar to the kitchen).
+  L.rooms.forEach((rm, a) => { if (!rm.doorTo) return; L.rooms.forEach((ob, b) => { if (ob.n !== rm.doorTo) return; const e = shared(a, b), ok = e.filter(k => !onStairs(k)); if (!ok.length || e.some(k => L.doors.has(k))) return;
+    const mid = ok.filter((_, i) => ok.length < 3 || (i > 0 && i < ok.length - 1)); L.doors.add((mid.length ? mid : ok)[Math.floor(r() * (mid.length || ok.length))]); }); });
   if (front) for (let i = 0; i < front.w; i++) { const k = `h,${front.x + i},${front.y}`; L.doors.add(k); L.front.add(k); }
   if (L.level === 0) { const back = L.rooms.find(x => x.back && own(x.x + Math.floor(x.w / 2), x.y - 1) < 0); if (back && r() < 0.55) L.doors.add(`h,${back.x + Math.floor(back.w / 2)},${back.y}`); }
   if (L.level < 0) return; // cellars have no windows
@@ -14123,9 +14132,10 @@ function viewGen(camp, kind, type) {
   if (!kind) {
     const card = (k, icon, t, d, ready) => ready ? `<a class="gencard" href="#gen-${esc(camp)}/${k}"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span></a>` : `<div class="gencard soon" aria-disabled="true"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span><span class="gensoon">Coming later</span></div>`;
     return `<section class="page">${back}<h1>Generator</h1><p class="muted">Make maps for ${esc(c.name || "this campaign")}, ready to play on the tabletop.</p>
-      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets from the gates to the market place, burgage plots, lanes, the church, the wall: every building opens up as you come near.", true)}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
+      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("rooms", "🚪", "Rooms", "Every room in every building: an example of it furnished, and what it's for.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets from the gates to the market place, burgage plots, lanes, the church, the wall: every building opens up as you come near.", true)}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
   }
   if (kind === "furniture") return genFurnView(camp, back);
+  if (kind === "rooms") return genRoomsView(camp, back);
   if (kind === "village") return viewVillageGen(camp);
   if (kind === "town") return viewTownGen(camp);
   if (kind === "building" && !type) {
@@ -14333,8 +14343,11 @@ const GEN_FURN = [
   { id: "reception", name: "Reception desk", cat: "Shop", w: 2, h: 1, place: "free", access: "frontback", face: "door", door: "near", behind: "stool", draw: P => gfShadow(4, P * 0.14, 2 * P - 8, P * 0.7) + gfR(4, P * 0.14, 2 * P - 8, P * 0.7, genfWood[0]) + gfR(9, P * 0.22, 2 * P - 18, P * 0.54, genfWood[2]) + gfR(P * 0.3, P * 0.28, P * 0.66, P * 0.42, "#efe6cf") + gfL(P * 0.63, P * 0.3, P * 0.63, P * 0.68, "#9a8f7a", 1.2) + [0.38, 0.46, 0.54].map(y => gfL(P * 0.36, P * y, P * 0.58, P * y, "#9a8f7a", 1) + gfL(P * 0.68, P * y, P * 0.9, P * y, "#9a8f7a", 1)).join("") + gfC(P * 1.18, P * 0.4, 3.5, "#1e1a16") + gfL(P * 1.18, P * 0.4, P * 1.4, P * 0.26, "#f1ead8", 2) + gfC(P * 1.6, P * 0.5, P * 0.12, "#c9a45e") + gfC(P * 1.6, P * 0.5, P * 0.05, "#8a6a1a") },
   { id: "questboard", name: "Quest board", cat: "Hall & church", w: 2, h: 1, place: "wall", access: "front", tall: 1, door: "near", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.5) + gfR(3, 3, 2 * P - 6, P * 0.5, genfWood[0]) + gfR(7, 6, 2 * P - 14, P * 0.5 - 6, "#b08a5a") + [[0.18, 0.1, -6], [0.55, 0.14, 4], [0.95, 0.08, -3], [1.32, 0.13, 7], [1.62, 0.09, -5]].map(([x, y, a], i) => `<g transform="rotate(${a} ${x * P + 8} ${y * P + 8})"><rect x="${x * P}" y="${y * P}" width="${P * 0.32}" height="${P * 0.34}" fill="${i % 2 ? "#efe6cf" : "#e6d6ae"}" stroke="#7a6a4a" stroke-width="1"/>${gfL(x * P + 3, y * P + 7, x * P + P * 0.28, y * P + 7, "#8a7a5a", 1)}${gfL(x * P + 3, y * P + 11, x * P + P * 0.24, y * P + 11, "#8a7a5a", 1)}<circle cx="${x * P + P * 0.16}" cy="${y * P + 3}" r="2.2" fill="${["#a8322d", "#2d5fa8", "#c9a42a"][i % 3]}"/></g>`).join("") },
   { id: "bar", name: "Bar", cat: "Tavern", w: 3, h: 1, place: "gap", access: "frontback", draw: P => gfShadow(3, P * 0.12, 3 * P - 6, P * 0.76) + gfR(3, P * 0.12, 3 * P - 6, P * 0.76, genfWood[0]) + gfR(8, P * 0.2, 3 * P - 16, P * 0.6, "#8a5a33") + gfPlanks(8, P * 0.2, 3 * P - 16, P * 0.6, 2, true) + [0.5, 1.1, 1.9, 2.5].map(x => gfMug(x * P, P * 0.5)).join("") + gfCask(P * 1.3, P * 0.28, P * 0.4, P * 0.3) },
+  { id: "barcounter", name: "Bar counter", cat: "Tavern", w: 3, h: 1, place: "free", access: "frontback", face: "open", draw: P => gfShadow(3, P * 0.12, 3 * P - 6, P * 0.76) + gfR(3, P * 0.12, 3 * P - 6, P * 0.76, genfWood[0]) + gfR(8, P * 0.2, 3 * P - 16, P * 0.6, "#8a5a33") + gfPlanks(8, P * 0.2, 3 * P - 16, P * 0.6, 2, true) + [0.5, 1.1, 1.9, 2.5].map(x => gfMug(x * P, P * 0.5)).join("") + gfCask(P * 1.3, P * 0.28, P * 0.4, P * 0.3) },
   // Halls, churches, special rooms
   { id: "lectern", name: "Lectern", cat: "Hall & church", w: 1, h: 1, place: "free", access: "front", draw: P => gfCShadow(P / 2, P * 0.5, P * 0.12) + gfC(P / 2, P * 0.5, P * 0.12, genfWood[0]) + `<path d="M${P * 0.2} ${P * 0.3}H${P * 0.8}L${P * 0.74} ${P * 0.62}H${P * 0.26}Z" fill="${genfWood[1]}" stroke="${GENF_INK}" stroke-width="2"/>` + gfBook(P * 0.3, P * 0.34, P * 0.4, P * 0.24, "#7a2e2e") },
+  { id: "questdesk", name: "Quest desk", cat: "Magic", w: 2, h: 1, place: "free", access: "frontback", face: "open", behind: "stool", draw: P => gfShadow(4, P * 0.14, 2 * P - 8, P * 0.7) + gfR(4, P * 0.14, 2 * P - 8, P * 0.7, genfWood[0]) + gfR(9, P * 0.22, 2 * P - 18, P * 0.54, genfWood[2]) + gfBook(P * 0.24, P * 0.28, P * 0.62, P * 0.4, "#6b2e2e") + [[1.0, 0.3, -8], [1.25, 0.34, 6], [1.5, 0.28, -3]].map(([x, y, a], i) => `<g transform="rotate(${a} ${x * P + 6} ${y * P + 6})"><rect x="${x * P}" y="${y * P}" width="${P * 0.22}" height="${P * 0.3}" fill="${i % 2 ? "#efe6cf" : "#e6d6ae"}" stroke="#7a6a4a" stroke-width="1"/><circle cx="${x * P + P * 0.11}" cy="${y * P + 3}" r="2" fill="${["#a8322d", "#2d5fa8", "#c9a42a"][i]}"/></g>`).join("") + gfC(P * 1.82, P * 0.5, 3.5, "#1e1a16") },
+  { id: "parceldesk", name: "Parcel desk", cat: "Magic", w: 2, h: 1, place: "free", access: "frontback", face: "open", behind: "stool", draw: P => gfShadow(4, P * 0.14, 2 * P - 8, P * 0.7) + gfR(4, P * 0.14, 2 * P - 8, P * 0.7, genfWood[0]) + gfR(9, P * 0.22, 2 * P - 18, P * 0.54, genfWood[2]) + gfR(P * 0.2, P * 0.24, P * 0.46, P * 0.46, "#6a6560", ` rx="3"`) + gfR(P * 0.26, P * 0.3, P * 0.34, P * 0.24, "#b8925a") + gfR(P * 0.86, P * 0.26, P * 0.42, P * 0.36, "#b8925a") + gfL(P * 1.07, P * 0.26, P * 1.07, P * 0.62, "#7a5a33", 1.5) + gfL(P * 0.86, P * 0.44, P * 1.28, P * 0.44, "#7a5a33", 1.5) + gfR(P * 1.4, P * 0.34, P * 0.34, P * 0.3, "#c9a46e") + gfC(P * 1.57, P * 0.49, 2.5, "#a8322d") },
   { id: "altar", name: "Altar", cat: "Hall & church", w: 2, h: 1, place: "wall", access: "front", door: "far", face: "door", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.7) + gfR(4, 4, 2 * P - 8, P * 0.7, "#cfc8ba") + gfR(4, P * 0.14, 2 * P - 8, P * 0.4, "#f1ead8") + gfR(P * 0.85, P * 0.14, P * 0.3, P * 0.62, "#8f2f2f") + gfCandle(P * 0.3, P * 0.32) + gfCandle(P * 1.7, P * 0.32) + gfC(P, P * 0.34, 5, "#e0b23c") },
   { id: "candles", name: "Candle stand", cat: "Hall & church", w: 1, h: 1, place: "free", access: "any", near: "altar", draw: P => gfCShadow(P / 2, P / 2, P * 0.18) + gfC(P / 2, P / 2, P * 0.18, "#3a3530") + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.32}" fill="rgba(255,190,80,.18)"/>` + gfCandle(P / 2, P / 2) },
   { id: "font", name: "Font", cat: "Hall & church", w: 1, h: 1, place: "free", access: "any", door: "near", draw: P => `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P / 2 + Math.cos(a) * P * 0.36).toFixed(1)},${(P / 2 + Math.sin(a) * P * 0.36).toFixed(1)}`; }).join(" ")}" fill="#bdb6a8" stroke="${GENF_INK}" stroke-width="2"/>` + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.22}" fill="#4f7fa8" stroke="#6a655c" stroke-width="2"/>` },
@@ -14799,7 +14812,10 @@ GEN_FURN.push(
     "bleedtower:Keepers' workshop": [["crystalbench", 1, 1], ["toolrack", 0, 1, 0.7], ["storagecore", 0, 2], ["stool", 0, 1]], "bleedtower:Keepers' room": [["bed", 1, 2], ["chest", 1, 2], ["stool", 0, 1]],
     "bleedtower:Linesman's store": [["storagecore", 1, 2], ["toolrack", 0, 1], ["crate", 1, 2]], "bleedtower:Keepers' lodge": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.5], ["stool", 0, 2]],
     // The Guild branch and its familiar post
-    "guildbranch:Guild hall": [["counter", 1, 2], ["questboard", 1, 2], ["bench", 1, 4], ["corelamp", 0, 2, 0.6], ["chest", 0, 1, 0.4]],
+    "guildbranch:Guild hall": [["questboard", 1, 3], ["trestle|table2", 3, 10], ["roundtable", 2, 8], ["settle", 0, 2, 0.5], ["corelamp", 0, 2, 0.6], ["weaponrack", 0, 1, 0.3]],
+    "guildbranch:Reception": [["questdesk", 1, 1], ["parceldesk", 1, 1], ["registry", 0, 1, 0.5], ["parcelshelves", 0, 1, 0.5]],
+    "guildbranch:Meeting room": [["longtable|table2|trestle|roundtable", 1, 1], ["maptable", 0, 1, 0.3], ["questboard", 0, 1, 0.3], ["corelamp", 0, 1, 0.5], ["chest", 0, 1, 0.3]],
+    "guildbranch:Post clerks' room": [["desk", 1, 2], ["registry", 0, 1, 0.6], ["parcelshelves", 0, 1, 0.5]], "guildbranch:Guild bar": [["barcounter", 1, 1], ["caskrack", 0, 1, 0.6], ["roundtable", 0, 3], ["barrel", 0, 2]], "guildbranch:Guild kitchen": [["worktable", 1, 1], ["cauldron", 0, 1, 0.6], ["shelves", 1, 2], ["oven", 0, 1, 0.6], ["barrel", 1, 2], ["sacks", 0, 1]],
     "guildbranch:Records room": [["registry", 1, 2], ["bookshelf", 1, 2], ["desk", 0, 1, 0.6]], "guildbranch:Clerks' office": [["desk", 1, 2], ["chest", 1, 1], ["shelves", 0, 1, 0.5]],
     "guildbranch:Licensing office": [["desk", 1, 1], ["registry", 1, 1], ["bench", 0, 1, 0.5]], "guildbranch:Wardens' office": [["maptable|table2", 1, 1], ["weaponrack", 1, 1], ["gaugepanel", 0, 1, 0.6], ["chest", 0, 1]],
     "guildbranch:Branch master's office": [["desk", 1, 1], ["carvedchair", 0, 1, 0.7], ["bookshelf", 1, 1], ["strongbox", 0, 1, 0.6]], "guildbranch:Masters' meeting room": [["longtable|table2", 1, 1], ["chest", 0, 1, 0.5], ["corelamp", 0, 1, 0.5]],
@@ -14891,6 +14907,9 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   L.rooms.forEach((ob, j) => { if (j === ri || !genOpen(rm, ob)) return; const side = [];
     for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (GENF_FRONT.some(([dx, dy]) => L.own(x + dx, y + dy) === j && !taken.has(K(x + dx, y + dy)))) side.push(K(x, y));
     if (side.length) throughs.push(side); });
+  // A guild's reception and bar open onto the hall: the squares along that open side stay clear, to queue at the desks.
+  if (rm.zone === "gh" && !rm.hub) L.rooms.forEach((ob, j) => { if (j === ri || !genOpen(rm, ob)) return; for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (GENF_FRONT.some(([dx, dy]) => L.own(x + dx, y + dy) === j)) clear.add(K(x, y)); });
+  const openCells = []; L.rooms.forEach((ob, j) => { if (j === ri || !genOpen(rm, ob)) return; for (let x = ob.x; x < ob.x + ob.w; x++) for (let y = ob.y; y < ob.y + ob.h; y++) if (GENF_FRONT.some(([dx, dy]) => L.own(x + dx, y + dy) === ri)) openCells.push([x, y]); });
   // Can you still get everywhere? From the first door: every door, stair end and fire, and somewhere to stand at every piece.
   // (A room the stairs cut in two keeps its two parts, each reached by its own door: each part must stay whole.)
   const flood = from => { const seen = new Set([from]), q = [from]; if (solid.has(from)) return seen;
@@ -14931,6 +14950,7 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
         // Turned to face something?
         const fv = GENF_FRONT[k], fc = { x: x + W / 2, y: y + H / 2 };
         const facing = (px, py) => fv[0] * (px + 0.5 - fc.x) + fv[1] * (py + 0.5 - fc.y);
+        if (a.face === "open" && openCells.length && facing(...openCells.reduce((b, d) => (dist(x, y, W, H, d[0], d[1]) < dist(x, y, W, H, b[0], b[1]) ? d : b))) <= 0) continue; // a counter faces the room it is open to
         if (a.face === "door" && a.id !== "altar" && doorCells.length && facing(...doorCells.reduce((b, d) => (dist(x, y, W, H, d[0], d[1]) < dist(x, y, W, H, b[0], b[1]) ? d : b))) <= 0) continue;
         if (a.id === "altar" && doorCells.length) { const d = (outDoors.length ? outDoors : doorCells)[0], ex = d[0] + 0.5 - center.x, ey = d[1] + 0.5 - center.y; // facing back down the room to the way in // an altar stands against the far wall, square to the way in
           if (Math.abs(ex) >= Math.abs(ey) ? fv[0] !== Math.sign(ex) : fv[1] !== Math.sign(ey)) { if (rm.w > 2 && rm.h > 2) continue; } }
@@ -14940,6 +14960,7 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
         // How good a spot: attractors and a little chance.
         let sc = r() * 1.2 + altarMid;
         const dDoor = doorCells.length ? Math.min(...doorCells.map(d => dist(x, y, W, H, d[0], d[1]))) : 0;
+        if (a.face === "open" && openCells.length) sc += Math.min(...openCells.map(d => dist(x, y, W, H, d[0], d[1]))) * 0.6; // set back from the open side, with room to queue
         if (a.door === "near") sc -= dDoor * 0.9; else if (a.door === "far") sc += dDoor * 0.7; else if (a.place !== "free" && a.place !== "centre") sc += Math.min(dDoor, 3) * 0.3;
         if (a.near === "hearth" && fires.length) sc -= Math.min(...fires.map(([fx, fy]) => dist(x, y, W, H, fx, fy))) * 1.3;
         else if (a.near && a.near !== "hearth") { const tg = placed.filter(p => p.a === a.near); if (tg.length) sc -= Math.min(...tg.map(p => dist(x, y, W, H, p.x + p.w / 2 - 0.5, p.y + p.h / 2 - 0.5))) * 1.2; }
@@ -15102,6 +15123,215 @@ document.addEventListener("click", async ev => {
     await genfSave(st => { if (builtin) st.hidden = [...new Set((st.hidden || []).concat(id))]; else st.custom = (st.custom || []).filter(x => x.id !== id); }); toast(builtin ? "Removed. It's under Removed if you want it back." : "Deleted."); return; }
   if (a === "gfxrestore") { await genfSave(st => { st.hidden = (st.hidden || []).filter(x => x !== b.dataset.id); }); return; }
 });
+
+// ===== The Rooms tab: #gen-<camp>/rooms =====
+// Every room the building generator makes, by building: an example of it cut from a real generated building (its walls,
+// doors and furniture as they'd be on the tabletop), what the room is for, and what's in it. 🎲 for another example.
+
+// What a room is for. Looked up by "type:Name" first, then the first pattern that matches its name, then its kind.
+const GEN_ROOM_TYPE_INFO = {
+  "guildbranch:Guild hall": "The heart of the Guild branch: a big seating hall where adventurers wait, plan and drink between contracts. The quest boards hang on the walls with the open contracts pinned up; take one down and carry it to the quest desk at the back.",
+  "guildhall:Guild hall": "The great quest hall of the Guild's city house: rows of tables for parties waiting on contracts, quest boards along the walls, and at the back the reception with its quest and parcel desks, open to the hall so you walk straight from the board to the counter.",
+  "guildbranch:Reception": "Open to the guild hall with no wall between: two desks, one for quests (register with the Guild, sign up a party, take a contract off the board and have it assigned to you) and one for parcels (weigh, pay and hand over a package for the familiar post). The parcel store is right behind.",
+  "guildhall:Reception": "Open to the great hall with no wall between: the quest desk, where adventurers register, sign their parties up and take on contracts from the boards, and the parcel desk, where letters too big for a transponder and packages are weighed and paid for the familiar post.",
+  "guildbranch:Meeting room": "A room to hire by the hour: a party plans its next quest round the table, or two parties meet to arrange a joint exercise, away from the noise of the hall.",
+  "guildhall:Meeting room": "A room to hire by the hour: a party plans its next quest round the table, or several parties meet to arrange a joint exercise, away from the noise of the hall.",
+  "guildbranch:Guild bar": "A tavern that partners with the Guild runs the bar here, open onto the hall: ale and food for the adventurers waiting on contracts, and a cut for the Guild.",
+  "guildhall:Guild bar": "A tavern that partners with the Guild runs the bar here, open onto the great hall: ale and food for the adventurers waiting on contracts, and a cut for the Guild.",
+  "guildbranch:Guild kitchen": "The partner tavern's kitchen behind the bar, feeding the hall.", "guildhall:Guild kitchen": "The partner tavern's kitchen behind the bar, feeding the great hall.",
+  "guildbranch:Parcel store": "Right behind the parcel desk: packages weighed and paid for wait on the shelves here for a licensed familiar to carry them.",
+  "guildhall:Parcel store": "Right behind the parcel desk: packages weighed and paid for wait on the shelves here for a licensed familiar to carry them.",
+  "guildbranch:Handlers' room": "The familiar handlers' room: perches for the familiars between runs, and the handlers who load them and send them off.",
+  "guildhall:Handlers' room": "The familiar handlers' room: perches for the familiars between runs, and the handlers who load them and send them off.",
+  "guildhall:Post clerks' room": "The clerks of the familiar post keep the books here: what went where, by which familiar, and what's owed.",
+  "guildbranch:Sealed vault": "Locked and windowless: magic items and valuable parcels waiting for a licensed familiar, never left on the open shelves.",
+  "guildhall:Sealed vault": "Locked and windowless: magic items and valuable parcels waiting for a licensed familiar, never left on the open shelves.",
+  "relaypost:Public counter": "Where the town sends and collects letters to and from other cities: written letters are taken in here and passed to the relay crystal, and arriving ones are handed out.",
+  "cityhall:Council chamber": "Where the city's council sits with the noble mayor or duke: the town's laws, taxes and quarrels are settled here.",
+  "relaypost:Tower room": "Up the relay tower: the height lets the crystal reach the next city's relay.",
+  "bathhouse:Tub room": "Wooden tubs for a private bath, the hot water carried in by the bath-keeper.",
+  "mint:Sorting room": "New coins and blanks are sorted, counted and bagged here.",
+  "gaol:Work room": "Where prisoners who can work earn their keep: picking oakum, beating hemp.",
+  "gaol:Press room": "A grim room where the gaolers question stubborn prisoners.",
+  "stable:Aisle": "The walk between the stalls, where the horses are led in and out.",
+  "bakehouse:Oven room": "The bread ovens, fired with wood before each bake.",
+  "apothecary:Grinding room": "Herbs, roots and minerals are ground into powders here.",
+  "apothecary:Still room": "Where cordials, medicines and sweet waters are distilled.",
+  "temple:Nave": "Where the townsfolk stand or sit for worship, looking towards the altar at the far end.",
+};
+const GEN_ROOM_INFO = [
+  // The Guild and magic (Dryrones)
+  [/^Familiar roost/, "Where the Guild's licensed familiars rest between runs: rows of perches, feed and water."],
+  [/^Familiar infirmary/, "Nesting boxes for familiars that are hurt, sick or worn out from a long flight."],
+  [/^(Licensing office)/, "Where the Guild licenses adventurers, familiars and magic workers, and checks that a licence is good."],
+  [/^Wardens' office|^Warden's office/, "The office of the wardens who keep watch over the town's defences and wards."],
+  [/^Wardens' muster room/, "Where the Guild's wardens gather before a patrol or a call-out: benches, weapons, the maps of the wards."],
+  [/^Wardens' quarters/, "Bunks for the wardens on duty."],
+  [/^Transport office/, "Arranges the Guild's transport: escorts, carriages and the long familiar routes."],
+  [/^(Branch master's office|Guild master's office)/, "The office of the master who runs this house of the Guild."],
+  [/^Masters' (meeting|council) room/, "Where the Guild's masters meet to run the house and settle its business."],
+  [/^Records (hall|room)/, "The Guild's records: who is licensed, which contracts were taken and by whom, what was paid."],
+  [/^Guild (strong room|vault)/, "The Guild's money and anything too valuable to leave out."],
+  [/^Relay crystal chamber/, "The relay crystal: letters between cities are sent and received through it, a city at a time."],
+  [/^Receiving room|^Sorting room/, "Where letters come off the relay and are sorted for the town, or for the next relay on."],
+  [/^Registry/, "The registry of transponders: whose crystal is whose, so letters find their owners."],
+  [/^Operator/, "For the crystal operators, who keep the relay running day and night."],
+  [/^Control room/, "Where the keepers watch the gauges of the bleed tower and turn the flow of mana up or down."],
+  [/^(Core store|Deep core store|Core cellar)/, "Storage cores, charged with excess mana, stacked and locked away."],
+  [/^Venting room/, "If the stores fill up, excess mana is let out here safely, before it can build up into a mana disaster."],
+  [/^Collector chamber/, "The collector at the top of the tower draws the natural mana out of the air before it can build up."],
+  [/^Ward-feed room/, "Where the tower's mana feeds the town's wards and the lines out to the node houses."],
+  [/^Keepers'? (workshop|room|lodge)|^Linesman's store/, "For the keepers who run the bleed tower and mend the lines."],
+  [/^Transponder shop/, "Sells transponders, the telepathic crystals that call and send letters, and mends them."],
+  [/^Attunement booth/, "A quiet booth where a new transponder learns its owner's mind."],
+  [/^Crystal workshop/, "Where crystals are cut, set and mended."],
+  [/^Core & adaptor shop/, "Sells adaptors for people with little mana of their own, and the small cores that run household things."],
+  [/^Fitting room/, "Where an adaptor is fitted to its owner, or clothes to a customer."],
+  [/^Charging room/, "Spent cores are topped up with mana here."],
+  // The trades and households, one by one
+  [/^Quenching pool/, "A trough of water to quench hot iron and harden it."],
+  [/^Armoury/, "Weapons and armour, racked and ready."],
+  [/^Apothecary$/, "Herbs and medicines are made up here for the sick."],
+  [/^Saw shed/, "An open shed where the timber is sawn."],
+  [/^(Glove room|Cooperage|Cobbling room)/, "A workshop for one of the town's trades: gloves, barrels or shoes."],
+  [/^Beadle's room/, "For the beadle, who keeps order in the hall and runs the council's errands."],
+  [/^Infirmarer's room/, "The infirmarer, who runs the care of the sick, works and sleeps here."],
+  [/dormitory$/, "A long room of beds."],
+  [/^(Yard gate|Mint gate)/, "The guarded gateway into the yard, for carts in and out."],
+  [/^Comptroller's office/, "The comptroller checks the weight and purity of the coin and keeps the mint's books."],
+  [/^Engraver's room/, "The dies for striking coins are cut here."],
+  [/^Moneyers' chamber/, "The moneyers, who strike the coins, rest and keep their tools here."],
+  [/^(Owner's room|Apothecary's chamber|Miller's room|Master's room)/, "The bedroom of the owner or master of the house."],
+  [/^Undercroft/, "A vaulted room under the hall, for stores or for trade."],
+  [/^(Grain|Wine) hall/, "A merchants' hall where goods are shown, weighed and stored for sale."],
+  // Halls and living rooms
+  [/^(Great hall|Hall|Common hall|Master's hall|Miller's hall|Keeper's hall|Warden's hall)$/, "The main room of the house: meals, guests, the household's business, the fire."],
+  [/^Common room/, "The tavern's main room: the bar, tables and benches, the fire, the noise."],
+  [/^Tap room/, "A smaller drinking room off the bar."],
+  [/^(Parlour|Great parlour|Court parlour|Governor's parlour|Mayor's parlour)/, "A private sitting room to talk business or receive guests away from the hall."],
+  [/^Solar/, "The family's private room upstairs, with the best light: to sit, sew, read and sleep."],
+  [/^(Living room|Main room|Cottage)$/, "Where the household lives: cooking, eating, working and often sleeping, round the hearth."],
+  [/^(Chamber|Chambers|Best chamber|Great chamber|Inner chamber|Master's chamber|Miller's chamber|Keeper's chamber|Warden's chamber|Governor's chamber|Bedroom|Upper room|Inner room)$/, "A bedroom, and somewhere private to keep clothes and valuables."],
+  [/^(Guest (room|chamber)|Lodger's room|Bridal suite|Private room)/, "A room for a guest or paying lodger to sleep."],
+  [/(Garret|garret|Sleeping loft)/, "A cramped room under the roof for servants, apprentices or children to sleep."],
+  [/^Nursery/, "Where the children sleep and are looked after."],
+  // Service
+  [/^(Kitchen|Cook's room|Oven room|Scullery)/, "Where the food is cooked and the pots washed."],
+  [/^(Buttery|Bar store|Wine store|Wine cellar|Wine vault|Beer cellar)/, "Where the drink is kept: casks of ale and wine."],
+  [/^(Pantry|Larder|Cold store|Cool store|Cold cellar|Salting room|Still room|Dairy)/, "Where food is kept, salted, cooled or preserved."],
+  [/^(Screens passage|Cross-passage|Entry|Entrance|Entrance hall|Entry passage|Side passage|Yard passage|Stair hall|Gate passage|Carriage way|Bath passage|Cell passage|Ward passage)/, "A way through: from the door to the hall and the service rooms, to keep the draughts and the traffic out of the rooms."],
+  [/^(Privy|Garderobe|Closet)/, "The privy."],
+  [/^(Washhouse|Linen room|Wardrobe)/, "Washing, mending and keeping the household's linen and clothes."],
+  [/^Brewhouse/, "Where the ale is brewed."],
+  [/^(Cellar|Root cellar|Store|Storeroom|Storage|Storage floor|Stock room|Stock cellar|Service room|Loft store|Back room)$/, "Storage: food, fuel, stock and things not needed every day."],
+  [/store$|Store$/, "Storage for the trade's materials and goods."],
+  [/^(Coal hole|Woodstore|Wood store|Fuel store)/, "Fuel for the fires."],
+  [/^Butler's room|^Steward's room|^Chamberlain's office/, "For the servant who runs the household: the stores, the plate and the accounts."],
+  // Shops and trades
+  [/^(Shop|Shop floor|Back shop)$/, "Where customers come in to buy: goods on show and a counter."],
+  [/^(Workshop|Work room|Workroom)$/, "Where the trade's work is done: benches, tools and materials."],
+  [/shop$/, "Where the trade's goods are made or shown and sold to customers."],
+  [/^(Forge|Smith's room)/, "The smith's forge: the hearth, the anvil, the quench."],
+  [/^(Counting (house|room)|Tally room|Ledger room|Clerk's|Clerks'|Office|Factor's room)/, "Where the accounts are kept, money is counted and the business is written up."],
+  [/^(Strong ?room|Treasury|Treasure vault|Vault|Exchequer|Pyx chamber|Plate room|Masterwork vault)/, "A locked room for money, plate and anything valuable."],
+  [/^(Warehouse|Weigh house|Weigh room|Weighing room)/, "Goods are stored, checked and weighed here."],
+  [/^(Kneading room|Bread shop|Flour store|Baker's room)/, "The bakehouse's work: flour, kneading, the ovens and the loaves."],
+  [/^(Hoist|Crane) loft/, "The hoist under the roof lifts goods from the carts up to the floors below."],
+  [/^Cart bay/, "Room for carts to pull in out of the weather and be loaded."],
+  [/^(Mill room|Wheel pit|Grinding room|Bin loft|Sack store)/, "Part of the mill's works: the wheel, the stones, the hoist and the grain bins."],
+  [/^(Stables|Stall|Tack room|Ostler's room|Groom's|Hayloft|Feed loft|Feed store|Hay store)/, "For the horses: stalls, feed, tack and the people who look after them."],
+  [/^(Byre|Cattle bay|Hay bay|Corn bay|Straw bay|Threshing floor|Cart bay|Aisle)/, "Farm work and livestock: bays for crops and animals, the threshing floor."],
+  [/^(Slaughterhouse|Blanching room|Dye vats|Dipping room|Tub room|Loom room|Cutting room|Press room|Kiln room|Coining house|Melting house|Assay)/, "A workroom for one stage of the trade."],
+  // Church
+  [/^(Nave|North aisle|South aisle|Crossing|North transept|South transept)/, "Where the people stand for worship, looking to the altar."],
+  [/^(Choir|Chancel|Presbytery|North choir aisle|South choir aisle|Sanctum|Sanctuary)/, "The holy end of the church: the altar, and the stalls where the clergy sing the services."],
+  [/^(Chapel|Lady chapel|Antechapel|Shrine)/, "A chapel or shrine with its own altar, for prayer and private masses."],
+  [/^(Vestry|Sacristy)/, "Where the vestments, plate and books for the services are kept, and the clergy robe."],
+  [/^Robing room/, "Where robes are kept and put on before a service or a sitting of the court."],
+  [/^(Chapter house|Chapter vestibule)/, "Where the clergy meet to run the church's business."],
+  [/^(Crypt|Ossuary|Reliquary|Mortuary)/, "For the dead: tombs, bones and holy relics."],
+  [/^(Priest's|Chaplain's|Hermit's cell|Confessional)/, "For the priest: to live, pray or hear confession."],
+  [/tower$/, "The base of a tower: bells above, or a stair to the top."],
+  // Civic, prison, hospital
+  [/^(Court room|Mayor's court|Jury room|Recorder's room|Muniment room|Aldermen's chamber)/, "The city's justice and records: the court, the jury, the charters."],
+  [/^(Cell|Common ward|Condemned|Felons'|Debtors'|Lock-up|Dungeon|Cage|Master's-side room)/, "Where prisoners are held."],
+  [/^(Turnkey|Keeper's (room|lodge)|Guard|Watch room|Porter's lodge|Gate chamber|Portcullis chamber|Serjeants' room|Captain's room)/, "For the guards, porters or gaolers who watch the doors."],
+  [/^(Warden's room|Warden's chamber)/, "The bedroom of the warden who runs the house."],
+  [/(\bward$|Infirmary|Hospital)/i, "Beds for the sick, the old or the poor, with the brothers or sisters who look after them."],
+  [/^(Almsfolk|Alms|Almsman|Almswoman|Covered walk)/, "Rooms for the almsfolk, old or poor people kept by charity."],
+  [/^(Bath|Tub room|Men's bath|Women's bath|Hot room|Steam room|Sweating room|Plunge pool|Changing|Rest chamber|Cistern|Barber's room)/, "Part of the bathhouse: changing, sweating, bathing and resting."],
+  [/^(Library|Study|Master's study|Hidden study|Archive|Registry hall)/, "Books, records and somewhere quiet to read and write."],
+  [/^(Meeting room|Council chamber|Feast hall|Livery hall)/, "Where people gather to meet, decide and eat together."],
+  [/^(Market arcade|Toll booth|Toll office|Exchange hall|Money-changers' hall|Pawn counter|Changer's chamber)/, "Trade and money: stalls, tolls, exchange."],
+  [/^(Timber|Salt|Spice|Cloth|Wool|Merchants') hall/, "A merchants' hall where goods are shown, weighed and stored for sale."],
+  [/(hall)$/, "A large hall for the house's business, its meetings and feasts."],
+  [/^Stone floor/, "The millstones turn here, grinding the grain into flour."],
+  [/^(Drying loft|Timber loft)/, "An airy loft under the roof where timber, hides or cloth are laid out to dry."],
+  [/^Furnace room/, "The furnace: metal melted, glass worked or the house heated."],
+  [/^(Gambling den|Fighting pit|Smuggler|Black-market|Disguise room|Forbidden shrine|Secret)/, "Something the owners would rather nobody found."],
+];
+const GEN_ROOM_KIND_INFO = { living: "Where the household lives and works.", bed: "Somewhere to sleep.", kitchen: "Where the food is cooked.", store: "Storage.", cellar: "Storage below ground, cool and dark.", shop: "Where customers come in to buy.", work: "Where the work is done.", forge: "A hot workroom with a hearth.", tavern: "Drink and company.", hall: "A large hall for gatherings.", office: "An office for business and writing.", meet: "Where people meet.", library: "Books and records.", temple: "For worship.", sanctum: "A holy place.", bath: "For bathing.", pit: "A pit for fighting.", vault: "A locked room for valuables.", privy: "The privy.", passage: "A way through.", mana: "A room of the mana works.", roost: "For familiars.", relay: "Part of the relay.", cell: "A cell.", market: "Open trade.", ward: "Beds for the sick.", loft: "A loft under the roof.", furnace: "A hot room with a furnace." };
+function genRoomInfo(type, rm) { const t = GEN_ROOM_TYPE_INFO[type + ":" + rm.n]; if (t) return t;
+  for (const [re, d] of GEN_ROOM_INFO) if (d && re.test(rm.n)) return d; return GEN_ROOM_KIND_INFO[rm.k] || ""; }
+
+// Find the rooms of a building type: generate a few of each size and keep, for each room name, a handful of examples.
+const GENR = { type: "guildbranch", q: "", cache: new Map(), pick: {}, bld: new Map() };
+function genRoomsOf(type) { if (GENR.cache.has(type)) return GENR.cache.get(type);
+  const T = genType(type), rooms = new Map(); let quiet = 0;
+  for (let sd = 1; sd <= 14 && quiet < 3; sd++) { let fresh = 0;
+    for (const size of ["medium", "large", "small"]) { const o = { type, seed: sd * 101 + 7, size, floors: "auto", cellar: sd % 2 ? "yes" : "auto", shape: "auto", porch: "auto" }; let B;
+      try { B = genBuilding(o); } catch (e) { continue; } if (!B || B.ok === false) continue;
+      B.levels.forEach(L => L.rooms.forEach((rm, i) => { if (rm.porch || (rm.circ && rm.n !== "Cellar stairs") || rm.n === "Landing" || rm.n === "Cellar stairs") return;
+        if (!rooms.has(rm.n)) { rooms.set(rm.n, { n: rm.n, k: rm.k, ex: [], floors: new Set(), entry: 0, area: 0 }); fresh++; } const e = rooms.get(rm.n); e.floors.add(L.level); if (rm.entry && L.level === 0) e.entry = 1; e.area = Math.max(e.area, rm.w * rm.h);
+        if (e.ex.length < 8) e.ex.push({ o, level: L.level, i, furn: (L.furn || []).filter(f => f.room === i).length }); })); }
+    quiet = fresh ? 0 : quiet + 1; }
+  // Best examples first: furnished, then by a medium size.
+  // (Ground floor first, then upstairs, then the cellar.)
+  const fk = e => { const f = Math.min(...[...e.floors].map(l => l < 0 ? 99 : l)); return f; };
+  const list = [...rooms.values()].map(e => Object.assign(e, { ex: e.ex.sort((a, b) => (b.furn > 0) - (a.furn > 0)) })).map((e, i) => [e, i]).sort((a, b) => fk(a[0]) - fk(b[0]) || b[0].entry - a[0].entry || b[0].area - a[0].area || a[1] - b[1]).map(x => x[0]);
+  GENR.cache.set(type, list); return list; }
+function genRoomsBuilding(o) { const k = JSON.stringify(o); if (!GENR.bld.has(k)) { if (GENR.bld.size > 40) GENR.bld.clear(); GENR.bld.set(k, { B: genBuilding(o), img: new Map() }); } return GENR.bld.get(k); }
+// One example, cut out of its building: the floor (and walls on top), the room's furniture, a little of the walls round it.
+function genRoomCrop(ex, big) {
+  const hold = genRoomsBuilding(ex.o), B = hold.B, L = B.levels.find(l => l.level === ex.level), rm = L && L.rooms[ex.i]; if (!rm) return "";
+  const lib = genFurnLib(), byId = new Map(lib.map(a => [a.id, a])), TW = B.W + GEN_PAD * 2, TH = B.H + GEN_PAD * 2, m = 0.6;
+  const img = part => { const k = ex.level + part; if (!hold.img.has(k)) hold.img.set(k, genUrl(genFloorSvg(B, L, false, ex.o.seed, false, part))); return hold.img.get(k); };
+  const u0 = rm.x + GEN_PAD - m, v0 = rm.y + GEN_PAD - m, cw = rm.w + 2 * m, ch = rm.h + 2 * m, pc = (a, b) => (a / b * 100).toFixed(3) + "%";
+  const full = (src, cls) => `<img class="${cls}" src="${src}" alt="" style="left:${pc(-u0, cw)};top:${pc(-v0, ch)};width:${pc(TW, cw)};height:${pc(TH, ch)}">`;
+  const furn = (L.furn || []).filter(f => f.room === ex.i).map(f => { const a = byId.get(f.a); if (!a) return ""; const x = f.x + f.w / 2 - a.w / 2, y = f.y + f.h / 2 - a.h / 2;
+    return `<img class="grmf" src="${esc(a.src)}" alt="" title="${esc(a.name)}" style="left:${pc(x + GEN_PAD - u0, cw)};top:${pc(y + GEN_PAD - v0, ch)};width:${pc(a.w, cw)};height:${pc(a.h, ch)}${f.k ? `;transform:rotate(${f.k * 90}deg)` : ""}">`; }).join("");
+  return `<div class="grmcrop${big ? " big" : ""}" style="aspect-ratio:${cw} / ${ch};width:min(100%, ${big ? `calc(65vh * ${(cw / ch).toFixed(4)})` : (220 * cw / ch).toFixed(1) + "px"})">${full(img("base"), "grmbase")}${furn}${full(img("top"), "grmtop")}</div>`;
+}
+function genRoomPieces(ex) { const B = genRoomsBuilding(ex.o).B, L = B.levels.find(l => l.level === ex.level), lib = genFurnLib(), byId = new Map(lib.map(a => [a.id, a])), n = new Map();
+  (L.furn || []).filter(f => f.room === ex.i).forEach(f => { const a = byId.get(f.a); const nm = a ? a.name : f.a; n.set(nm, (n.get(nm) || 0) + 1); });
+  return [...n.entries()].map(([nm, c]) => c > 1 ? `${c} × ${nm.toLowerCase()}` : nm.toLowerCase()).join(", "); }
+const genRoomFloorName = lv => lv < 0 ? "cellar" : lv === 0 ? "ground floor" : lv === 1 ? "upper floor" : `floor ${lv + 1}`;
+const GENR_GROUPS = [["village", "Village"], ["", "Town"], ["magic", "Magic"], ["city", "City"]];
+function genRoomsView(camp, back) {
+  const types = GEN_BUILDINGS.filter(t => t.id !== "custom" && (t.plan || t.ground)), T = genType(GENR.type);
+  let rooms = []; try { rooms = genRoomsOf(T.id); } catch (e) { console.warn(e); }
+  const q = GENR.q.trim().toLowerCase(), shown = rooms.filter(e => !q || e.n.toLowerCase().includes(q) || genRoomInfo(T.id, e).toLowerCase().includes(q));
+  const card = e => { const at = (GENR.pick[T.id + ":" + e.n] || 0) % e.ex.length, ex = e.ex[at], B = genRoomsBuilding(ex.o).B, rm = B.levels.find(l => l.level === ex.level).rooms[ex.i], pcs = genRoomPieces(ex);
+    return `<article class="gfcard grmcard"><button type="button" class="grmpic" data-act="grmbig" data-n="${esc(e.n)}" title="See it bigger">${genRoomCrop(ex)}</button><div class="gfbody">
+      <div class="grmhead"><strong>${esc(e.n)}</strong>${e.ex.length > 1 ? `<button type="button" class="btn ghost small" data-act="grmroll" data-n="${esc(e.n)}" title="Another example">🎲</button>` : ""}</div>
+      <span class="muted small">${rm.w} × ${rm.h} squares · ${[...e.floors].sort((a, b) => a - b).map(genRoomFloorName).join(", ")} · in a ${esc((B.F.shapeName || T.name).toLowerCase())}</span>
+      <p class="grmdesc">${esc(genRoomInfo(T.id, e)) || `<span class="muted">No description yet.</span>`}</p>
+      <p class="small grmpcs">${pcs ? `<b>Furniture:</b> ${esc(pcs)}` : `<span class="muted">Not furnished in this example.</span>`}</p></div></article>`; };
+  return `<section class="page"><a href="#gen-${esc(camp)}" class="vback">← Generator</a>
+    <h1>Rooms</h1><p class="muted">Every room the building generator makes, building by building: an example cut out of a real generated building, what it's for and what's in it. 🎲 shows another example; click a picture to see it bigger. Change what goes in a room in <a href="#gen-${esc(camp)}/furniture">Furniture</a>.</p>
+    ${GENR_GROUPS.map(([g, label]) => { const ts = types.filter(t => (t.group || "") === g); return ts.length ? `<div class="grmgroup"><span class="muted small">${label}</span><div class="gentags">${ts.map(t => `<button class="chip${t.id === T.id ? " on" : ""}" data-act="grmtype" data-v="${esc(t.id)}">${t.icon || ""} ${esc(t.name)}</button>`).join("")}</div></div>` : ""; }).join("")}
+    <div class="gftools"><input type="search" id="grm-q" placeholder="Find a room in the ${esc(T.name.toLowerCase())}…" value="${esc(GENR.q)}" class="grow"></div>
+    <p class="grmabout"><strong>${T.icon || ""} ${esc(T.name)}</strong> <span class="muted">${esc(T.blurb || "")}</span></p>
+    <div class="gfgrid grmgrid">${shown.map(card).join("") || `<p class="muted">No rooms match.</p>`}</div></section>`;
+}
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest("[data-act^=grm]"); if (!b) return; const a = b.dataset.act;
+  if (a === "grmtype") { GENR.type = b.dataset.v; GENR.q = ""; render(); return; }
+  if (a === "grmroll") { const k = GENR.type + ":" + b.dataset.n; GENR.pick[k] = (GENR.pick[k] || 0) + 1; render(); return; }
+  if (a === "grmbig") { const e = genRoomsOf(GENR.type).find(x => x.n === b.dataset.n); if (!e) return; const ex = e.ex[(GENR.pick[GENR.type + ":" + e.n] || 0) % e.ex.length], T = genType(GENR.type), pcs = genRoomPieces(ex);
+    openModal(`<h2>${esc(e.n)} <small class="muted">${esc(T.name)}</small></h2>${genRoomCrop(ex, true)}<p class="grmdesc">${esc(genRoomInfo(T.id, e))}</p>${pcs ? `<p class="small"><b>Furniture:</b> ${esc(pcs)}</p>` : ""}<div class="acts"><button class="btn ghost" type="button" data-act="closemodal">Close</button></div>`); return; }
+});
+document.addEventListener("input", ev => { if (ev.target && ev.target.id === "grm-q") { GENR.q = ev.target.value; const pos = ev.target.selectionStart; render(); const el = document.getElementById("grm-q"); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) { } } } });
 
 // ===== Custom buildings: draw your own =====
 // A custom building is a plan you draw: each floor's rooms (rectangles on the grid), its doors, windows, gates and front
@@ -16294,7 +16524,7 @@ function tnRectTurn(tf, r) { const [a, b] = tf(r.x, r.y), [c, d] = tf(r.x + r.w,
 const tnEntPt = (e, W, H) => { const t = Math.max(0.03, Math.min(0.97, Number(e[1]) || 0.5)); return e[0] === "N" ? [t * W, 0.5] : e[0] === "S" ? [t * W, H - 0.5] : e[0] === "W" ? [0.5, t * H] : [W - 0.5, t * H]; };
 // What goes where: [type, size weights small/medium/large].
 const TN_ZONES = {
-  market: [["merchant", 5], ["inn", 2], ["townhouse", 3], ["apothecary", 1], ["guild", 1]],
+  market: [["merchant", 5], ["inn", 2], ["townhouse", 3], ["apothecary", 1]],
   main: [["townhouse", 6], ["merchant", 2], ["workshop", 3], ["apothecary", 1], ["tailor", 1], ["general", 1], ["house", 2], ["tavern", 1]],
   shambles: [["butcher", 6], ["townhouse", 1]],
   gate: [["inn", 4], ["tavern", 2], ["townhouse", 2], ["stable", 1]],
@@ -16431,12 +16661,13 @@ function genTown(o) {
   const gateNear = (x, y) => gates.some(g => Math.hypot(g.x + g.w / 2 - x, g.y + g.h / 2 - y) < 28);
   const streetOf = (x, y) => streets.find(st => { for (let t = 0; t < st.tEnd; t += 1) { const [sx, sy] = st.cellAt(t, st.cAt(t)); if (Math.abs(sx - x) + Math.abs(sy - y) < 5) return true; } return false; });
   let slot = 0;
-  // Magic (Dryrones): every town a relay post and a transponder shop; bigger towns an adaptor and core shop; the large ones a
-  // Guild branch (with its familiar post) on the market and a bleed tower by the wall. Each tried first on the first plot of
+  // Every town has a Guild branch on the market. Magic (Dryrones): every town a relay post and a transponder shop; bigger
+  // towns an adaptor and core shop; the large ones a bleed tower by the wall. Each tried first on the first plot of
   // its kind of street it will fit.
-  const want = o.magic === "no" ? [] : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]]
+  const guild = [["guildbranch", ["market", "main", "gate", "lane"], (o.size === "large" ? ["large", "large", "large", "medium", "medium", "medium"] : o.size === "small" ? [] : ["medium", "medium", "medium"]).concat(["small", "small", "small"])]]; // every town has the Guild (other plans of it if the first won't fit)
+  const want = (o.magic === "no" ? guild : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]].concat(guild)
     .concat(o.size !== "small" ? [["coreshop", ["main", "lane", "gate", "ring"], ["medium", "small"]]] : [])
-    .concat(o.size === "large" ? [["guildbranch", ["market", "main"], ["large", "medium", "small"]], ["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : [])
+    .concat(o.size === "large" ? [["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : []))
     .map(([type, zones, sizes]) => ({ type, zones, sizes, done: false }));
   const place = (wayTypes, zoneOf, opts) => {
     for (const f of ["S", "N", "E", "W"]) { const [fx, fy] = TN_DIR[f]; // the building's front faces f: the way is on that side
@@ -16449,11 +16680,12 @@ function genTown(o) {
           // The way runs on from here: how far?
           let end = i; while (end < len && wayOK(end)) { const [a, b2] = cellOf(end); if (!(opts.outside ? (at(a, b2) === TNT.GRASS && !isIn(a, b2)) : free(a, b2))) break; end++; }
           const zone = zoneOf(x, y, f); let placed = null;
-          const mw = want.find(m => !m.done && m.zones.includes(zone)); // a magic building still to place, that goes on this street
-          for (let tries = mw ? -mw.sizes.length : 0; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const mt = tries < 0 ? mw : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
+          // The magic buildings (and the Guild) still to place that go on this street: each tried here in turn, each size, first.
+          const cand = want.filter(m => !m.done && m.zones.includes(zone)).flatMap(m => m.sizes.map((sz, ix) => [m, sz, ix]));
+          for (let tries = -cand.length; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const c = tries < 0 ? cand[tries + cand.length] : null, mt = c ? c[0] : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
             if (!genType(type) || genType(type).id !== type) continue;
-            const size = mt ? mt.sizes[tries + mt.sizes.length] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
-            const seed = mt ? tnH(o.seed, "m", type) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
+            const size = mt ? c[1] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
+            const seed = mt ? (mt.sizes.indexOf(size) < c[2] ? tnH(o.seed, "m", type, c[2]) : tnH(o.seed, "m", type)) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
             if (fd > opts.maxD || i + fw > end) continue;
             // The rectangle behind the front row, all free.
             const bx = fx > 0 ? ln - fd + 1 : fx < 0 ? ln : i, by = fy > 0 ? ln - fd + 1 : fy < 0 ? ln : i;
@@ -16889,7 +17121,7 @@ function tvFit() { const vw = document.getElementById("tv-view"); if (!vw || !TN
 function tvApply() { const st = document.getElementById("tv-stage"), v = TNV.view; if (st && v) st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`; tvNames(); }
 // The buildings' names over the preview when Names is ticked: each where it fits over its roof at this zoom (more as you zoom
 // in); the church, market hall, gates and the magic buildings always.
-const TV_KEYNAMES = new Set(["temple", "markethall", "gatehouse", "relaypost", "bleedtower", "guildbranch", "transponder", "coreshop", "guild"]);
+const TV_KEYNAMES = new Set(["temple", "markethall", "gatehouse", "relaypost", "bleedtower", "guildbranch", "transponder", "coreshop"]);
 function tvNames() { const g = document.getElementById("tv-names"), T = TNV.T, v = TNV.view; if (!g || !T || !v) return;
   if (TNV.o.names === false) { g.innerHTML = ""; TNV.namesZ = null; return; } if (TNV.namesZ === v.z) return; TNV.namesZ = v.z;
   const s = 4, fs = 11 / v.z, placed = [];

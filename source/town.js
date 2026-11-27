@@ -36,7 +36,7 @@ function tnRectTurn(tf, r) { const [a, b] = tf(r.x, r.y), [c, d] = tf(r.x + r.w,
 const tnEntPt = (e, W, H) => { const t = Math.max(0.03, Math.min(0.97, Number(e[1]) || 0.5)); return e[0] === "N" ? [t * W, 0.5] : e[0] === "S" ? [t * W, H - 0.5] : e[0] === "W" ? [0.5, t * H] : [W - 0.5, t * H]; };
 // What goes where: [type, size weights small/medium/large].
 const TN_ZONES = {
-  market: [["merchant", 5], ["inn", 2], ["townhouse", 3], ["apothecary", 1], ["guild", 1]],
+  market: [["merchant", 5], ["inn", 2], ["townhouse", 3], ["apothecary", 1]],
   main: [["townhouse", 6], ["merchant", 2], ["workshop", 3], ["apothecary", 1], ["tailor", 1], ["general", 1], ["house", 2], ["tavern", 1]],
   shambles: [["butcher", 6], ["townhouse", 1]],
   gate: [["inn", 4], ["tavern", 2], ["townhouse", 2], ["stable", 1]],
@@ -173,12 +173,13 @@ function genTown(o) {
   const gateNear = (x, y) => gates.some(g => Math.hypot(g.x + g.w / 2 - x, g.y + g.h / 2 - y) < 28);
   const streetOf = (x, y) => streets.find(st => { for (let t = 0; t < st.tEnd; t += 1) { const [sx, sy] = st.cellAt(t, st.cAt(t)); if (Math.abs(sx - x) + Math.abs(sy - y) < 5) return true; } return false; });
   let slot = 0;
-  // Magic (Dryrones): every town a relay post and a transponder shop; bigger towns an adaptor and core shop; the large ones a
-  // Guild branch (with its familiar post) on the market and a bleed tower by the wall. Each tried first on the first plot of
+  // Every town has a Guild branch on the market. Magic (Dryrones): every town a relay post and a transponder shop; bigger
+  // towns an adaptor and core shop; the large ones a bleed tower by the wall. Each tried first on the first plot of
   // its kind of street it will fit.
-  const want = o.magic === "no" ? [] : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]]
+  const guild = [["guildbranch", ["market", "main", "gate", "lane"], (o.size === "large" ? ["large", "large", "large", "medium", "medium", "medium"] : o.size === "small" ? [] : ["medium", "medium", "medium"]).concat(["small", "small", "small"])]]; // every town has the Guild (other plans of it if the first won't fit)
+  const want = (o.magic === "no" ? guild : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]].concat(guild)
     .concat(o.size !== "small" ? [["coreshop", ["main", "lane", "gate", "ring"], ["medium", "small"]]] : [])
-    .concat(o.size === "large" ? [["guildbranch", ["market", "main"], ["large", "medium", "small"]], ["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : [])
+    .concat(o.size === "large" ? [["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : []))
     .map(([type, zones, sizes]) => ({ type, zones, sizes, done: false }));
   const place = (wayTypes, zoneOf, opts) => {
     for (const f of ["S", "N", "E", "W"]) { const [fx, fy] = TN_DIR[f]; // the building's front faces f: the way is on that side
@@ -191,11 +192,12 @@ function genTown(o) {
           // The way runs on from here: how far?
           let end = i; while (end < len && wayOK(end)) { const [a, b2] = cellOf(end); if (!(opts.outside ? (at(a, b2) === TNT.GRASS && !isIn(a, b2)) : free(a, b2))) break; end++; }
           const zone = zoneOf(x, y, f); let placed = null;
-          const mw = want.find(m => !m.done && m.zones.includes(zone)); // a magic building still to place, that goes on this street
-          for (let tries = mw ? -mw.sizes.length : 0; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const mt = tries < 0 ? mw : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
+          // The magic buildings (and the Guild) still to place that go on this street: each tried here in turn, each size, first.
+          const cand = want.filter(m => !m.done && m.zones.includes(zone)).flatMap(m => m.sizes.map((sz, ix) => [m, sz, ix]));
+          for (let tries = -cand.length; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const c = tries < 0 ? cand[tries + cand.length] : null, mt = c ? c[0] : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
             if (!genType(type) || genType(type).id !== type) continue;
-            const size = mt ? mt.sizes[tries + mt.sizes.length] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
-            const seed = mt ? tnH(o.seed, "m", type) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
+            const size = mt ? c[1] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
+            const seed = mt ? (mt.sizes.indexOf(size) < c[2] ? tnH(o.seed, "m", type, c[2]) : tnH(o.seed, "m", type)) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
             if (fd > opts.maxD || i + fw > end) continue;
             // The rectangle behind the front row, all free.
             const bx = fx > 0 ? ln - fd + 1 : fx < 0 ? ln : i, by = fy > 0 ? ln - fd + 1 : fy < 0 ? ln : i;
@@ -631,7 +633,7 @@ function tvFit() { const vw = document.getElementById("tv-view"); if (!vw || !TN
 function tvApply() { const st = document.getElementById("tv-stage"), v = TNV.view; if (st && v) st.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`; tvNames(); }
 // The buildings' names over the preview when Names is ticked: each where it fits over its roof at this zoom (more as you zoom
 // in); the church, market hall, gates and the magic buildings always.
-const TV_KEYNAMES = new Set(["temple", "markethall", "gatehouse", "relaypost", "bleedtower", "guildbranch", "transponder", "coreshop", "guild"]);
+const TV_KEYNAMES = new Set(["temple", "markethall", "gatehouse", "relaypost", "bleedtower", "guildbranch", "transponder", "coreshop"]);
 function tvNames() { const g = document.getElementById("tv-names"), T = TNV.T, v = TNV.view; if (!g || !T || !v) return;
   if (TNV.o.names === false) { g.innerHTML = ""; TNV.namesZ = null; return; } if (TNV.namesZ === v.z) return; TNV.namesZ = v.z;
   const s = 4, fs = 11 / v.z, placed = [];
