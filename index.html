@@ -13505,7 +13505,7 @@ const GEN_MAGIC = [
   { id: "relaypost", name: "Relay post", icon: "📡", group: "magic", mirror: 1, blurb: "Links the town's transponders to the nearest city's relay tower: a public counter, the receiving room where letters arrive and rebuild themselves, the sorting room and the address registry, and a stair tower with the relay crystal at the top, an operator always on watch below it.",
     cellar: 0.3, porch: 0.3, floorsMax: 3, doorBonus: 0.5, under: [{ n: "Core store", k: "vault", w: 1 }],
     plan(r, size, up, fl) { const sm = size === "small", big = size === "large", D = sm ? 5 : genInt(r, 6, 7), tower = fl === 1 ? 1 : fl === 2 ? 2 : 3;
-      const units = [genU(genInt(r, 4, 5), genShuf(r, [genR("Public counter", "office", { w: 1.2 }), genR("Receiving room", "relay")]), Object.assign({ entry: 1 }, tower > 1 && !sm ? { up: [genR("Operator's chamber", "bed"), genR("Registry", "library")] } : {})),
+      const units = [genU(genInt(r, 4, 5), [genR("Public counter", "office", { w: 1.2 }), genR("Receiving room", "relay")], Object.assign({ entry: 1 }, tower > 1 && !sm ? { up: [genR("Operator's chamber", "bed"), genR("Registry", "library")] } : {})),
         genU(genInt(r, 3, 4), sm ? genR("Sorting room", "work") : genShuf(r, [genR("Sorting room", "work"), genR(big ? "Registry hall" : "Operators' room", big ? "library" : "living")]), tower > 1 && !sm ? { upJoin: 1 } : {})];
       const tw = genU(4, genR("Tower room", "store"), Object.assign({ back: 2, inset: [0, 2] }, tower > 1 ? { up: [genR(tower > 2 ? "Watch room" : "Relay crystal chamber", tower > 2 ? "office" : "relay")] } : {}, tower > 2 ? { up2: [genR("Relay crystal chamber", "relay")] } : {}));
       if (r() < 0.5) units.push(tw); else units.unshift(tw);
