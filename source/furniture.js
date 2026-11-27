@@ -730,10 +730,11 @@ function genFurnBoxes(L, lib) { const byId = new Map((lib || genFurnLib()).map(a
 
 // ----- The Furniture tab: #gen-<camp>/furniture -----
 const GENF = { cat: "" };
-const gfRoomLabel = n => { const i = n.indexOf(":"); return i < 0 ? n : `${n.slice(i + 1)} (${genType(n.slice(0, i)).name})`; };
-const genfRoomsText = a => { const e = Object.entries(a.rooms || {}).filter(([, v]) => v[1] > 0).sort((x, y) => x[0].localeCompare(y[0]));
+const gfRoomLabel = n => { const i = n.indexOf(":"); if (i < 0) return n; const t = n.slice(0, i); return `${n.slice(i + 1)} (${t === "city" ? "city" : genType(t).name})`; };
+// On a catalogue card only the first few rooms, then "+N more" (which opens the piece, with them all).
+const genfRoomsText = (a, max) => { const all = Object.entries(a.rooms || {}).filter(([, v]) => v[1] > 0).sort((x, y) => x[0].localeCompare(y[0])), e = max && all.length > max ? all.slice(0, max) : all;
   const seat = GEN_FURN.some(t => t.seats && t.seats.a.includes(a.id)) ? `<span class="gfroom">Round tables</span>` : "";
-  return e.length || seat ? e.map(([k, v]) => `<span class="gfroom">${esc(gfRoomLabel(k))} <b>${v[0] === v[1] ? v[1] : `${v[0]}–${v[1]}`}${v[2] < 1 ? "?" : ""}</b></span>`).join("") + seat : `<span class="muted small">Not in any room yet</span>`; };
+  return e.length || seat ? e.map(([k, v]) => `<span class="gfroom">${esc(gfRoomLabel(k))} <b>${v[0] === v[1] ? v[1] : `${v[0]}–${v[1]}`}${v[2] < 1 ? "?" : ""}</b></span>`).join("") + seat + (e.length < all.length ? `<button type="button" class="gfroom gfmore" data-act="gfxedit" data-id="${esc(a.id)}" title="See every room">+${all.length - e.length} more</button>` : "") : `<span class="muted small">Not in any room yet</span>`; };
 const genfPreview = a => { const W = a.w + 1, H = a.h + 1;
   return `<div class="gfprev" style="aspect-ratio:${W} / ${H}"><img src="${esc(a.src)}" alt="" style="left:${(0.5 / W * 100).toFixed(2)}%;top:${(0.5 / H * 100).toFixed(2)}%;width:${(a.w / W * 100).toFixed(2)}%;height:${(a.h / H * 100).toFixed(2)}%"></div>`; };
 function genFurnView(camp, back) {
@@ -744,7 +745,7 @@ function genFurnView(camp, back) {
       <div class="gentags">${["", ...cats].map(c => `<button class="chip${GENF.cat === c ? " on" : ""}" data-act="gfxcat" data-v="${esc(c)}">${c ? esc(c) : "All"}</button>`).join("")}</div></div>
     <div class="gfgrid">${shown.map(a => `<article class="gfcard">${genfPreview(a)}<div class="gfbody"><strong>${esc(a.name)}</strong>
       <span class="muted small">${a.w} × ${a.h} square${a.w * a.h > 1 ? "s" : ""} · ${esc(GEN_FURN_PLACES[a.place] || a.place)}${a.builtin ? "" : " · yours"}</span>
-      <div class="gfrooms">${genfRoomsText(a)}</div>
+      <div class="gfrooms">${genfRoomsText(a, 6)}</div>
       <div class="acts"><button class="btn ghost small" data-act="gfxedit" data-id="${esc(a.id)}">Edit</button><button class="btn ghost small danger" data-act="gfxdel" data-id="${esc(a.id)}">${a.builtin ? "Remove" : "Delete"}</button></div></div></article>`).join("")}</div>
     ${hidden.length ? `<h2 class="sect">Removed <span>${hidden.length}</span></h2><div class="gfgrid">${hidden.map(a => { const x = Object.assign({}, a, { src: genFurnImg(a) }); return `<article class="gfcard off">${genfPreview(x)}<div class="gfbody"><strong>${esc(a.name)}</strong><div class="acts"><button class="btn ghost small" data-act="gfxrestore" data-id="${esc(a.id)}">Put back</button></div></div></article>`; }).join("")}</div>` : ""}
   </section>`;
@@ -765,8 +766,9 @@ function genfEdit(id) {
         <div class="frow"><input id="gf-img" type="text" value="${esc(a && a.img || "")}" placeholder="Upload one, or paste a link" class="grow">${S.assets ? `<label class="btn ghost small">Upload<input type="file" accept="image/*" id="gf-file" hidden></label>` : ""}</div></label>
       <div class="frow"><label><span>Width <small class="muted">squares</small></span><input id="gf-w" type="number" min="1" max="6" value="${a ? a.w : 1}"></label><label><span>Depth <small class="muted">squares</small></span><input id="gf-h" type="number" min="1" max="6" value="${a ? a.h : 1}"></label>
       <label><span>Where it goes</span><select id="gf-place">${Object.entries(GEN_FURN_PLACES).filter(([k]) => k !== "gap" && k !== "hearth").map(([k, v]) => `<option value="${k}"${(a ? a.place : "wall") === k ? " selected" : ""}>${v}</option>`).join("")}</select></label></div>` : `<p class="muted small">${a.w} × ${a.h} squares · ${esc(GEN_FURN_PLACES[a.place] || a.place)}</p>`}
+    ${a ? `<div class="gfrooms gfall">${genfRoomsText(a)}</div>` : ""}
     <fieldset><legend>Rooms it goes in <small class="muted">how many: least – most (0 – 1 means sometimes)</small></legend>
-      <div class="gfroomlist">${GENF_ROOMNAMES().map(n => { const v = rooms[n], on = v && v[1] > 0; return `<label class="gfrrow${on ? " on" : ""}"><input type="checkbox" data-room="${esc(n)}"${on ? " checked" : ""}><span>${esc(gfRoomLabel(n))}</span><input type="number" min="0" max="20" data-min="${esc(n)}" value="${on ? v[0] : 0}" aria-label="Least in ${esc(n)}"><span>–</span><input type="number" min="1" max="20" data-max="${esc(n)}" value="${on ? v[1] : 1}" aria-label="Most in ${esc(n)}"></label>`; }).join("")}</div></fieldset>
+      <div class="gfroomlist">${GENF_ROOMNAMES().sort((x, y) => (rooms[y] && rooms[y][1] > 0 ? 1 : 0) - (rooms[x] && rooms[x][1] > 0 ? 1 : 0)).map(n => { const v = rooms[n], on = v && v[1] > 0; return `<label class="gfrrow${on ? " on" : ""}"><input type="checkbox" data-room="${esc(n)}"${on ? " checked" : ""}><span>${esc(gfRoomLabel(n))}</span><input type="number" min="0" max="20" data-min="${esc(n)}" value="${on ? v[0] : 0}" aria-label="Least in ${esc(n)}"><span>–</span><input type="number" min="1" max="20" data-max="${esc(n)}" value="${on ? v[1] : 1}" aria-label="Most in ${esc(n)}"></label>`; }).join("")}</div></fieldset>
     <div class="acts"><button class="btn" type="submit">Save</button><button class="btn ghost" type="button" data-act="closemodal">Cancel</button></div></form>`, m => {
     const f = m.querySelector("#gf-file"); if (f) f.addEventListener("change", async () => { const file = f.files[0]; if (!file) return; toast("Uploading…"); try { const res = await S.assets.upload(file); m.querySelector("#gf-img").value = assetPath(res); toast("Uploaded."); } catch (e) { toast("That didn't upload."); } });
     m.querySelectorAll("[data-room]").forEach(c => c.addEventListener("change", () => c.closest(".gfrrow").classList.toggle("on", c.checked)));
