@@ -12965,7 +12965,7 @@ function genFootprint(r, T, o, W, H) {
   } else { shape = "rect"; main = { x: 0, y: 0, w: W, h: H }; wings = [main]; }
   const want = o.porch === "yes" ? true : o.porch === "no" ? false : r() < (T.porch || 0);
   let porch = null;
-  if (want) { const pw = r() < 0.5 ? main.w : Math.max(3, Math.min(main.w, Math.round(main.w * (0.5 + r() * 0.3)))), px = main.x + Math.floor((main.w - pw) / 2 + (r() - 0.5) * (main.w - pw));
+  if (want) { const pw = Math.min(main.w, Math.max(T.wide ? 4 : 3, r() < 0.5 ? main.w : Math.max(3, Math.min(main.w, Math.round(main.w * (0.5 + r() * 0.3)))))), px = main.x + Math.floor((main.w - pw) / 2 + (r() - 0.5) * (main.w - pw));
     porch = { x: Math.max(main.x, Math.min(main.x + main.w - pw, px)), y: main.y + main.h, w: pw, h: 2 }; }
   const body = new Set(); wings.forEach(g => { for (let x = g.x; x < g.x + g.w; x++) for (let y = g.y; y < g.y + g.h; y++) body.add(x + "," + y); });
   return { shape, W, H: H + (porch ? 2 : 0), bodyH: H, main, wings, porch, body };
@@ -13087,7 +13087,9 @@ function genBuildingTry(o, attempt) {
   const stairCols = new Set(levels.find(L => L.level === 0).stairs.filter(t => t.y + t.h >= frontY).flatMap(t => Array.from({ length: t.w }, (_, i) => t.x + i)));
   let fx0 = F.porch ? Math.max(entry.x, F.porch.x) + Math.floor((Math.min(entry.x + entry.w, F.porch.x + F.porch.w) - Math.max(entry.x, F.porch.x) - fw) / 2) : entry.x + Math.floor((entry.w - fw) / 2);
   fx0 = Math.max(entry.x, Math.min(entry.x + entry.w - fw, fx0)); for (let k = 0; k < entry.w && [...Array(fw).keys()].some(i => stairCols.has(fx0 + i)); k++) fx0 = entry.x + ((fx0 - entry.x + 1) % Math.max(1, entry.w - fw + 1));
+  if (F.porch) fx0 = genDoorInPorch(fx0, fw, entry, [F.main.x, F.main.x + F.main.w], stairCols);
   const front = { x: fx0, w: fw, y: frontY };
+  genPorchOnDoor(F, levels, front, [F.main.x, F.main.x + F.main.w]);
   levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
   const overlap = levels.some(L => { const seen = new Set(); return (L.stairs || []).some(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) { const k = x + "," + y; if (seen.has(k)) return true; seen.add(k); } return false; }); });
   const ok = !overlap && stairs.length === Math.max(0, floors - 1) + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
@@ -13159,11 +13161,11 @@ const genR = (n, k, extra) => Object.assign({ n, k, w: 1 }, extra || {});
 // The Guild's houses (a town's branch, a city's hall): the seating hall with the quest boards, open at the back to the
 // reception (its quest desk and parcel desk); meeting rooms to hire; a tavern partner's bar and kitchen open to the hall;
 // the post wing with the parcel store right behind the reception, the sealed vault and handlers behind it.
-const genGuildMeet = () => genR("Meeting room", "meet", { w: 1.4 });
+const genGuildMeet = () => genR("Meeting room", "meet", { w: 1.4, priv: 1 });
+const genOff = (n, k, e) => genR(n, k, Object.assign({ priv: 1 }, e || {})); // an office: private, a dead end with one door
+const genGuildStair = () => genR("Stair hall", "passage", { w: 0.7 });
 const genGuildHall = (len, D, dw, r) => genU(len, [genR("Guild hall", "hall", { zone: "gh", hub: 1 }), genR("Reception", "office", { zone: "gh", zdoor: 1, tall: 1, doorTo: "Parcel store" })], { entry: 1, doorW: dw, sizes: [D - 3, 3], porch: r() < 0.5 ? [3, 2] : null });
-const genGuildBar = (r, D) => genU(genInt(r, 4, 5), [genR("Guild bar", "tavern", { zone: "gh", zdoor: 1, doorTo: "Guild kitchen" }), genR("Guild kitchen", "kitchen")], { sizes: [D - 3, 3] });
-const genGuildPost = (r, D, wb, front, up, big) => genU(genInt(r, 5, 6), [genR(front, front === "Handlers' room" ? "work" : "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1 }), genR(front === "Handlers' room" ? "Post clerks' room" : "Handlers' room", front === "Handlers' room" ? "office" : "work")],
-  Object.assign({ back: wb + 2, endDoor: "right", sizes: [D - 3, 3, 2, wb] }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {}));
+const genGuildBar = (r, D) => genU(genInt(r, 4, 5), [genR("Guild bar", "tavern", { zone: "gh", zdoor: 1, doorTo: "Guild kitchen" }), genR("Guild kitchen", "kitchen")], { back: 3, sizes: [D, 3] }); // the kitchen in a wing behind
 const GEN_VILLAGE = [
   { id: "cottage", name: "Cottage", icon: "🛖", group: "village", blurb: "A peasant's home: one open room round the hearth, or a hall with a chamber and a service end, sometimes a loft.",
     cellar: 0.03, porch: 0.15, floorsMax: 2, doorBonus: -1, under: [{ n: "Root cellar", k: "cellar", w: 1 }],
@@ -13353,12 +13355,14 @@ const GEN_CITY = [
   { id: "guildhall", name: "Guild hall", icon: "🛡", group: "city", mirror: 1, blurb: "The Guild's house in a city (defence, transport and most magical matters, and contract work for adventurers): the great seating hall with its quest boards, open at the back to the reception and its quest and parcel desks, meeting rooms to hire for parties and joint exercises, the records hall and clerks, the licensing, wardens' and transport offices, the guild master and the masters' council upstairs, an armoury and muster room for the wardens, often a tavern partner's bar and kitchen, and the familiar post wing behind the parcel desk, its familiars roosting above.",
     cellar: 0.6, porch: 0.6, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.6 }],
     plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 8, 9) : genInt(r, 9, 11), wb = sm ? 2 : genInt(r, 3, 5);
-      const masters = genU(genInt(r, 5, 6), (sm ? [genGuildMeet(), genR("Records hall", "library", { w: 1.2 }), genR("Clerks' office", "office")] : [genGuildMeet(), genGuildMeet()].concat(genShuf(r, [genR("Records hall", "library", { w: 1.2 }), genR("Clerks' office", "office")]))),
-        up ? { up: [genR("Guild master's office", "office", { w: 1.3 }), genR("Masters' council room", "meet", { w: 1.4 })].concat(sm ? [] : [genR("Guild strong room", "vault", { w: 0.6 })]).concat(big ? [genGuildMeet()] : []) } : {});
-      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]).concat(big ? [genGuildMeet()] : []));
-      const units = [masters, offices]; if (r() < (sm ? 0.4 : 0.65)) units.push(genGuildBar(r, D));
+      // The offices beside the hall, each opening off it (or the bar); the records, the clerks, the guild master and the
+      // masters' council up the stair hall.
+      const masters = genU(genInt(r, 5, 6), (sm ? [genGuildMeet()] : [genGuildMeet(), genGuildMeet()]).concat(up ? [genGuildStair()] : [], [genOff("Wardens' office", "office")]).concat(up ? [] : [genOff("Clerks' office", "office")]),
+        up ? { up: [genOff("Guild master's office", "office", { w: 1.3 }), genOff("Masters' council room", "meet", { w: 1.4 }), genOff("Records hall", "library", { w: 1.2 }), genOff("Clerks' office", "office")].concat(sm ? [] : [genR("Guild strong room", "vault", { w: 0.6 })]).concat(big ? [genOff("Transport office", "office")] : []) } : {});
+      const units = [masters]; if (r() < (sm ? 0.4 : 0.65)) units.push(genGuildBar(r, D));
       units.push(genGuildHall(sm ? genInt(r, 8, 9) : big ? genInt(r, 13, 16) : genInt(r, 10, 12), D, 3, r));
-      units.push(genGuildPost(r, D, wb, sm ? "Handlers' room" : "Transport office", up));
+      units.push(genU(genInt(r, 5, 6), [genOff("Licensing office", "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1 }), genR("Handlers' room", "work")],
+        Object.assign({ back: wb + 2, sizes: [D - 3, 3, 2, wb] }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {})));
       if (!sm) units.push(genU(genInt(r, 4, 5), genShuf(r, [genR("Wardens' muster room", "work", { w: 1.3 }), genR("Armoury", "store")]), Object.assign({ back: big ? genInt(r, 2, 4) : 0 }, up && big ? { up: [genR("Wardens' quarters", "bed"), genR("Linen store", "store", { w: 0.6 })] } : {})));
       return { D, name: sm ? "Guild house" : big ? "Great Guild hall" : "Guild hall", units }; } },
   { id: "cityhall", name: "City hall", icon: "🏛", group: "city", mirror: 1, blurb: "The seat of the city's noble mayor or duke and its council, three ways: a great hall on the ground with the council chamber at the high end and buttery and pantry past the screens; the hall upstairs over an undercroft, with the guild's chapel at the end; or the hall raised on posts over an open market. Maybe a lock-up, an armoury, the muniment room for the charters.",
@@ -13534,16 +13538,21 @@ const GEN_MAGIC = [
       const annex = genU(genInt(r, 4, 5), genShuf(r, [genR("Ward-feed room", "mana"), genR("Keepers' workshop", "work")]), nf > 1 && !sm ? { up: [genR("Keepers' room", "bed"), genR("Linesman's store", "store")] } : {});
       const units = [tower, annex]; if (!sm && r() < 0.5) units.push(genU(3, genR("Keepers' lodge", "living"), { inset: [1, 0] }));
       return { D, name: sm ? "Bleed post" : "Bleed tower", units }; } },
-  { id: "guildbranch", name: "Guild branch", icon: "🛡", group: "magic", mirror: 1, blurb: "The Guild's house in town, where adventurers take contract work: the guild hall is a big seating hall with the quest boards, open at the back to the reception with two desks, one to register and take quests for your party, one to send parcels by familiar post. Meeting rooms to hire for a party or a joint exercise, the clerks', licensing and wardens' offices, the branch master and the masters' meeting room upstairs. Many have a tavern partner's bar and kitchen off the hall. The parcel store and sealed vault sit behind the parcel desk, the familiars roosting above.",
+  { id: "guildbranch", name: "Guild branch", icon: "🛡", mirror: 1, blurb: "The Guild's house in town, where adventurers take contract work: the guild hall is a big seating hall with the quest boards, open at the back to the reception with two desks, one to register and take quests for your party, one to send parcels by familiar post. Meeting rooms to hire for a party or a joint exercise, the clerks', licensing and wardens' offices, the branch master and the masters' meeting room upstairs. Many have a tavern partner's bar and kitchen off the hall. The parcel store and sealed vault sit behind the parcel desk, the familiars roosting above.",
     cellar: 0.5, porch: 0.5, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.5 }],
     plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? 7 : big ? genInt(r, 9, 10) : genInt(r, 8, 9);
-      const side = genU(sm ? 4 : genInt(r, 4, 5), sm ? [genGuildMeet(), genR("Clerks' office", "office")] : [genGuildMeet(), genGuildMeet(), genR("Wardens' office", "office")],
-        up ? { up: [genR("Branch master's office", "office", { w: 1.2 }), genR("Masters' meeting room", "meet", { w: 1.2 })].concat(sm ? [] : [genR("Clerks' office", "office")]).concat(big ? [genGuildMeet()] : []) } : {});
+      // The offices beside the hall: meeting rooms to hire and the wardens' or clerks' office, each opening off the hall (or the
+      // bar), and a stair hall up to the branch master and the masters' meeting room.
+      const st = up ? [genGuildStair()] : [];
+      const side = genU(sm ? 4 : genInt(r, 4, 5), sm ? [genGuildMeet()].concat(st, [genOff("Clerks' office", "office")]) : [genGuildMeet()].concat(st, [genGuildMeet(), genOff("Wardens' office", "office")]),
+        up ? { up: [genOff("Branch master's office", "office", { w: 1.2 }), genOff("Masters' meeting room", "meet", { w: 1.2 })].concat(sm ? [] : [genOff("Clerks' office", "office")]).concat(big ? [genOff("Records room", "library")] : []) } : {});
       const units = [side]; if (r() < (sm ? 0.3 : big ? 0.7 : 0.5)) units.push(genGuildBar(r, D));
       units.push(genGuildHall(sm ? genInt(r, 6, 8) : big ? genInt(r, 11, 13) : genInt(r, 9, 10), D, sm ? 2 : 3, r));
-      units.push(sm ? genU(genInt(r, 3, 4), genR("Parcel store", "store"), up ? { up: [genR("Familiar roost", "roost")], landName: "Roost stair" } : {})
-        : genU(genInt(r, 5, 6), [genR("Handlers' room", "work"), genR("Sealed vault", "vault", { dark: 1 }), genR("Parcel store", "store")], Object.assign({ endDoor: "right", sizes: [D - 5, 2, 3] }, up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {})));
-      if (big) units.push(genU(4, genShuf(r, [genR("Licensing office", "office"), genR("Records room", "library")])));
+      const roost = up ? { up: [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")], landName: "Roost stair" } : {};
+      if (sm) units.push(genU(genInt(r, 3, 4), genR("Parcel store", "store"), up ? { up: [genR("Familiar roost", "roost")], landName: "Roost stair" } : {}));
+      else if (!big) units.push(genU(genInt(r, 5, 6), [genR("Handlers' room", "work"), genR("Sealed vault", "vault", { dark: 1 }), genR("Parcel store", "store")], Object.assign({ endDoor: "right", sizes: [D - 5, 2, 3] }, roost)));
+      else { units.push(genU(genInt(r, 5, 6), [genOff("Licensing office", "office"), genR("Sealed vault", "vault", { dark: 1 }), genR("Parcel store", "store")], Object.assign({ sizes: [D - 5, 2, 3] }, roost)));
+        units.push(genU(4, [genR("Handlers' room", "work", { w: 1.3 }), genOff("Records room", "library")])); }
       return { D, name: sm ? "Guild office" : "Guild branch", units }; } },
   { id: "transponder", name: "Transponder shop", icon: "🔮", group: "magic", mirror: 1, blurb: "Sells, attunes and mends transponders: the shop with its crystals on show, a little attunement booth where a new transponder learns its owner's mind, the crystal workshop behind, the family above.",
     cellar: 0.3, porch: 0, floorsMax: 3, doorBonus: 0,
@@ -13586,10 +13595,15 @@ function genPlanLayout(r, T, o) {
   // A porch in front of the unit that has one (the entry's, if its plan wants it and the option allows).
   const pu = units.findIndex(u => u.porch), wantP = o.porch === "yes" ? true : o.porch === "no" ? false : pu >= 0;
   let porch = null; const pi = pu >= 0 ? pu : units.findIndex(u => u.entry);
-  if (wantP && pi >= 0 && full[pi]) { const [pw, ph] = units[pi].porch || [Math.min(3, units[pi].len), 2]; const rc = rects[pi], at = units[pi].doorAt === "start" ? rc.x : rc.x + Math.floor((rc.w - pw) / 2);
-    porch = { x: Math.max(rc.x, Math.min(rc.x + rc.w - pw, at)), y: maxBack + D, w: Math.min(pw, rc.w), h: ph }; }
+  // (A porch always reaches past the front door on both sides, and is deeper in front of a wide door; it can run on in
+  // front of the next units along, so long as their fronts are on the street too.)
+  let porchSpan = null;
+  if (wantP && pi >= 0 && full[pi]) { const dw = units[pi].doorW || 1; let [pw, ph] = units[pi].porch || [Math.min(3, units[pi].len), 2]; pw = Math.max(pw, dw + 2); ph = Math.max(ph, dw >= 3 ? 3 : 2);
+    const onFront = j => j >= 0 && j < units.length && full[j] && !((units[j].inset || [0, 0])[1] > 0); let a = pi, b = pi; while (onFront(a - 1)) a--; while (onFront(b + 1)) b++;
+    porchSpan = [rects[a].x, rects[b].x + rects[b].w]; pw = Math.min(pw, porchSpan[1] - porchSpan[0]); const rc = rects[pi], at = units[pi].doorAt === "start" ? rc.x : rc.x + Math.floor((rc.w - pw) / 2);
+    porch = { x: Math.max(porchSpan[0], Math.min(porchSpan[1] - pw, at)), y: maxBack + D, w: pw, h: ph }; }
   const body = new Set(); wings.forEach(g => { for (let a = g.x; a < g.x + g.w; a++) for (let b = g.y; b < g.y + g.h; b++) body.add(a + "," + b); });
-  const F = { shape: "plan", shapeName: plan.name, W, H: bodyH + (porch ? porch.h : 0), bodyH, main, wings, porch, body };
+  const F = { shape: "plan", shapeName: plan.name, W, H: bodyH + (porch ? porch.h : 0), bodyH, main, wings, porch, porchSpan, body };
   // The rooms of each unit: split front to back (or along), sizes by weight, at least 2 squares each.
   const split = (rc, list, along, sizes) => { if (list.length === 1) return [Object.assign({}, list[0], rc)];
     const len = along ? rc.w : rc.h; let n = Math.min(list.length, Math.max(1, Math.floor(len / 2))); list = list.slice(0, n);
@@ -13619,7 +13633,7 @@ function genPlanTry(o, attempt) {
   const upRooms = [];
   Lay.regions.forEach(g => { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
     const shopLast = rm => rm.k === "shop" ? 1 : 0; // the stairs out of the shop, if anywhere else will do: it needs its floor for the counter
-    const cands = g.below.filter(rm => !rm.pass && !rm.hub && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass)); let s = null;
+    const cands = g.below.filter(rm => !rm.pass && !rm.hub && !rm.priv && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass && !rm.priv)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
     if (!s) return; s.lo = 0; stairs.push(s);
     g.made = g.rooms.length > 1 ? (g.slice ? genSlice(r, g.rect, g.rooms, minD) : genUpper(r, g.rect, s, g.rooms, minD, 1, g.landName || "Landing")) : [Object.assign({}, g.rooms[0], g.rect)]; upRooms.push(...g.made); }); // slice: rooms opening one into the next, no landing
@@ -13629,7 +13643,7 @@ function genPlanTry(o, attempt) {
   for (let k = 2; k <= 4; k++) { const lv = [];
     Lay.regions.forEach(g => { const want = g.higher[k - 2]; if (!want || !g.made) { g.made = null; return; } higher++;
       const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), below = g.made;
-      const cands = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.pass)); let s = null;
+      const cands = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.pass && !x.priv)); let s = null;
       for (const rm of cands) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, avoid: busy, near: nb }); if (s) break; } if (s) break; }
       if (!s) { g.made = null; return; } s.lo = k - 1; stairs.push(s); const rooms = want.map(x => Object.assign({}, x));
       g.made = rooms.length > 1 ? genUpper(r, g.rect, s, rooms, minD, 1, g.landName || "Landing") : [Object.assign({}, rooms[0], g.rect)]; lv.push(...g.made); });
@@ -13637,7 +13651,7 @@ function genPlanTry(o, attempt) {
   const floors = levels.filter(L => L.level >= 0).length;
   let down = null;
   if (cellar) { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), inM = rm => rm.x >= M.x && rm.y >= M.y && rm.x + rm.w <= M.x + M.w && rm.y + rm.h <= M.y + M.h;
-    const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : a.k === "shop" ? 2 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : b.k === "shop" ? 2 : 1));
+    const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && !x.priv && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : a.k === "shop" ? 2 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : b.k === "shop" ? 2 : 1));
     for (const rm of order) { down = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: M, frontY, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: M, frontY, avoid: busy, near: nb }); if (down) break; }
     if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); const rooms = genPick(r, T.under || [{ n: "Cellar", k: "cellar", w: 1 }]);
       levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: "Cellar" }); } }
@@ -13652,7 +13666,9 @@ function genPlanTry(o, attempt) {
   const eu = Lay.units[entry.unit] || {}, fw = Math.min(entry.w, eu.doorW || 1), stairX = new Set(levels.find(L => L.level === 0).stairs.filter(t => t.y + t.h >= frontY).flatMap(t => Array.from({ length: t.w }, (_, i) => t.x + i)));
   let fx0 = F.porch && F.porch.x >= entry.x && F.porch.x < entry.x + entry.w ? F.porch.x + Math.floor((F.porch.w - fw) / 2) : eu.doorAt === "start" ? entry.x + 1 : entry.x + Math.floor((entry.w - fw) / 2);
   fx0 = Math.max(entry.x, Math.min(entry.x + entry.w - fw, fx0)); for (let k = 0; k < entry.w && [...Array(fw).keys()].some(i => stairX.has(fx0 + i)); k++) fx0 = entry.x + ((fx0 - entry.x + 1) % Math.max(1, entry.w - fw + 1));
+  if (F.porch) fx0 = genDoorInPorch(fx0, fw, entry, F.porchSpan || [F.main.x, F.main.x + F.main.w], stairX);
   const front = { x: fx0, w: fw, y: frontY };
+  genPorchOnDoor(F, levels, front, F.porchSpan || [F.main.x, F.main.x + F.main.w]);
   levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
   // Through doors: a cross-passage or threshing floor has its back door straight opposite; a byre its muck door at the end.
   const G = levels.find(L => L.level === 0);
@@ -13664,7 +13680,9 @@ function genPlanTry(o, attempt) {
   G.gates = new Set(); G.rooms.forEach(rm => { if (!rm.gate) return; [...G.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); if (d === "h" && x >= rm.x && x < rm.x + rm.w && (y === rm.y || y === rm.y + rm.h)) G.gates.add(k); }); });
   G.rooms.forEach(rm => { if (rm.dark) [...G.wins].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); const inside = d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]; if (inside.some(([a, b]) => a >= rm.x && a < rm.x + rm.w && b >= rm.y && b < rm.y + rm.h)) G.wins.delete(k); }); });
   const overlap = levels.some(L => { const seen = new Set(); return (L.stairs || []).some(t => cellsOf(t).some(k => { if (seen.has(k)) return true; seen.add(k); return false; })); });
-  const ok = !overlap && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
+  // (A private room with more than one door means the plan didn't work out: try again.)
+  const privOk = levels.every(L => L.rooms.every((rm, i) => !rm.priv || [...L.doors].filter(k => gedKeyCellsG(k).some(([x, y]) => L.own(x, y) === i)).length <= 1));
+  const ok = !overlap && privOk && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
   const doorScore = ({ small: 0, medium: 1, large: 2 })[o.size] ?? 1, ds = doorScore + (T.doorBonus || 0);
   return { type: T.id, W: F.W, H: F.H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: ds >= 2 ? "grand" : ds >= 1 ? "framed" : "plain", ok, attempt, plan: 1 };
 }
@@ -13774,6 +13792,16 @@ function genMirrorUnits(units) { const UP = ["up", "up2", "up3", "up4", "upSlice
     if (j > i) { const a = units[i], b = units[j]; UP.forEach(k => { if (a[k] !== undefined) { b[k] = a[k]; delete a[k]; } }); delete b.upJoin; a.upJoin = 1; } i = j; }
   units.reverse(); const sw = n => n.replace(/North|South/g, w => w === "North" ? "South" : "North"); // compass names follow the building round
   units.forEach(u => { u.rooms.forEach(rm => { rm.n = sw(rm.n); }); [u.up, u.up2, u.up3].forEach(l => (l || []).forEach(rm => { rm.n = sw(rm.n); })); if (u.endDoor) u.endDoor = u.endDoor === "right" ? "left" : "right"; if (u.doorAt === "start") delete u.doorAt; }); }
+// With a porch the front door stands at least a square in from the ends of the front, so the porch reaches past it both
+// sides: the nearest such place in the entry room, clear of the stairs (else where it was).
+function genDoorInPorch(fx0, fw, entry, span, stairX) { const lo = Math.max(entry.x, span[0] + 1), hi = Math.min(entry.x + entry.w - fw, span[1] - 1 - fw);
+  if (fx0 >= lo && fx0 <= hi) return fx0; const c = []; for (let x = lo; x <= hi; x++) if (![...Array(fw).keys()].some(i => stairX.has(x + i))) c.push(x);
+  return c.length ? c.sort((a, b) => Math.abs(a - fx0) - Math.abs(b - fx0))[0] : fx0; }
+const gedKeyCellsG = k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); return d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]; };
+// The porch centred on the front door (the door may have moved off the middle to miss the stairs), within its span.
+function genPorchOnDoor(F, levels, front, span) { const p = F.porch; if (!p) return; const was = p.x;
+  p.x = Math.max(span[0], Math.min(span[1] - p.w, front.x - Math.floor((p.w - front.w) / 2))); if (p.x === was) return;
+  const pr = levels.find(L => L.level === 0).rooms.find(x => x.porch); if (pr) pr.x = p.x; }
 // Unit wall edges: "h,x,y" is the edge along the top of square (x, y); "v,x,y" along its left side.
 function genOpenings(r, L, F, stairs, front) {
   const W = F.W, H = F.H, own = (x, y) => { if (x < 0 || y < 0 || x >= W || y >= H) return -1; return L.rooms.findIndex(rm => x >= rm.x && x < rm.x + rm.w && y >= rm.y && y < rm.y + rm.h); };
@@ -13790,16 +13818,20 @@ function genOpenings(r, L, F, stairs, front) {
   // A tree of doors from the root through the ordinary rooms; then each secret room gets one secret door from a room already
   // reached; then anything left (only reachable through a secret room) carries on from there.
   const seen = new Set([root]);
-  const connect = (secretPass, byStairs) => { const q = [...seen]; while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
+  // A private room (an office, a meeting room) is a dead end: one door in, never the way through to anywhere else, unless
+  // there's no other way.
+  let privOK = false; const priv = i => !privOK && L.rooms[i].priv && i !== root;
+  const connect = (secretPass, byStairs) => { const q = [...seen].filter(i => !priv(i)); while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
       if (seen.has(b) || isPorch(b) || !!L.rooms[b].secret !== secretPass) continue; let e = shared(a, b); if (!e.length) continue;
-      if (genOpen(L.rooms[a], L.rooms[b])) { seen.add(b); q.push(b); continue; } // open to each other: no door needed
+      if (genOpen(L.rooms[a], L.rooms[b])) { seen.add(b); if (!priv(b)) q.push(b); continue; } // open to each other: no door needed
       if (L.rooms[a].cub && L.rooms[b].cub) continue; // a bath chamber, cell or almsman's room opens onto its passage, never through the next one
       if ((L.rooms[a].zone && !L.rooms[a].hub && !L.rooms[a].zdoor) || (L.rooms[b].zone && !L.rooms[b].hub && !L.rooms[b].zdoor)) continue; // a stall opens only onto its aisle (zdoor: a ward or an aisle can still have a door)
       const clear = e.filter(k => !onStairs(k)); if (clear.length) e = clear; else if (!byStairs) continue; // doors don't open onto the stairs, unless there's no other way
       const mid = e.filter((_, i) => e.length < 3 || (i > 0 && i < e.length - 1)), list = mid.length ? mid : e, pick = list[Math.floor(r() * list.length)];
-      L.doors.add(pick); if (secretPass) L.secret.add(pick); seen.add(b); if (!secretPass) q.push(b); } } };
+      L.doors.add(pick); if (secretPass) L.secret.add(pick); seen.add(b); if (!secretPass && !priv(b)) q.push(b); } } };
   const all = () => { connect(false, false); connect(false, true); connect(true, false); connect(true, true); connect(false, false); connect(false, true); };
-  all(); for (;;) { const nx = L.rooms.findIndex((x, i) => !seen.has(i) && !isPorch(i) && (x.circ || (stairs || []).some(t => t.x >= x.x && t.x < x.x + x.w && t.y >= x.y && t.y < x.y + x.h))); if (nx < 0) break; seen.add(nx); all(); } // a second part upstairs with its own stairs
+  all(); if (L.rooms.some((x, i) => !seen.has(i) && !isPorch(i))) { privOK = true; all(); privOK = false; }
+  for (;;) { const nx = L.rooms.findIndex((x, i) => !seen.has(i) && !isPorch(i) && (x.circ || (stairs || []).some(t => t.x >= x.x && t.x < x.x + x.w && t.y >= x.y && t.y < x.y + x.h))); if (nx < 0) break; seen.add(nx); all(); } // a second part upstairs with its own stairs
   // doorTo: a room that must open to a named neighbour (a guild's reception to the parcel store, its bar to the kitchen).
   L.rooms.forEach((rm, a) => { if (!rm.doorTo) return; L.rooms.forEach((ob, b) => { if (ob.n !== rm.doorTo) return; const e = shared(a, b), ok = e.filter(k => !onStairs(k)); if (!ok.length || e.some(k => L.doors.has(k))) return;
     const mid = ok.filter((_, i) => ok.length < 3 || (i > 0 && i < ok.length - 1)); L.doors.add((mid.length ? mid : ok)[Math.floor(r() * (mid.length || ok.length))]); }); });
