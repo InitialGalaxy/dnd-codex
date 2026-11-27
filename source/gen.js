@@ -1574,12 +1574,13 @@ function viewGen(camp, kind, type) {
   if (!kind) {
     const card = (k, icon, t, d, ready) => ready ? `<a class="gencard" href="#gen-${esc(camp)}/${k}"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span></a>` : `<div class="gencard soon" aria-disabled="true"><span class="genicon">${icon}</span><strong>${t}</strong><span class="muted small">${d}</span><span class="gensoon">Coming later</span></div>`;
     return `<section class="page">${back}<h1>Generator</h1><p class="muted">Make maps for ${esc(c.name || "this campaign")}, ready to play on the tabletop.</p>
-      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("rooms", "🚪", "Rooms", "Every room in every building: an example of it furnished, and what it's for.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets from the gates to the market place, burgage plots, lanes, the church, the wall: every building opens up as you come near.", true)}${card("city", "🏰", "Cities", "Whole cities, opened a street or building at a time.")}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
+      <div class="gencards">${card("building", "🏠", "Buildings", "Houses, shops, taverns, temples: every floor, room, door and stair.", true)}${card("furniture", "🪑", "Furniture", "The pieces buildings are furnished with: see them, change them, add your own.", true)}${card("rooms", "🚪", "Rooms", "Every room in every building: an example of it furnished, and what it's for.", true)}${card("village", "🏡", "Villages", "Houses along the roads, the church and mill, fields, woods, rivers and mountains.", true)}${card("town", "🏘", "Towns", "Streets from the gates to the market place, burgage plots, lanes, the church, the wall: every building opens up as you come near.", true)}${card("city", "🏰", "Cities", "The old town and its market, the cathedral close, the castle on the wall, the river with its bridges and quays, the suburbs outside the gates: every building opens up as you come near.", true)}${card("dungeon", "🕳", "Dungeons", "Rooms, corridors and caves.")}</div></section>`;
   }
   if (kind === "furniture") return genFurnView(camp, back);
   if (kind === "rooms") return genRoomsView(camp, back);
   if (kind === "village") return viewVillageGen(camp);
-  if (kind === "town") return viewTownGen(camp);
+  if (kind === "town") return viewTownGen(camp, "town");
+  if (kind === "city") return viewTownGen(camp, "city");
   if (kind === "building" && !type) {
     const saved = vPages(VGEN).filter(([, p]) => p.gen), tagSet = new Set(saved.flatMap(([, p]) => p.gen.tags || [])), tf = GEN.tag || "";
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
