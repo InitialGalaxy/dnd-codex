@@ -31,6 +31,21 @@ const GEN_ROOM_TYPE_INFO = {
   "bakehouse:Oven room": "The bread ovens, fired with wood before each bake.",
   "apothecary:Grinding room": "Herbs, roots and minerals are ground into powders here.",
   "apothecary:Still room": "Where cordials, medicines and sweet waters are distilled.",
+  // The walled castle
+  "castle:Courtyard": "The open court in the middle of the castle, the ranges built round it against the walls: the well or a light fountain, training dummies, carts unloading, lamps on posts.",
+  "castle:Gate passage": "The way in, through the gatehouse: heavy gates at both ends and the portcullis overhead, worked from the winch room above. The porter's lodge and the guardroom watch it from either side.",
+  "castle:Porter's lodge": "The porter keeps the gate and knows who comes and goes; the stairs up to the winch room and the constable's chamber.",
+  "castle:Gatehouse guardroom": "The gate guard's room beside the gate passage.",
+  "castle:Winch room": "Over the gate passage: the windlass that raises and drops the portcullis, and murder holes through the floor.",
+  "castle:Constable's chamber": "The constable commands the castle's defence; his chamber is over the gate.",
+  "castle:Gatehouse store": "Stores for the gate's defence: barrels, crates of bolts, spare weapons.",
+  "castle:Wall-walk": "The walk along the top of the curtain wall behind its merlons, between the towers and the gatehouse.",
+  "castle:Barracks": "The garrison's beds and kit.",
+  "castle:Stores": "The castle's stores: food, fuel and arms to hold out through a siege.",
+  "castle:Armoury": "Weapons and armour for the garrison.",
+  "castle:Retainers' hall": "Where the lord's retainers and men-at-arms eat and gather, apart from the household's great hall.",
+  "castle:Retainers' chamber": "Beds for the lord's retainers.",
+  "castle:Corridor": "The passage along the range upstairs, the rooms opening off it.",
   // The keep (Dryrones castles)
   "keep:Forebuilding": "The keep's entrance: a covered stair and guard post in front of the door, so the way in can be held.",
   "keep:Screens passage": "The cross-passage at the low end of the great hall, behind its screen: the way in from the forebuilding, with the kitchen, buttery and pantry off it.",
@@ -199,7 +214,11 @@ const GEN_ROOM_INFO = [
   [/^(Gambling den|Fighting pit|Smuggler|Black-market|Disguise room|Forbidden shrine|Secret)/, "Something the owners would rather nobody found."],
 ];
 const GEN_ROOM_KIND_INFO = { living: "Where the household lives and works.", bed: "Somewhere to sleep.", kitchen: "Where the food is cooked.", store: "Storage.", cellar: "Storage below ground, cool and dark.", shop: "Where customers come in to buy.", work: "Where the work is done.", forge: "A hot workroom with a hearth.", tavern: "Drink and company.", hall: "A large hall for gatherings.", office: "An office for business and writing.", meet: "Where people meet.", library: "Books and records.", temple: "For worship.", sanctum: "A holy place.", bath: "For bathing.", pit: "A pit for fighting.", vault: "A locked room for valuables.", privy: "The privy.", passage: "A way through.", mana: "A room of the mana works.", roost: "For familiars.", relay: "Part of the relay.", cell: "A cell.", market: "Open trade.", ward: "Beds for the sick.", loft: "A loft under the roof.", furnace: "A hot room with a furnace." };
-function genRoomInfo(type, rm) { const t = GEN_ROOM_TYPE_INFO[type + ":" + rm.n]; if (t) return t;
+function genRoomInfo(type, rm) { const t = GEN_ROOM_TYPE_INFO[type + ":" + rm.n] || (type === "castle" && GEN_ROOM_TYPE_INFO["keep:" + rm.n]); if (t) return t;
+  if (/ tower$/.test(rm.n)) return "A round tower at a corner of the walls: the spiral stair up, a guard post at the foot, arrow slits all round.";
+  if (/ tower room$/.test(rm.n)) return "A room in a corner tower, up the spiral stair: guards' beds and kit, doors out onto the wall-walks.";
+  if (/ ward chamber$/.test(rm.n)) return "The top of a corner tower: the ward array that holds this stretch of the castle's wards, fed from the mana station below.";
+  if (rm.n === "Wall") return "The thickness of the curtain wall: solid stone.";
   for (const [re, d] of GEN_ROOM_INFO) if (d && re.test(rm.n)) return d; return GEN_ROOM_KIND_INFO[rm.k] || ""; }
 
 // Find the rooms of a building type: generate a few of each size and keep, for each room name, a handful of examples.

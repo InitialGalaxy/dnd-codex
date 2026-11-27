@@ -13,10 +13,11 @@ const genSeed = () => Math.floor(Math.random() * 1e9) + 1;
 // Floors: how each kind of room looks.
 const GEN_FLOOR = {
   wood: { base: [36, 42, 63], line: "#8f6d45" }, stone: { base: [38, 8, 70], line: "#8a8377" }, earth: { base: [33, 22, 49], line: "#6f5d43" },
-  tile: { base: [40, 30, 78], line: "#a99a7a" }, rug: { base: [36, 42, 63], line: "#8f6d45" }, porch: { base: [33, 36, 58], line: "#80633f" }
+  tile: { base: [40, 30, 78], line: "#a99a7a" }, rug: { base: [36, 42, 63], line: "#8f6d45" }, porch: { base: [33, 36, 58], line: "#80633f" },
+  masonry: { base: [30, 6, 44], line: "#3a352e" }, cobble: { base: [35, 8, 58], line: "#6e675c" }, walk: { base: [35, 7, 62], line: "#77706a" }
 };
 const GEN_KIND = { living: "wood", bed: "wood", kitchen: "stone", store: "earth", cellar: "earth", shop: "wood", work: "wood", forge: "stone", tavern: "wood",
-  hall: "stone", privy: "wood", office: "wood", meet: "rug", library: "wood", temple: "tile", sanctum: "rug", landing: "wood", porch: "porch", bath: "tile", pit: "earth", vault: "stone" };
+  hall: "stone", privy: "wood", office: "wood", meet: "rug", library: "wood", temple: "tile", sanctum: "rug", landing: "wood", porch: "porch", bath: "tile", pit: "earth", vault: "stone", masonry: "masonry", court: "cobble", walk: "walk", tower: "stone" };
 // Each type: its footprint (frontage × depth, squares) and floors by size, the shapes it comes in (with weights) and how often
 // it has a porch or a cellar, and the rooms on each floor. A room: n name, k kind, w how much space it wants, opt the chance
 // it's there at all, front it faces the street, entry the front door's in it, back it likes the back wall.
@@ -154,6 +155,7 @@ function genBuilding(o) {
 }
 function genBuildingTry(o, attempt) {
   if (o.custom) return genCustomTry(o); // drawn by hand (builder.js)
+  if (genType(o.type).build) return genType(o.type).build(o, attempt);
   if (genType(o.type).plan) return genPlanTry(o, attempt);
   const T = genType(o.type), r = genRng(attempt ? (Number(o.seed) || 1) + attempt * 100003 : o.seed), S = T.size[o.size] || T.size.medium;
   const F = genFootprint(r, T, o, genInt(r, S[0][0], S[0][1]), genInt(r, S[1][0], S[1][1]));
@@ -252,7 +254,7 @@ function genStairEntry(L, t) {
 // the stairs arriving from below: every room, both sides of every door, and the squares at the foot and head of every stair.
 function genReachable(L, F, front) {
   const W = F.W, H = F.H, own = L.own, stair = new Set(); (L.stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) stair.add(x + "," + y); });
-  const porch = i => i >= 0 && L.rooms[i].porch, pass = (x, y) => own(x, y) >= 0 && !stair.has(x + "," + y);
+  const porch = i => i >= 0 && L.rooms[i].porch, pass = (x, y) => own(x, y) >= 0 && !L.rooms[own(x, y)].solid && !stair.has(x + "," + y);
   const canStep = (x, y, nx, ny, key) => { if (!pass(nx, ny)) return false; const a = own(x, y), b = own(nx, ny); return a === b || L.doors.has(key) || (porch(a) && porch(b)) || genOpen(L.rooms[a], L.rooms[b]); };
   let start = null, more = [];
   if (front && front.w) start = [front.x, front.y - 1];
@@ -266,7 +268,7 @@ function genReachable(L, F, front) {
   while (q.length) { const [x, y] = q.shift();
     for (const [nx, ny, key] of [[x, y - 1, `h,${x},${y}`], [x, y + 1, `h,${x},${y + 1}`], [x - 1, y, `v,${x},${y}`], [x + 1, y, `v,${x + 1},${y}`]]) {
       const k = nx + "," + ny; if (seen.has(k) || !canStep(x, y, nx, ny, key)) continue; seen.add(k); q.push([nx, ny]); } }
-  const roomOk = L.rooms.every((rm, i) => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (seen.has(x + "," + y)) return true; return false; });
+  const roomOk = L.rooms.every((rm, i) => { if (rm.solid) return true; for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (seen.has(x + "," + y)) return true; return false; });
   const stairsOk = (L.stairs || []).every(t => { const e = genStairEntry(L, t); return e.ok && e.cells.every(c => seen.has(c)); });
   const doorsOk = [...L.doors].every(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); const [a, b] = d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]];
     return [a, b].every(([cx, cy]) => own(cx, cy) < 0 || seen.has(cx + "," + cy)); });
@@ -756,8 +758,166 @@ const GEN_CASTLE = [
         units.push(genU(genInt(r, 10, 11), [genR("Guard hall", "hall", { w: 1.4, fl: "keep:Guard hall (hoist)" }), off("Steward's room", "office"), genR("Chapel", "temple", { w: 1.2 })],
           Object.assign({ back: genInt(r, 3, 4) }, nf > 1 ? { up: L1 } : {}, nf > 2 ? { up2: L2 } : {}, nf > 3 ? { up3: L3 } : {}))); }
       return { D, name: sm ? "Tower keep" : big ? "Great keep" : "Keep", units }; } },
+  { id: "castle", name: "Castle", icon: "🏯", group: "castle", build: (o, a) => genCastleTry(o, a), blurb: "A walled castle round its courtyard: the curtain wall with a round tower at each corner (spiral stairs, guard rooms, a ward chamber at the top) and a wall-walk along the bare walls, the gatehouse with its gate passage, porter's lodge and the portcullis winch above, and the ranges built against the walls: the hall range with the kitchen and great hall, the lord's range with the chapel, chambers and the magic rooms, in bigger castles barracks and lodgings. Below the hall range, the undercroft with the mana station, and under it the prison, the crypt and the sally passage.",
+    cellar: 1, porch: 0, floorsMax: 3, doorBonus: 3,
+    under: [{ n: "Undercroft", k: "cellar", w: 1.6 }, { n: "Wine cellar", k: "cellar", w: 0.9 }, { n: "Well chamber", k: "cellar", w: 0.6 }, { n: "Mana station", k: "mana", w: 1.2 }, { n: "Core vault", k: "vault", w: 0.7, priv: 1 }, { n: "Treasury", k: "vault", w: 0.7, priv: 1 }],
+    under2: [{ n: "Guardroom", k: "office", w: 1 }, { n: "Cells", k: "cell", w: 1.2 }, { n: "Cells", k: "cell", w: 1.2, opt: 0.6 }, { n: "Oubliette", k: "cell", w: 0.35, priv: 1 }, { n: "Family crypt", k: "vault", w: 1.4 }, { n: "Sally passage", k: "passage", w: 0.8, secret: 1 }] },
 ];
 GEN_BUILDINGS.push(...GEN_CASTLE);
+
+// ===== The walled castle (Dryrones): a courtyard castle =====
+// The curtain wall (solid masonry, a square thick under the ranges built against it, two where it stands bare with a
+// wall-walk on top), a round tower at each corner with a spiral stair, guard rooms and a ward chamber at the top, a
+// gatehouse on the front with its gate passage, porter's lodge and guardroom (the portcullis winch above), and the ranges
+// against the inside of the walls round the courtyard: the hall range (kitchen, buttery, great hall), the lord's range
+// (chapel and chambers, the magic rooms over them), in bigger castles a lodgings range and a range along the front.
+// Under the hall range, the undercroft with the mana station, and under that the prison, the crypt and the sally passage.
+// Built on the same pieces as every other building (rooms on a grid of squares, doors, stairs), with three more: solid
+// masonry (part of the building, never walked: the thickness of the walls), rooms open to the sky (the courtyard, the
+// wall-walks), and round towers (drawn round, their stairs spiral).
+function genCastleTry(o, attempt) {
+  const T = genType(o.type), r = genRng(attempt ? (Number(o.seed) || 1) + attempt * 100003 : (Number(o.seed) || 1)), sm = o.size === "small", big = o.size === "large";
+  const up = o.floors === "auto" ? true : Number(o.floors) > 1, nf = !up ? 1 : o.floors === "auto" ? (sm ? 2 : 3) : Math.min(3, Math.max(2, Number(o.floors)));
+  const RD = sm ? 6 : big ? 8 : 7, TS = 7, half = 3; // range depth; towers 7 across, centred on the corner squares of the walls
+  // Which sides have a range against them: the hall range at the back always; the lord's range on one side; in bigger
+  // castles a lodgings range on the other side, and in the biggest a range along the front either side of the gatehouse.
+  const lordSide = r() < 0.5 ? "E" : "W", otherSide = lordSide === "E" ? "W" : "E";
+  const has = { N: true, [lordSide]: !sm || r() < 0.5, [otherSide]: big || (!sm && r() < 0.5), S: big && r() < 0.6 };
+  if (!has[lordSide] && !has[otherSide]) has[lordSide] = true;
+  const b = s => has[s] ? 1 : 2; // the wall's thickness on each side
+  const CW = sm ? genInt(r, 12, 15) : big ? genInt(r, 18, 22) : genInt(r, 15, 18), CH = sm ? genInt(r, 9, 11) : big ? genInt(r, 14, 17) : genInt(r, 11, 14); // the courtyard, roughly
+  const OW = CW + b("W") + b("E") + (has.W ? RD : 0) + (has.E ? RD : 0), OH = CH + b("N") + b("S") + (has.N ? RD : 0) + (has.S ? RD : 0);
+  const ox0 = half, oy0 = half, ox1 = ox0 + OW, oy1 = oy0 + OH, W = ox1 + half, H = oy1 + half;
+  const cells = new Map(), K = (x, y) => x + "," + y, take = (x, y, tag) => { if (!cells.has(K(x, y))) cells.set(K(x, y), tag); }, rect = (x, y, w, h) => ({ x, y, w, h });
+  const fill = (R, tag) => { for (let x = R.x; x < R.x + R.w; x++) for (let y = R.y; y < R.y + R.h; y++) cells.set(K(x, y), tag); };
+  // The towers, then the gatehouse, then the ranges, the walls, the courtyard (each claims what's left).
+  const towers = [[ox0, oy0, "North-west"], [ox1 - 1, oy0, "North-east"], [ox0, oy1 - 1, "South-west"], [ox1 - 1, oy1 - 1, "South-east"]].map(([cx, cy, nm]) => ({ nm, R: rect(cx - half, cy - half, TS, TS), cx, cy }));
+  towers.forEach((t, i) => fill(t.R, "T" + i));
+  const GW = 7, gx0 = ox0 + Math.floor((OW - GW) / 2), gIn = has.S ? RD : 3, gate = rect(gx0, oy1 - b("S") - gIn, GW, b("S") + gIn + 2); fill(gate, "G");
+  const ranges = {};
+  const inner = { x0: ox0 + b("W"), x1: ox1 - b("E"), y0: oy0 + b("N"), y1: oy1 - b("S") };
+  if (has.N) ranges.N = rect(ox0 + half + 1, inner.y0, OW - 2 * (half + 1), RD);
+  if (has.S) { const sx0 = ox0 + half + 1, sx1 = ox1 - half - 1; // either side of the gatehouse
+    if (gate.x - sx0 >= 4) ranges.S = rect(sx0, inner.y1 - RD, gate.x - sx0, RD); if (sx1 - gate.x - GW >= 4) ranges.S2 = rect(gate.x + GW, inner.y1 - RD, sx1 - gate.x - GW, RD); }
+  ["W", "E"].forEach(s => { if (!has[s]) return; const y0 = Math.max(oy0 + half + 1, has.N ? inner.y0 + RD : 0), y1 = Math.min(oy1 - half - 1, has.S ? inner.y1 - RD : 1e9);
+    ranges[s] = rect(s === "W" ? inner.x0 : inner.x1 - RD, y0, RD, y1 - y0); });
+  Object.entries(ranges).forEach(([s, R]) => { for (let x = R.x; x < R.x + R.w; x++) for (let y = R.y; y < R.y + R.h; y++) take(x, y, "R" + s); });
+  // The walls: the band round the outside, where nothing else stands.
+  for (let x = ox0; x < ox1; x++) for (let y = oy0; y < oy1; y++) { const d = Math.min(x - ox0 < b("W") ? 0 : 9, ox1 - 1 - x < b("E") ? 0 : 9, y - oy0 < b("N") ? 0 : 9, oy1 - 1 - y < b("S") ? 0 : 9); if (d === 0) take(x, y, "B"); }
+  // The courtyard: everything left inside that you can get to from its middle; the rest (corners shut in by a tower and a
+  // range) is solid masonry.
+  const free = new Set(); for (let x = ox0; x < ox1; x++) for (let y = oy0; y < oy1; y++) if (!cells.has(K(x, y))) free.add(K(x, y));
+  const mid = [Math.floor((inner.x0 + inner.x1) / 2), Math.floor((inner.y0 + inner.y1) / 2)], court = new Set();
+  if (free.has(K(...mid))) { const q = [mid]; court.add(K(...mid)); while (q.length) { const [x, y] = q.pop(); [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const k = K(x + dx, y + dy); if (free.has(k) && !court.has(k)) { court.add(k); q.push([x + dx, y + dy]); } }); } }
+  free.forEach(k => cells.set(k, court.has(k) ? "C" : "B"));
+  // Rectangles out of a set of squares: the top-left one each time, as wide, then as deep, as it goes.
+  const rects = tagged => { const left = new Set(tagged), out = [];
+    while (left.size) { const [sx, sy] = [...left].map(k => k.split(",").map(Number)).sort((a, b2) => a[1] - b2[1] || a[0] - b2[0])[0]; let w = 1, h = 1;
+      while (left.has(K(sx + w, sy))) w++; outer: while (true) { for (let x = sx; x < sx + w; x++) if (!left.has(K(x, sy + h))) break outer; h++; }
+      for (let x = sx; x < sx + w; x++) for (let y = sy; y < sy + h; y++) left.delete(K(x, y)); out.push(rect(sx, sy, w, h)); } return out; };
+  const tagCells = tag => [...cells].filter(([, t]) => t === tag).map(([k]) => k);
+  const masonry = (lv) => rects(tagCells("B")).map(R => Object.assign({ n: "Wall", k: "masonry", solid: 1, fl: "-" }, R));
+  // Room lists, range by range, floor by floor.
+  const off = (n, k, e) => genR(n, k, Object.assign({ priv: 1 }, e || {}));
+  const L = { N: [[genR("Kitchen", "kitchen", { w: 1.4 }), genR("Buttery", "store", { w: 0.6 }), genR("Pantry", "store", { w: 0.6 }), genR("Great hall", "hall", { w: 3 })],
+      [genR("Great chamber", "living", { w: 1.6 }), genR("Council chamber", "meet", { w: 1.3 }), genR("Library", "library", { w: 1.3 }), genR("Guest chamber", "bed")],
+      [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), off("Ward room", "office", { w: 1.1 }), genR("Guest chamber", "bed")].concat(big ? [off("Spell vault", "vault", { w: 0.6 })] : [])],
+    lord: [[genR("Chapel", "temple", { w: 1.5 }), off("Steward's room", "office"), genR("Guard hall", "hall", { w: 1.3 })].concat(big ? [off("Waystone room", "mana", { dark: 1, w: 1.4 })] : [off("Muniment room", "office", { w: 0.8 })]),
+      [off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), off("Lady's closet", "office", { w: 0.6 })],
+      [off("Heir's chamber", "bed"), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed")].concat(big ? [off("Imbuement workshop", "forge", { w: 1.3 })] : [off("Court mage's chamber", "bed")])],
+    other: [[genR("Barracks", "bed", { w: 1.4 }), genR("Armoury", "store"), genR("Stores", "store")],
+      [genR("Guest chamber", "bed"), genR("Guest chamber", "bed"), off("Court mage's study", "office")],
+      [genR("Guest chamber", "bed"), genR("Observatory", "office"), off("Court mage's chamber", "bed")]],
+    S: [[genR("Retainers' hall", "hall", { w: 1.6 }), genR("Stores", "store")], [genR("Retainers' chamber", "bed"), genR("Retainers' chamber", "bed")], []] };
+  L.S2 = [[genR("Stores", "store"), genR("Retainers' chamber", "bed")], [genR("Retainers' chamber", "bed"), genR("Guest chamber", "bed")], []];
+  const listFor = s => s === "N" ? L.N : s === "S" ? L.S : s === "S2" ? L.S2 : s === lordSide ? L.lord : L.other;
+  // The ground floor.
+  const levels = [], stairs = [], cellsOf = t => { const out = []; for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) out.push(K(x, y)); return out; };
+  const busyAt = lo => new Set(stairs.filter(t => Math.abs(t.lo - lo) <= 1).flatMap(cellsOf));
+  const g0 = [];
+  // (Public rooms at the ends of a range that meet a tower: a tower is never reached through an office or a chamber.)
+  const ends = (list, a, z) => { const pub = list.filter(x => !x.priv), pv = list.filter(x => x.priv); if (!pub.length || (!a && !z)) return list;
+    if (a && z && pub.length > 1) return [pub[0]].concat(pv, pub.slice(1)); return a ? pub.concat(pv) : pv.concat(pub); };
+  const split = (R, list, along, a, z) => { const n = Math.min(list.length, Math.max(1, Math.floor((along ? R.w : R.h) / 3))); list = ends(list.slice(0, n), a, z); const tot = list.reduce((a, x) => a + (x.w || 1), 0), len = along ? R.w : R.h; let pos = 0;
+    return list.map((rm, i) => { const left = n - i - 1; let sz = i === n - 1 ? len - pos : Math.round(len * (rm.w || 1) / tot); sz = Math.max(3, Math.min(len - pos - left * 3, sz)); const o2 = Object.assign({}, rm, along ? { x: R.x + pos, y: R.y, w: sz, h: R.h } : { x: R.x, y: R.y + pos, w: R.w, h: sz }); pos += sz; return o2; }); };
+  const towerEnds = s => s === "N" ? [true, true] : s === "S" ? [true, false] : s === "S2" ? [false, true] : [!has.N, !has.S]; // (which ends of the range meet a tower)
+  Object.entries(ranges).forEach(([s, R]) => { const rs = split(R, listFor(s)[0].map(x => Object.assign({}, x)), s === "N" || s === "S" || s === "S2", ...towerEnds(s)); rs.forEach(rm => { rm.range = s; }); g0.push(...rs); });
+  towers.forEach((t, i) => g0.push(Object.assign({ n: t.nm + " tower", k: "tower", round: 1, tower: i, fl: "castle:Tower" }, t.R)));
+  g0.push(Object.assign({ n: "Porter's lodge", k: "office" }, rect(gate.x, gate.y, 2, gate.h)), Object.assign({ n: "Gate passage", k: "passage", gate: 1, entry: 1, pass: 1 }, rect(gate.x + 2, gate.y, 3, gate.h)), Object.assign({ n: "Gatehouse guardroom", k: "office", fl: "keep:Guardroom" }, rect(gate.x + 5, gate.y, 2, gate.h)));
+  const cr = rects(tagCells("C")), big1 = cr.reduce((m, R, i) => R.w * R.h > cr[m].w * cr[m].h ? i : m, 0);
+  cr.forEach((R, i) => g0.push(Object.assign({ n: "Courtyard", k: "court", outdoor: 1, zone: "court", hub: 1, fl: i === big1 ? "castle:Courtyard" : "-", nolabel: i !== big1 }, R)));
+  g0.push(...masonry(0)); levels.push({ level: 0, rooms: g0, name: "Ground floor" });
+  // Upstairs: each range's floors over it (stairs from a room of the range below), the towers', the gatehouse's (the
+  // portcullis winch and the constable's chamber), and the wall-walks along the bare walls.
+  const made = {};
+  for (let k = 1; k < nf + 1; k++) { const lv = [];
+    Object.entries(ranges).forEach(([s, R]) => { const want = listFor(s)[k]; if (!want || !want.length || k >= nf) { made[s] = null; return; } const below = k === 1 ? g0.filter(x => x.range === s) : made[s]; if (!below) return;
+      const cand = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.priv && x.k !== "hall")).concat(below.filter(x => x.k === "hall")); let st = null;
+      for (const rm of cand) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { st = genStairSpot(r, rm, { longX: lx, within: R, avoid: busyAt(k - 1) }); if (st) break; } if (st) break; }
+      if (!st) { made[s] = null; return; } st.lo = k - 1; stairs.push(st);
+      // A landing at each end that meets a tower (the tower's door opens off it), the corridor and rooms between.
+      const [a, z] = towerEnds(s), hz = s === "N" || s === "S" || s === "S2", strips = [];
+      let R2 = Object.assign({}, R); if (a) { strips.push(hz ? rect(R.x, R.y, 2, R.h) : rect(R.x, R.y, R.w, 2)); if (hz) { R2.x += 2; R2.w -= 2; } else { R2.y += 2; R2.h -= 2; } }
+      if (z) { strips.push(hz ? rect(R.x + R.w - 2, R.y, 2, R.h) : rect(R.x, R.y + R.h - 2, R.w, 2)); if (hz) R2.w -= 2; else R2.h -= 2; }
+      const inR2 = st.x >= R2.x && st.y >= R2.y && st.x + st.w <= R2.x + R2.w && st.y + st.h <= R2.y + R2.h;
+      if (!inR2) { stairs.pop(); st = null; for (const rm of cand) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { st = genStairSpot(r, rm, { longX: lx, within: R2, avoid: busyAt(k - 1) }); if (st) break; } if (st) break; }
+        if (!st) { made[s] = null; return; } st.lo = k - 1; stairs.push(st); }
+      made[s] = genUpper(r, R2, st, want.map(x => Object.assign({}, x)), 2, 2, "Corridor").concat(strips.map(q => Object.assign({ n: "Landing", k: "landing" }, q))); made[s].forEach(x => { x.range = s; }); lv.push(...made[s]); });
+    towers.forEach((t, i) => { if (k > nf) return; const c = rect(t.cx - 1, t.cy - 2, 3, 5), st = genStairSpot(r, c, { longX: false, within: c, avoid: busyAt(k - 1) }); if (!st) return; st.lo = k - 1; st.spiral = 1; stairs.push(st);
+      lv.push(Object.assign({ n: k === nf ? t.nm + " ward chamber" : t.nm + " tower room", k: "tower", round: 1, tower: i, fl: k === nf ? "castle:Ward chamber" : "castle:Tower room" }, t.R)); });
+    if (k === 1) { const st = genStairSpot(r, rect(gate.x, gate.y, 2, gate.h), { longX: false, within: gate, avoid: busyAt(0) }); if (st) { st.lo = 0; stairs.push(st);
+        lv.push(Object.assign({ n: "Winch room", k: "office", fl: "castle:Winch room" }, rect(gate.x + 2, gate.y, 3, gate.h)), Object.assign({ n: "Constable's chamber", k: "bed", fl: "castle:Constable's chamber" }, rect(gate.x, gate.y, 2, gate.h)), Object.assign({ n: "Gatehouse store", k: "store", fl: "castle:Gatehouse store" }, rect(gate.x + 5, gate.y, 2, gate.h))); }
+      rects(tagCells("B").filter(c => { const [x, y] = c.split(",").map(Number); return (y - oy0 < b("N") && !has.N) || (oy1 - 1 - y < b("S") && !has.S) || (x - ox0 < b("W") && !has.W) || (ox1 - 1 - x < b("E") && !has.E); }))
+        .filter(R => R.w * R.h >= 2).forEach(R => lv.push(Object.assign({ n: "Wall-walk", k: "walk", walk: 1, outdoor: 1, fl: "-" }, R))); }
+    // The thickness of the walls goes on up beside the ranges.
+    const occupied = new Set(lv.flatMap(cellsOf)); rects(tagCells("B").filter(c => !occupied.has(c) && Object.entries(ranges).some(([s, R]) => made[s] && genCastleBeside(c, s, R, ox0, oy0, ox1, oy1)))).forEach(R => lv.push(Object.assign({ n: "Wall", k: "masonry", solid: 1, fl: "-" }, R)));
+    if (lv.length) levels.push({ level: k, rooms: lv, name: ["", "First floor", "Second floor", "Third floor"][k] }); }
+  // Below the hall range: the undercroft (stairs from the kitchen or the buttery), and under that the vaults.
+  const NR = ranges.N, down = (() => { if (o.cellar === "no") return null; for (const rm of g0.filter(x => x.range === "N" && ["kitchen", "store"].includes(x.k)).concat(g0.filter(x => x.range === "N")))
+      for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { const s = genStairSpot(r, rm, { longX: lx, within: NR, avoid: busyAt(-1) }); if (s) return s; } return null; })();
+  let deep = null;
+  if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); levels.unshift({ level: -1, rooms: genUpper(r, NR, down, genPick(r, T.under), 2, 1, "Cellar stairs"), name: "Undercroft" });
+    const C = levels[0]; for (const rm of C.rooms.filter(x => x.circ).concat(C.rooms.filter(x => !x.circ && !x.priv))) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { deep = genStairSpot(r, rm, { longX: lx, within: NR, avoid: busyAt(-2) }); if (deep) break; } if (deep) break; }
+    if (deep) { deep.lo = -2; deep.placedUpper = 1; stairs.push(deep); levels.unshift({ level: -2, rooms: genUpper(r, NR, deep, genPick(r, T.under2), 2, 1, "Stair foot"), name: "Lower vaults" }); } }
+  levels.sort((a, b2) => a.level - b2.level);
+  // The building's outline and its roofs: only the ranges and the gatehouse are roofed (the towers get their own cones).
+  const body = new Set(); levels.forEach(Lv => { if (Lv.level < 0) return; Lv.rooms.forEach(rm => { if (rm.solid || rm.outdoor || rm.round) return; cellsOf(rm).forEach(c => body.add(c)); }); });
+  const F = { shape: "castle", shapeName: sm ? "Castle" : big ? "Great castle" : "Castle", W, H, bodyH: H, main: rect(ox0, oy0, OW, OH), wings: [rect(ox0, oy0, OW, OH)], porch: null, body };
+  const setLevelStairs = () => levels.forEach(Lv => { Lv.stairs = stairs.filter(t => t.lo === Lv.level || t.lo + 1 === Lv.level).map(t => { const onPlaced = t.placedUpper ? Lv.level === t.lo + 1 : Lv.level === t.lo; return Object.assign({}, t, { dir: Lv.level === t.lo ? "up" : "down", toward: onPlaced ? t.toward : (t.toward === "a" ? "b" : "a") }); }); });
+  setLevelStairs(); const stairsClear = () => levels.every(Lv => (Lv.stairs || []).every(t => genStairEntry(Lv, t).ok));
+  stairs.forEach(t => { if (stairsClear()) return; const was = t.toward; t.toward = was === "a" ? "b" : "a"; setLevelStairs();
+    if (!levels.every(Lv => (Lv.stairs || []).filter(q => q.x === t.x && q.y === t.y && q.lo === t.lo).every(q => genStairEntry(Lv, q).ok))) { t.toward = was; setLevelStairs(); } });
+  const front = { x: gate.x + 2, w: 3, y: gate.y + gate.h };
+  levels.forEach(Lv => genOpenings(r, Lv, F, Lv.stairs, Lv.level === 0 ? front : null));
+  const G = levels.find(Lv => Lv.level === 0); G.gates = new Set(); G.rooms.forEach(rm => { if (!rm.gate) return; [...G.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); if (d === "h" && x >= rm.x && x < rm.x + rm.w && (y === rm.y || y === rm.y + rm.h)) G.gates.add(k); }); });
+  // The gate passage's inner end: the whole width open to the courtyard, gates and all.
+  const gp = G.rooms.find(x => x.gate); for (let i = 0; i < gp.w; i++) { const k = `h,${gp.x + i},${gp.y}`; if (G.own(gp.x + i, gp.y - 1) >= 0) { G.doors.add(k); G.gates.add(k); } }
+  const floors = levels.filter(Lv => Lv.level >= 0).length;
+  const privOk = levels.every(Lv => Lv.rooms.every((rm, i) => !rm.priv || [...Lv.doors].filter(k => gedKeyCellsG(k).some(([x, y]) => Lv.own(x, y) === i)).length <= 1));
+  const ok = privOk && levels.every(Lv => genReachable(Lv, F, Lv.level === 0 ? front : null)) && (o.cellar === "no" || !!down);
+  return { type: T.id, W, H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: "grand", ok, attempt, plan: 1, castle: 1, towers: towers.map(t => Object.assign({ cx: t.R.x + TS / 2, cy: t.R.y + TS / 2, r: TS / 2 - 0.15 }, { R: t.R })) };
+}
+// A castle from above: under the roofs, the courtyard's cobbles and the tops of the walls with their merlons; over them,
+// the towers' cones.
+function genCastleRoof(B, P, hue, r, part) { const G = B.levels.find(L => L.level === 0); if (!G) return "";
+  if (part === "under") { let out = "";
+    G.rooms.filter(rm => rm.outdoor).forEach(rm => { out += `<rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}" fill="#9a9282"/>`; });
+    const wall = new Set(); G.rooms.filter(rm => rm.solid).forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (!B.F.body.has(x + "," + y)) wall.add(x + "," + y); });
+    const L1 = B.levels.find(L => L.level === 1); if (L1) L1.rooms.filter(rm => rm.walk).forEach(rm => { for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) wall.add(x + "," + y); });
+    wall.forEach(c => { const [x, y] = c.split(",").map(Number); out += `<rect x="${x * P}" y="${y * P}" width="${P}" height="${P}" fill="#8a8274"/>`; });
+    const M = B.F.main, onEdge = (x, y) => wall.has(x + "," + y); let mer = "";
+    for (let x = M.x; x < M.x + M.w; x++) { [[M.y, -1], [M.y + M.h - 1, 1]].forEach(([y, d]) => { if (onEdge(x, y) && x % 2 === 0) mer += `<rect x="${x * P + P * 0.2}" y="${(d < 0 ? y : y + 1) * P - P * 0.35 * (d < 0 ? 0 : 1)}" width="${P * 0.6}" height="${P * 0.35}" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`; }); }
+    for (let y = M.y; y < M.y + M.h; y++) { [[M.x, -1], [M.x + M.w - 1, 1]].forEach(([x, d]) => { if (onEdge(x, y) && y % 2 === 0) mer += `<rect x="${(d < 0 ? x : x + 1) * P - P * 0.35 * (d < 0 ? 0 : 1)}" y="${y * P + P * 0.2}" width="${P * 0.35}" height="${P * 0.6}" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`; }); }
+    const outline = [...wall].map(c => { const [x, y] = c.split(",").map(Number); return [[x, y - 1, `M${x * P} ${y * P}h${P}`], [x, y + 1, `M${x * P} ${(y + 1) * P}h${P}`], [x - 1, y, `M${x * P} ${y * P}v${P}`], [x + 1, y, `M${(x + 1) * P} ${y * P}v${P}`]].filter(([a, b]) => !wall.has(a + "," + b)).map(q => q[2]).join(""); }).join("");
+    return out + `<path d="${outline}" stroke="#2b2520" stroke-width="4" fill="none"/>` + mer; }
+  return (B.towers || []).map(t => { const cx = t.cx * P, cy = t.cy * P, R = (t.r + 0.25) * P, n = 16;
+    return `<circle cx="${cx + 5}" cy="${cy + 7}" r="${R}" fill="rgba(0,0,0,.35)"/><circle cx="${cx}" cy="${cy}" r="${R}" fill="hsl(${hue[0]} ${hue[1]}% ${hue[2] + 4}%)" stroke="#2b2520" stroke-width="5"/>`
+      + `<path d="M${cx} ${cy - R}A${R} ${R} 0 0 1 ${cx} ${cy + R}Z" fill="rgba(0,0,0,.18)"/>` + Array.from({ length: n }, (_, i) => { const a = i * 2 * Math.PI / n; return `<line x1="${cx}" y1="${cy}" x2="${(cx + Math.cos(a) * R).toFixed(1)}" y2="${(cy + Math.sin(a) * R).toFixed(1)}" stroke="rgba(0,0,0,.35)" stroke-width="2"/>`; }).join("")
+      + [0.35, 0.6, 0.85].map(f => `<circle cx="${cx}" cy="${cy}" r="${(R * f).toFixed(1)}" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/>`).join("") + `<circle cx="${cx}" cy="${cy}" r="${P * 0.22}" fill="#c9a45e" stroke="#2b2520" stroke-width="2.5"/>`; }).join(""); }
+// Is this square of the walls beside (behind) a range, so its masonry goes on up with the range's upper floors?
+function genCastleBeside(c, s, R, ox0, oy0, ox1, oy1) { const [x, y] = c.split(",").map(Number);
+  if (s === "N") return y < R.y && x >= R.x - 1 && x <= R.x + R.w; if (s === "S" || s === "S2") return y >= R.y + R.h && x >= R.x - 1 && x <= R.x + R.w;
+  if (s === "W") return x < R.x && y >= R.y - 1 && y <= R.y + R.h; return x >= R.x + R.w && y >= R.y - 1 && y <= R.y + R.h; }
 Object.assign(GEN_KIND, { relay: "tile", mana: "stone", roost: "straw" });
 Object.assign(GEN_KIND, { ward: "wood", cell: "stone", furnace: "stone", tower: "stone" });
 Object.assign(GEN_FIRE, { furnace: 1, ward: 0.4 });
@@ -1044,8 +1204,9 @@ function genOpenings(r, L, F, stairs, front) {
   // A private room (an office, a meeting room) is a dead end: one door in, never the way through to anywhere else, unless
   // there's no other way.
   let privOK = false; const priv = i => !privOK && L.rooms[i].priv && i !== root;
-  const connect = (secretPass, byStairs) => { const q = [...seen].filter(i => !priv(i)); while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
-      if (seen.has(b) || isPorch(b) || !!L.rooms[b].secret !== secretPass) continue; let e = shared(a, b); if (!e.length) continue;
+  const solid = i => L.rooms[i].solid; // (the thickness of a castle's walls: never a door)
+  const connect = (secretPass, byStairs) => { const q = [...seen].filter(i => !priv(i) && !solid(i)); while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
+      if (seen.has(b) || isPorch(b) || solid(b) || !!L.rooms[b].secret !== secretPass) continue; let e = shared(a, b); if (!e.length) continue;
       if (genOpen(L.rooms[a], L.rooms[b])) { seen.add(b); if (!priv(b)) q.push(b); continue; } // open to each other: no door needed
       if (L.rooms[a].cub && L.rooms[b].cub) continue; // a bath chamber, cell or almsman's room opens onto its passage, never through the next one
       if ((L.rooms[a].zone && !L.rooms[a].hub && !L.rooms[a].zdoor) || (L.rooms[b].zone && !L.rooms[b].hub && !L.rooms[b].zdoor)) continue; // a stall opens only onto its aisle (zdoor: a ward or an aisle can still have a door)
@@ -1053,8 +1214,8 @@ function genOpenings(r, L, F, stairs, front) {
       const mid = e.filter((_, i) => e.length < 3 || (i > 0 && i < e.length - 1)), list = mid.length ? mid : e, pick = list[Math.floor(r() * list.length)];
       L.doors.add(pick); if (secretPass) L.secret.add(pick); seen.add(b); if (!secretPass && !priv(b)) q.push(b); } } };
   const all = () => { connect(false, false); connect(false, true); connect(true, false); connect(true, true); connect(false, false); connect(false, true); };
-  all(); if (L.rooms.some((x, i) => !seen.has(i) && !isPorch(i))) { privOK = true; all(); privOK = false; }
-  for (;;) { const nx = L.rooms.findIndex((x, i) => !seen.has(i) && !isPorch(i) && (x.circ || (stairs || []).some(t => t.x >= x.x && t.x < x.x + x.w && t.y >= x.y && t.y < x.y + x.h))); if (nx < 0) break; seen.add(nx); all(); } // a second part upstairs with its own stairs
+  all(); if (L.rooms.some((x, i) => !seen.has(i) && !isPorch(i) && !x.solid)) { privOK = true; all(); privOK = false; }
+  for (;;) { const nx = L.rooms.findIndex((x, i) => !seen.has(i) && !isPorch(i) && !x.solid && (x.circ || (stairs || []).some(t => t.x >= x.x && t.x < x.x + x.w && t.y >= x.y && t.y < x.y + x.h))); if (nx < 0) break; seen.add(nx); all(); } // a second part upstairs with its own stairs
   // doorTo: a room that must open to a named neighbour (a guild's reception to the parcel store, its bar to the kitchen).
   L.rooms.forEach((rm, a) => { if (!rm.doorTo) return; L.rooms.forEach((ob, b) => { if (ob.n !== rm.doorTo) return; const e = shared(a, b), ok = e.filter(k => !onStairs(k)); if (!ok.length || e.some(k => L.doors.has(k))) return;
     const mid = ok.filter((_, i) => ok.length < 3 || (i > 0 && i < ok.length - 1)); L.doors.add((mid.length ? mid : ok)[Math.floor(r() * (mid.length || ok.length))]); }); });
@@ -1062,10 +1223,10 @@ function genOpenings(r, L, F, stairs, front) {
   if (L.level === 0) { const back = L.rooms.find(x => x.back && own(x.x + Math.floor(x.w / 2), x.y - 1) < 0); if (back && r() < 0.55) L.doors.add(`h,${back.x + Math.floor(back.w / 2)},${back.y}`); }
   if (L.level < 0) return; // cellars have no windows
   // Windows: on each run of outside wall at least 3 squares long, one (two on long runs) away from the corners.
-  L.rooms.forEach((rm, i) => { if (rm.porch || (rm.circ && L.level > 0 && r() < 0.5) || rm.secret || rm.dark) return;
+  L.rooms.forEach((rm, i) => { if (rm.porch || (rm.circ && L.level > 0 && r() < 0.5) || rm.secret || rm.dark || rm.solid || rm.outdoor) return;
     const runs = [], add = (list) => { let run = []; list.forEach(k => { if (k) run.push(k); else { if (run.length) runs.push(run); run = []; } }); if (run.length) runs.push(run); };
     // (Upstairs, only a wall over the outside gets a window: not a loft's side over the open hall.)
-    const outside = (x, y) => own(x, y) < 0 && !(L.level > 0 && F.body && F.body.has(x + "," + y));
+    const outside = (x, y) => { const o2 = own(x, y); return (o2 < 0 && !(L.level > 0 && F.body && F.body.has(x + "," + y))) || (o2 >= 0 && L.rooms[o2].outdoor); };
     add(Array.from({ length: rm.w }, (_, d) => outside(rm.x + d, rm.y - 1) ? `h,${rm.x + d},${rm.y}` : null));
     add(Array.from({ length: rm.w }, (_, d) => { const o2 = own(rm.x + d, rm.y + rm.h); return outside(rm.x + d, rm.y + rm.h) || isPorch(o2) ? `h,${rm.x + d},${rm.y + rm.h}` : null; }));
     add(Array.from({ length: rm.h }, (_, d) => outside(rm.x - 1, rm.y + d) ? `v,${rm.x},${rm.y + d}` : null));
@@ -1077,9 +1238,10 @@ function genOpenings(r, L, F, stairs, front) {
 // Every wall edge of a floor: between two rooms, or a room and the outside. A porch has no walls to the outside, only posts.
 function genEdges(L, W, H) {
   const out = [], own = L.own, porch = i => i >= 0 && L.rooms[i].porch, arc = i => i >= 0 && L.rooms[i].arcade;
-  const wall = (a, b) => a !== b && !((porch(a) || arc(a)) && b < 0) && !((porch(b) || arc(b)) && a < 0) && !(a >= 0 && b >= 0 && genOpen(L.rooms[a], L.rooms[b]));
-  for (let y = 0; y <= H; y++) for (let x = 0; x < W; x++) { const a = own(x, y - 1), b = own(x, y); if (wall(a, b)) out.push({ k: `h,${x},${y}`, x1: x, y1: y, x2: x + 1, y2: y, ext: a < 0 || b < 0 || porch(a) || porch(b) }); }
-  for (let x = 0; x <= W; x++) for (let y = 0; y < H; y++) { const a = own(x - 1, y), b = own(x, y); if (wall(a, b)) out.push({ k: `v,${x},${y}`, x1: x, y1: y, x2: x, y2: y + 1, ext: a < 0 || b < 0 || porch(a) || porch(b) }); }
+  const sol = i => i >= 0 && L.rooms[i].solid, sky = i => i >= 0 && L.rooms[i].outdoor;
+  const wall = (a, b) => a !== b && !(sol(a) && sol(b)) && !((porch(a) || arc(a)) && b < 0) && !((porch(b) || arc(b)) && a < 0) && !(a >= 0 && b >= 0 && genOpen(L.rooms[a], L.rooms[b]));
+  for (let y = 0; y <= H; y++) for (let x = 0; x < W; x++) { const a = own(x, y - 1), b = own(x, y); if (wall(a, b)) out.push({ k: `h,${x},${y}`, x1: x, y1: y, x2: x + 1, y2: y, ext: a < 0 || b < 0 || porch(a) || porch(b) || sky(a) || sky(b) || sol(a) || sol(b) }); }
+  for (let x = 0; x <= W; x++) for (let y = 0; y < H; y++) { const a = own(x - 1, y), b = own(x, y); if (wall(a, b)) out.push({ k: `v,${x},${y}`, x1: x, y1: y, x2: x, y2: y + 1, ext: a < 0 || b < 0 || porch(a) || porch(b) || sky(a) || sky(b) || sol(a) || sol(b) }); }
   return out;
 }
 
@@ -1092,10 +1254,10 @@ function genFloorDetail(r, rm, kind, P) {
     for (let i = 0; i < rows; i++) { let pos = -r() * P * 1.5;
       while (pos < len) { const bl = P * (1 + r() * 2.2), a = Math.max(0, pos), b = Math.min(len, pos + bl); if (b > a) d += along ? `<rect x="${(X + a).toFixed(1)}" y="${(Y + i * bw).toFixed(1)}" width="${(b - a).toFixed(1)}" height="${bw.toFixed(1)}" fill="${genHsl(h, s, l, 4, r)}" stroke="${F.line}" stroke-width=".8"/>` : `<rect x="${(X + i * bw).toFixed(1)}" y="${(Y + a).toFixed(1)}" width="${bw.toFixed(1)}" height="${(b - a).toFixed(1)}" fill="${genHsl(h, s, l, 4, r)}" stroke="${F.line}" stroke-width=".8"/>`; pos += bl; } }
     const knots = Math.floor(rm.w * rm.h * 0.25); for (let i = 0; i < knots; i++) d += `<ellipse cx="${(X + r() * W).toFixed(1)}" cy="${(Y + r() * H).toFixed(1)}" rx="${(1.5 + r() * 2).toFixed(1)}" ry="1.2" fill="${F.line}" opacity=".7"/>`;
-  } else if (kind === "stone" || kind === "tile") { // flagstones (or tiles) in rows of different sizes
-    const sq = kind === "tile"; let y = 0;
-    while (y < H) { const rh = sq ? P / 2 : P * (0.45 + r() * 0.35), hh = Math.min(rh, H - y); let x = -r() * P * 0.5;
-      while (x < W) { const sw = sq ? P / 2 : P * (0.5 + r() * 0.7), a = Math.max(0, x), b = Math.min(W, x + sw); if (b > a) d += `<rect x="${(X + a + 1).toFixed(1)}" y="${(Y + y + 1).toFixed(1)}" width="${Math.max(0, b - a - 2).toFixed(1)}" height="${Math.max(0, hh - 2).toFixed(1)}" rx="${sq ? 1 : 3}" fill="${genHsl(h, s, l, sq ? 3 : 6, r)}"/>`; x += sw; }
+  } else if (kind === "stone" || kind === "tile" || kind === "masonry" || kind === "cobble" || kind === "walk") { // flagstones (or tiles, cobbles, the blocks of a wall) in rows of different sizes
+    const sq = kind === "tile", cob = kind === "cobble" ? 0.55 : kind === "masonry" ? 1.25 : 1; let y = 0;
+    while (y < H) { const rh = sq ? P / 2 : P * (0.45 + r() * 0.35) * cob, hh = Math.min(rh, H - y); let x = -r() * P * 0.5;
+      while (x < W) { const sw = sq ? P / 2 : P * (0.5 + r() * 0.7) * cob, a = Math.max(0, x), b = Math.min(W, x + sw); if (b > a) d += `<rect x="${(X + a + 1).toFixed(1)}" y="${(Y + y + 1).toFixed(1)}" width="${Math.max(0, b - a - 2).toFixed(1)}" height="${Math.max(0, hh - 2).toFixed(1)}" rx="${sq ? 1 : 3}" fill="${genHsl(h, s, l, sq ? 3 : 6, r)}"/>`; x += sw; }
       y += rh; }
     d = `<rect x="${X}" y="${Y}" width="${W}" height="${H}" fill="${F.line}"/>` + d;
   } else if (kind === "water") { // the wheel pit: dark water with ripples
@@ -1125,11 +1287,26 @@ function genGateRuns(gates) { const runs = [];
 function genFloorSvg(B, L, labels, seed, overlay, part) {
   const P = GEN_PX, W = B.W, H = B.H, r = genRng((Number(seed) || 1) * 31 + L.level * 7 + 5);
   L.rooms.forEach((rm, i) => { rm._i = L.level + "_" + i; });
-  const clips = L.rooms.map(rm => `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`).join("");
-  const rooms = L.rooms.map(rm => genFloorDetail(r, rm, GEN_KIND[rm.k] || "wood", P)).join("");
+  // A castle's round tower: its square on the grid, but drawn round; a strip of floor through the wall to each door, and the
+  // part of the square inside the castle's walls is solid masonry.
+  const tw = rm => { const cx = (rm.x + rm.w / 2) * P, cy = (rm.y + rm.h / 2) * P, R = (rm.w / 2 - 0.3) * P, strips = [];
+    [...(L.doors || [])].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); const inR = (a, b) => a >= rm.x && a < rm.x + rm.w && b >= rm.y && b < rm.y + rm.h;
+      if (d === "v" && (inR(x, y) || inR(x - 1, y)) && (x === rm.x || x === rm.x + rm.w)) { const x0 = Math.min(x * P, cx), x1 = Math.max(x * P, cx); strips.push([x0, y * P + P * 0.1, x1 - x0, P * 0.8]); }
+      if (d === "h" && (inR(x, y) || inR(x, y - 1)) && (y === rm.y || y === rm.y + rm.h)) { const y0 = Math.min(y * P, cy), y1 = Math.max(y * P, cy); strips.push([x * P + P * 0.1, y0, P * 0.8, y1 - y0]); } });
+    return { cx, cy, R, strips }; };
+  const clips = L.rooms.map(rm => { if (rm.round) { const t = tw(rm); return `<clipPath id="gc${rm._i}"><circle cx="${t.cx}" cy="${t.cy}" r="${t.R}"/>${t.strips.map(q => `<rect x="${q[0]}" y="${q[1]}" width="${q[2]}" height="${q[3]}"/>`).join("")}</clipPath>`
+      + (B.F.main ? `<clipPath id="gc${rm._i}m"><rect x="${Math.max(rm.x, B.F.main.x) * P}" y="${Math.max(rm.y, B.F.main.y) * P}" width="${(Math.min(rm.x + rm.w, B.F.main.x + B.F.main.w) - Math.max(rm.x, B.F.main.x)) * P}" height="${(Math.min(rm.y + rm.h, B.F.main.y + B.F.main.h) - Math.max(rm.y, B.F.main.y)) * P}"/></clipPath>` : ""); }
+    return `<clipPath id="gc${rm._i}"><rect x="${rm.x * P}" y="${rm.y * P}" width="${rm.w * P}" height="${rm.h * P}"/></clipPath>`; }).join("");
+  const rooms = L.rooms.map(rm => (rm.round && B.F.main ? genFloorDetail(r, Object.assign({}, rm, { _i: rm._i + "m" }), "masonry", P) : "") + genFloorDetail(r, rm, GEN_KIND[rm.k] || "wood", P)).join("");
   // This floor's stairs. Going up they get lighter towards the end you walk to (▲ there); going down, darker (▼).
   let stairs = "";
   (L.stairs || []).forEach((t, i) => {
+    if (t.spiral) { // a tower's spiral stair: the steps fanned round a newel post, lighter towards the way up (darker down)
+      const cx = (t.x + t.w / 2) * P, cy = (t.y + t.h / 2) * P, R = P * 1.05, n = 10, a0 = t.toward === "b" ? -Math.PI / 2 : Math.PI / 2;
+      stairs += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#8d8478" stroke="#2b2520" stroke-width="2.5"/>` + Array.from({ length: n }, (_, j) => { const a = a0 + j * 1.5 * Math.PI / n, f = j / n, sh = t.dir === "up" ? `rgba(255,248,230,${(f * 0.5).toFixed(2)})` : `rgba(0,0,0,${(f * 0.85).toFixed(2)})`, a2 = a + 1.5 * Math.PI / n;
+          return `<path d="M${cx} ${cy}L${(cx + Math.cos(a) * R).toFixed(1)} ${(cy + Math.sin(a) * R).toFixed(1)}A${R} ${R} 0 0 1 ${(cx + Math.cos(a2) * R).toFixed(1)} ${(cy + Math.sin(a2) * R).toFixed(1)}Z" fill="${sh}" stroke="rgba(40,28,16,.75)" stroke-width="1.5"/>`; }).join("")
+        + `<circle cx="${cx}" cy="${cy}" r="${P * 0.18}" fill="#5e5548" stroke="#2b2520" stroke-width="2"/><text x="${cx + Math.cos(a0 + Math.PI * 1.3) * R * 0.6}" y="${cy + Math.sin(a0 + Math.PI * 1.3) * R * 0.6}" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="${t.dir === "up" ? "#3a2c1c" : "#f1e6cf"}" text-anchor="middle" dominant-baseline="central">${t.dir === "up" ? "▲" : "▼"}</text>`;
+      return; }
     const along = t.w >= t.h, n = 6, X = t.x * P, Y = t.y * P, Wd = t.w * P, Hd = t.h * P, gid = `gst${L.level + 5}_${i}`, toB = t.toward === "b";
     // The room's own floor shows through: going down it fades to black, going up it brightens a little.
     const near = t.dir === "up" ? "rgba(255,248,230,0)" : "rgba(0,0,0,0)", far = t.dir === "up" ? "rgba(255,248,230,.55)" : "rgba(0,0,0,.95)";
@@ -1153,7 +1330,9 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
   const edges = genEdges(L, B.W, B.H), porchI = L.rooms.findIndex(x => x.porch);
   // Outside walls are twice as thick as inside ones. Doors to the outside get stone jambs; the front door a grand entrance.
   const WI = 5, WE = 10, front = L.front || new Set(), gates = L.gates || new Set();
-  const walls = edges.map(e => { const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
+  const rnd = i => i >= 0 && L.rooms[i].round, solidAt = i => i < 0 || L.rooms[i].solid, sides = e => e.y1 === e.y2 ? [L.own(e.x1, e.y1 - 1), L.own(e.x1, e.y1)] : [L.own(e.x1 - 1, e.y1), L.own(e.x1, e.y1)];
+  const walls = edges.map(e => { const [sa, sb] = sides(e); if ((rnd(sa) && solidAt(sb)) || (rnd(sb) && solidAt(sa))) return ""; // a round tower's own wall is drawn round
+    const ln = (sw, c, cap, extra) => `<line x1="${e.x1 * P}" y1="${e.y1 * P}" x2="${e.x2 * P}" y2="${e.y2 * P}" stroke="${c}" stroke-width="${sw}" stroke-linecap="${cap}"${extra || ""}/>`;
     if (front.has(e.k) || gates.has(e.k)) return "";
     if (L.doors.has(e.k) && !L.secret.has(e.k)) { if (!e.ext) return ln(4, "#8a6a44", "butt", ` opacity=".9"`);
       const h = e.y1 === e.y2, j = (x, y) => `<rect x="${x * P - 6}" y="${y * P - 6}" width="12" height="12" fill="#a39b8c" stroke="#2b2520" stroke-width="2"/>`;
@@ -1185,6 +1364,13 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
       <rect x="${x0 - P * 0.75}" y="${y - WE / 2 - 4}" width="${x1 - x0 + P * 1.5}" height="3" fill="rgba(255,255,255,.18)"/>
       ${leaves}
       ${pillar(x0 - P * 0.45)}${pillar(x1 + P * 0.45)}`; } }
+  // Round towers: a thick ring of stone, open where a door goes through it. Wall-walks: merlons along the outer edge.
+  const towerSvg = L.rooms.filter(rm => rm.round).map(rm => { const t = tw(rm), mid = `tm${rm._i}`;
+    return `<mask id="${mid}"><rect x="${(rm.x - 1) * P}" y="${(rm.y - 1) * P}" width="${(rm.w + 2) * P}" height="${(rm.h + 2) * P}" fill="#fff"/>${t.strips.map(q => `<rect x="${q[0]}" y="${q[1]}" width="${q[2]}" height="${q[3]}" fill="#000"/>`).join("")}</mask>
+      <g mask="url(#${mid})"><circle cx="${t.cx}" cy="${t.cy}" r="${t.R + P * 0.14}" fill="none" stroke="#2b2520" stroke-width="${P * 0.42}"/><circle cx="${t.cx}" cy="${t.cy}" r="${t.R + P * 0.14}" fill="none" stroke="#8a8274" stroke-width="${P * 0.3}"/>
+      <circle cx="${t.cx}" cy="${t.cy}" r="${t.R + P * 0.14}" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.5" stroke-dasharray="${P * 0.35} ${P * 0.12}"/></g>`; }).join("");
+  const merlons = edges.filter(e => { const [sa, sb] = sides(e); return (sa >= 0 && L.rooms[sa].walk && sb < 0) || (sb >= 0 && L.rooms[sb].walk && sa < 0); }).map(e => { const hz = e.y1 === e.y2, m = P * 0.32;
+    return [0.25, 0.75].map((f, j) => j % 2 ? "" : `<rect x="${(hz ? (e.x1 + f) * P : e.x1 * P) - m / 2}" y="${(hz ? e.y1 * P : (e.y1 + f) * P) - m / 2}" width="${m}" height="${m}" fill="#8a8274" stroke="#2b2520" stroke-width="2"/>`).join(""); }).join("");
   // What the tabletop will treat as walls, doors and windows, in its own colours.
   let over = "";
   if (overlay) {
@@ -1212,9 +1398,9 @@ function genFloorSvg(B, L, labels, seed, overlay, part) {
       const leftRoom = t.x - rm.x, rightRoom = rm.x + rm.w - (t.x + t.w), upRoom = t.y - rm.y, downRoom = rm.y + rm.h - (t.y + t.h), best = Math.max(leftRoom, rightRoom, upRoom, downRoom);
       if (best === leftRoom) x = rm.x + leftRoom / 2; else if (best === rightRoom) x = t.x + t.w + rightRoom / 2; else if (best === upRoom) y = rm.y + upRoom / 2; else y = t.y + t.h + downRoom / 2; }
     return [x, y]; };
-  const lab = labels ? L.rooms.map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
+  const lab = labels ? L.rooms.filter(rm => !rm.solid && !rm.nolabel).map(rm => `<text x="${labAt(rm)[0] * P}" y="${labAt(rm)[1] * P}" font-family="system-ui, sans-serif" font-size="${Math.min(13, rm.w * P / Math.max(4, rm.n.length) * 1.7).toFixed(1)}" font-weight="700" fill="#2a2016" stroke="#f3e9d2" stroke-width="2.5" paint-order="stroke" text-anchor="middle" dominant-baseline="central">${esc(rm.n)}${rm.secret ? " 🔒" : ""}</text>`).join("") : "";
   const pd = GEN_PAD * P;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}">${part === "top" ? `${lab}${over}` : `<defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${posts}${arcPosts}${grand}${part === "base" ? "" : lab + over}`}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pd} ${-pd} ${W * P + pd * 2} ${H * P + pd * 2}" width="${W * P + pd * 2}" height="${H * P + pd * 2}">${part === "top" ? `${lab}${over}` : `<defs>${clips}</defs>${rooms}${stairs}${hearth}${walls}${towerSvg}${merlons}${posts}${arcPosts}${grand}${part === "base" ? "" : lab + over}`}</svg>`;
 }
 // The roof follows the whole outline of the building: a hipped roof whose slopes meet in ridges, hips and valleys wherever the
 // wings join (its height anywhere is how far in from the nearest eave, taken square-wise, which is just what a hipped roof
@@ -1306,6 +1492,7 @@ function genRoofSvg(B, seed) {
     const pots = q.n > 1 ? (q.wide === "y" ? [[0, -0.25], [0, 0.25]] : [[-0.25, 0], [0.25, 0]]) : [[0, 0]];
     out += `<rect x="${cx - w * P / 2 + 3}" y="${cy - h * P / 2 + 4}" width="${w * P}" height="${h * P}" fill="rgba(0,0,0,.35)"/><rect x="${cx - w * P / 2}" y="${cy - h * P / 2}" width="${w * P}" height="${h * P}" fill="#7d7266" stroke="#2b2520" stroke-width="3"/>` +
       pots.map(([a, b]) => `<rect x="${cx + a * P - P * .14}" y="${cy + b * P - P * .14}" width="${P * .28}" height="${P * .28}" fill="#1e1a16"/>`).join(""); });
+  if (B.castle) out = genCastleRoof(B, P, hue, r, "under") + out + genCastleRoof(B, P, hue, r, "over");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${B.W * P} ${B.H * P}" width="${B.W * P}" height="${B.H * P}">${out}</svg>`;
   GEN_ROOF_CACHE.set(B, { seed, svg }); return svg;
 }

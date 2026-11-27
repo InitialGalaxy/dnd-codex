@@ -635,6 +635,19 @@ GEN_FURN.push(
     "keep:Cross gallery": [["banner", 1, 3], ["statue", 0, 2, 0.6], ["bench", 0, 2, 0.6], ["corelamp", 1, 2], ["heirloomcase", 0, 1, 0.3], ["longtable|table2", 0, 1, 0.3]],
     "keep:Heir's chamber": [["bigbed|bed", 1, 1], ["chest", 1, 2], ["cleansebasin", 0, 1, 0.7], ["warmglyph", 0, 1, 0.6], ["desk", 0, 1, 0.5]],
     "keep:Lady's closet": [["chair", 1, 2], ["smalltable", 0, 1], ["bookshelf", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.5]],
+    "castle:Courtyard": [["lightfountain", 0, 1, 0.5], ["dummy", 0, 2, 0.6], ["cart", 0, 1, 0.4], ["barrel", 0, 3], ["haystack", 0, 1, 0.4], ["corelamp", 1, 4]],
+    "castle:Tower": [["weaponrack", 0, 1, 0.6], ["barrel", 0, 2], ["chest", 0, 1, 0.5], ["corelamp", 0, 1, 0.6]],
+    "castle:Tower room": [["pallet", 0, 2, 0.6], ["chest", 0, 1], ["weaponrack", 0, 1, 0.6], ["stool", 0, 2], ["corelamp", 0, 1, 0.6]],
+    "castle:Ward chamber": [["wardcrystal", 1, 1], ["gaugepanel", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.5]],
+    "castle:Winch room": [["windlass", 1, 1], ["weaponrack", 0, 1, 0.6], ["barrel", 0, 1]],
+    "castle:Gatehouse store": [["barrel", 1, 3], ["crate", 0, 2], ["weaponrack", 0, 1, 0.5]],
+    "castle:Constable's chamber": [["bed", 1, 1], ["chest", 1, 1], ["desk", 0, 1, 0.6]],
+    "keep:Barracks": [["bed|pallet", 2, 8], ["chest", 1, 3], ["weaponrack", 0, 2], ["trestle|table2", 0, 1, 0.6], ["bench", 0, 2]],
+    "keep:Stores": [["barrel", 1, 4], ["sacks", 1, 3], ["crate", 1, 3], ["shelves", 0, 2]],
+    "keep:Retainers' hall": [["trestle|longtable", 1, 3], ["bench", 1, 4], ["weaponrack", 0, 1], ["corelamp", 0, 2]],
+    "keep:Retainers' chamber": [["bed|pallet", 2, 5], ["chest", 1, 2]],
+    "keep:Armoury": [["weaponrack", 2, 5], ["dummy", 0, 1, 0.5], ["chest", 1, 2], ["anvil", 0, 1, 0.3]],
+    "keep:Corridor": [["banner", 0, 3], ["corelamp", 0, 2], ["bench", 0, 1, 0.4]],
     "keep:Gallery": [["banner", 2, 5], ["statue", 0, 3, 0.7], ["bench", 0, 2, 0.6], ["corelamp", 1, 3], ["heirloomcase", 0, 1, 0.3]],
     "keep:Guard hall": [["trestle|table2", 1, 2], ["bench", 1, 4], ["weaponrack", 1, 2], ["dummy", 0, 1, 0.4], ["chest", 0, 1], ["corelamp", 0, 1, 0.6]],
     "keep:Guard hall (hoist)": [["hoist", 1, 1], ["trestle|table2", 1, 2], ["bench", 1, 3], ["weaponrack", 1, 2], ["chest", 0, 1]],
@@ -708,23 +721,25 @@ function genFurnish(o, B) {
   const lib = genFurnLib(), re = o.furnRe || {}, seed = Number(o.seed) || 1;
   const rngFor = (lv, i) => genRng((((seed * 31 + 11) ^ ((lv + 3) * 7919) ^ (i * 104729) ^ ((re[lv + ":" + i] || 0) * 15485863)) >>> 0) || 1);
   B.levels.forEach(L => { const edges = new Set(genEdges(L, B.W, B.H).map(e => e.k));
-    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs" && !(B.lift && rm.n === "Gallery")) return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
+    L.rooms.forEach((rm, i) => { if ((rm.circ && rm.n !== "Cellar stairs" && !(B.lift && rm.n === "Gallery") && !(B.castle && rm.n === "Corridor")) || rm.solid) return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
 }
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (Village buildings are only furnished where a room's own name has a list, for now: their furniture comes later.)
   const tk = B.type + ":" + rm.n, has = n => GEN_FURN_ROOMS[n] || lib.some(a => a.rooms && a.rooms[n]);
   if (rm.fl === "-") return; // drawn as an empty room
   const city = B.plan && ["city", "castle"].includes(genType(B.type).group), cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
-  const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : city && cf && has(cf) ? cf : city && has(cn) ? cn : has(rm.n) ? rm.n : city ? GEN_FURN_CITY_KIND[rm.k] || null : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
+  const kk = genType(B.type).group === "castle" ? "keep:" + rm.n : null; // (a castle's rooms are a keep's rooms)
+  const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : kk && has(kk) ? kk : city && cf && has(cf) ? cf : city && has(cn) ? cn : has(rm.n) ? rm.n : city ? GEN_FURN_CITY_KIND[rm.k] || null : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
   const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
   const list = [...entries.values()].sort((a, b) => a.ord - b.ord); if (!list.length) return;
   const byId = new Map(lib.map(a => [a.id, a]));
-  const inRoom = (x, y) => x >= rm.x && y >= rm.y && x < rm.x + rm.w && y < rm.y + rm.h, K = (x, y) => x + "," + y;
+  const inRoom = (x, y) => x >= rm.x && y >= rm.y && x < rm.x + rm.w && y < rm.y + rm.h && (!rm.round || Math.hypot(x + 0.5 - rm.x - rm.w / 2, y + 0.5 - rm.y - rm.h / 2) <= rm.w / 2 - 0.85), K = (x, y) => x + "," + y; // (a round tower: inside its wall)
   const solid = new Set(), clear = new Set(), keys = [], access = [], placed = [];
   const sideKey = (x, y, s) => s === "t" ? `h,${x},${y}` : s === "b" ? `h,${x},${y + 1}` : s === "l" ? `v,${x},${y}` : `v,${x + 1},${y}`;
   const outAt = (x, y, s) => { const [dx, dy] = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0] }[s]; return L.own(x + dx, y + dy) < 0; };
-  const wallAt = (x, y, s) => { const k = sideKey(x, y, s); return (edges.has(k) && !L.doors.has(k)) || (rm.arcade && outAt(x, y, s)); }, winAt = (x, y, s) => L.wins.has(sideKey(x, y, s));
+  const rndOut = (x, y, s) => { if (!rm.round) return false; const d = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0] }[s] || [0, 0]; const nx = x + d[0], ny = y + d[1]; return nx >= rm.x && ny >= rm.y && nx < rm.x + rm.w && ny < rm.y + rm.h && !inRoom(nx, ny); };
+  const wallAt = (x, y, s) => { const k = sideKey(x, y, s); return (edges.has(k) && !L.doors.has(k)) || (rm.arcade && outAt(x, y, s)) || rndOut(x, y, s); }, winAt = (x, y, s) => L.wins.has(sideKey(x, y, s));
   // Squares to keep clear: inside every door, the ends of the stairs, in front of a fire.
   const doorCells = [];
   [...L.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); (d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]).forEach(([cx, cy]) => { if (inRoom(cx, cy)) { clear.add(K(cx, cy)); keys.push(K(cx, cy)); doorCells.push([cx, cy]); } }); });
@@ -777,7 +792,7 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
     for (let k = 0; k < 4; k++) { if (fixedK != null && k !== fixedK) continue; if (a.w === a.h && k && a.place !== "wall" && a.place !== "corner" && a.place !== "hearth" && !a.face && a.access !== "front") continue;
       const [W, H] = fp(a, k);
       for (let y = rm.y; y + H <= rm.y + rm.h; y++) for (let x = rm.x; x + W <= rm.x + rm.w; x++) {
-        let bad = false; const cells = []; for (let dy = 0; dy < H && !bad; dy++) for (let dx = 0; dx < W; dx++) { const c = K(x + dx, y + dy); if (solid.has(c) || clear.has(c)) { bad = true; break; } cells.push(c); } if (bad) continue;
+        let bad = false; const cells = []; for (let dy = 0; dy < H && !bad; dy++) for (let dx = 0; dx < W; dx++) { const c = K(x + dx, y + dy); if (solid.has(c) || clear.has(c) || !inRoom(x + dx, y + dy)) { bad = true; break; } cells.push(c); } if (bad) continue;
         const A = around(x, y, W, H, k);
         if (a.place === "wall" || a.place === "corner" || a.place === "hearth") { if (!A.backCells.every(([cx, cy]) => wallAt(cx, cy, A.backSide))) continue; if (a.tall && A.backCells.some(([cx, cy]) => winAt(cx, cy, A.backSide))) continue; }
         if (a.place === "corner" && !A.endSides.some(([s, cs]) => cs.every(([cx, cy]) => wallAt(cx, cy, s)))) continue;
