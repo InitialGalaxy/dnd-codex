@@ -584,7 +584,7 @@ function viewTownGen(camp) {
     <div class="genlayout"><div class="genopts">
       <label><span>Size</span>${seg("size", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</label>
       <label><span>Walls</span>${seg("walls", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
-      <label><span>Magic <small class="muted">relay post, transponder and core shops; big towns a Guild branch, a bleed tower and lit streets</small></span>${seg("magic", [["yes", "Yes"], ["no", "No"]])}</label>
+      <label><span>Magic <small class="muted">relay post, transponder and core shops; big towns a bleed tower and lit streets (every town has its Guild branch either way)</small></span>${seg("magic", [["yes", "Yes"], ["no", "No"]])}</label>
       <label><span>Gates <small class="muted">main roads in</small></span>${seg("gates", [["auto", "Any"], [2, "2"], [3, "3"], [4, "4"]])}</label>
       <label><span>Roads in <small class="muted">to the gates</small></span>${seg("roads", [["centre", "From the centre"], ["edges", "From the map edges"]])}</label>
       <div class="tvents"><button class="btn small ${TNV.pick ? "" : "ghost"}" data-act="tvpick" aria-pressed="${!!TNV.pick}">📍 ${TNV.pick ? "Done picking" : "Pick road entrances"}</button>${(o.entries || []).length ? `<span class="small muted">${o.entries.length} entrance${o.entries.length === 1 ? "" : "s"} · <button class="linkbtn" data-act="tventclear">let it choose</button></span>` : ""}</div>
