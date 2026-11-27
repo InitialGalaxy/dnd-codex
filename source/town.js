@@ -415,11 +415,9 @@ function tnTerrainSvg(T, s, vb) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbx} ${vby} ${box[2] * s} ${box[3] * s}" width="${box[2] * s}" height="${box[3] * s}">${out.join("")}</svg>`;
 }
 // Roofs for the preview: each wing a hipped roof in the building's colour (the real roofs are drawn for the tabletop).
-function tnRoofsSvg(T, s) {
-  let out = ""; T.buildings.forEach(b => { const B = tnB(b.o), tf = vgTurn(b.k, B.W, B.H), rr = genRng((Number(b.o.seed) || 1) * 7 + 3), hue = [[12, 38, 36], [25, 18, 32], [215, 10, 38], [30, 30, 30]][Math.floor(rr() * 4)];
-    (B.F.wings || [{ x: 0, y: 0, w: B.W, h: B.H }]).forEach(g => { const R = tnRectTurn(tf, g), X = (b.x + R.x) * s, Y = (b.y + R.y) * s, Wd = R.w * s, Hd = R.h * s, hw = Math.min(Wd, Hd) / 2;
-      const ridge = Wd >= Hd ? `M${X + hw} ${Y + Hd / 2}H${X + Wd - hw}` : `M${X + Wd / 2} ${Y + hw}V${Y + Hd - hw}`, hips = Wd >= Hd ? `M${X} ${Y}L${X + hw} ${Y + Hd / 2}L${X} ${Y + Hd}M${X + Wd} ${Y}L${X + Wd - hw} ${Y + Hd / 2}L${X + Wd} ${Y + Hd}` : `M${X} ${Y}L${X + Wd / 2} ${Y + hw}L${X + Wd} ${Y}M${X} ${Y + Hd}L${X + Wd / 2} ${Y + Hd - hw}L${X + Wd} ${Y + Hd}`;
-      out += `<rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" fill="hsl(${hue[0]} ${hue[1]}% ${hue[2] + 6}%)" stroke="#2b2520" stroke-width="${Math.max(0.6, s * 0.12)}"/><path d="${hips}${ridge}" stroke="rgba(0,0,0,.35)" stroke-width="${Math.max(0.5, s * 0.1)}" fill="none"/>`; }); });
+function tnRoofsSvg(T, s) { // each building's own roof shape, small and plain, turned as it stands
+  let out = ""; T.buildings.forEach(b => { const B = tnB(b.o), odd = b.k % 2, Wt = odd ? B.H : B.W, Ht = odd ? B.W : B.H, sc = s / 10;
+    out += `<g transform="translate(${((b.x + Wt / 2) * s).toFixed(1)} ${((b.y + Ht / 2) * s).toFixed(1)}) rotate(${(b.k || 0) * 90}) scale(${sc}) translate(${-B.W * 5} ${-B.H * 5})">${genRoofFlat(B, b.o.seed)}</g>`; });
   return out; }
 
 // ----- The tabletop: the town as a map whose buildings' insides come and go -----
