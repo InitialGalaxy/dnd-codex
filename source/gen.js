@@ -519,7 +519,7 @@ const GEN_CITY = [
         genU(sm ? genInt(r, 5, 6) : genInt(r, 7, 10), genR(genOne(r, ["Livery hall", "Common hall", "Feast hall"]), "hall")),
         genU(2, genR("Screens passage", "passage"), { entry: 1, pass: 1, porch: r() < 0.4 ? [2, 2] : null }),
         genU(genInt(r, 3, 4) + (wb ? 0 : 1), wb ? [genR("Buttery", "store"), genR("Pantry", "store"), genR("Kitchen", "kitchen", { w: 1.4 })].concat(wb > 4 ? [genR("Scullery", "kitchen", { w: 0.7 })] : []) : [genR("Buttery", "store"), genR("Kitchen", "kitchen")], Object.assign({ back: wb }, up ? { up: genShuf(r, [genR("Butler's room", "bed"), genR("Cook's room", "bed"), genR("Linen room", "store")]).slice(0, 2) } : {}))];
-      if (big ? r() < 0.7 : !sm && r() < 0.25) { const n = genInt(r, 2, 4); for (let i = 0; i < n; i++) units.push(genU(3, [genR("Almsfolk's walk", "passage", { zone: "al", hub: 1, arcade: 1 }), genR("Almsfolk's room", "bed")], { sizes: [2, D - 2] })); }
+      if (big ? r() < 0.7 : !sm && r() < 0.25) { const n = genInt(r, 2, 4); for (let i = 0; i < n; i++) units.push(genU(3, [genR("Almsfolk's walk", "passage", { zone: "al", hub: 1, arcade: 1 }), genR("Almsfolk's room", "bed", { cub: 1 })], { sizes: [2, D - 2] })); }
       return { D, name: units.length > 4 ? "Livery hall with almshouses" : "Livery hall", units }; } },
   { id: "tenement", name: "Tall house", icon: "🏢", group: "city", mirror: 1, blurb: "A city tenement on a narrow plot, two to four storeys: a shop (whose depends on the street) and back shop on the street, hall and kitchen on the first floor, chambers over them, garrets in the roof; some with a side passage to the yard, some double-fronted round a stair hall, some let out as rooms floor by floor.",
     cellar: 0.5, porch: 0, floorsMax: 4, doorBonus: -0.5, under: [{ n: "Cellar", k: "cellar", w: 1 }, { n: "Coal hole", k: "cellar", w: 0.4, opt: 0.4 }],
@@ -557,7 +557,7 @@ const GEN_CITY = [
   { id: "almshouse", name: "Almshouse", icon: "🏚", group: "city", mirror: 1, blurb: "Rooms for the old and poor, each off a covered walk: in a row with the common hall at one end and a chapel at the other, or the hall and chapel in the middle with rooms either side, or round three sides of a little court; on some the rooms go up two floors.",
     cellar: 0.05, porch: 0, floorsMax: 2, doorBonus: -0.5,
     plan(r, size, up) { const n = { small: 3, medium: 5, large: 7 }[size] || 5, D = genInt(r, 5, 6), v = genInt(r, 0, 2), two = up && r() < 0.5;
-      const cell = (i, e) => genU(3, [genR("Covered walk", "passage", { zone: "al", hub: 1, arcade: 1 }), genR(r() < 0.5 ? "Almsman's room" : "Almswoman's room", "bed")], Object.assign({ sizes: [2, D - 2] }, e ? { entry: 1 } : {}));
+      const cell = (i, e) => genU(3, [genR("Covered walk", "passage", { zone: "al", hub: 1, arcade: 1 }), genR(r() < 0.5 ? "Almsman's room" : "Almswoman's room", "bed", { cub: 1 })], Object.assign({ sizes: [2, D - 2] }, e ? { entry: 1 } : {}));
       const hall = genU(genInt(r, 4, 5), genShuf(r, [genR("Common hall", "hall"), genR("Kitchen", "kitchen")]), up ? { up: [genR("Warden's chamber", "bed"), genR("Warden's room", "office")] } : {}), chapel = () => genU(genInt(r, 3, 4), genR("Chapel", "temple"), { inset: [1, 0] });
       let units;
       if (v === 1) { const a = Math.floor(n / 2); units = []; for (let i = 0; i < a; i++) units.push(cell(i)); units.push(Object.assign(hall, { entry: 1 })); if (r() < 0.6) units.push(genU(genInt(r, 3, 4), genR("Chapel", "temple"))); for (let i = a; i < n; i++) units.push(cell(i)); }
@@ -576,9 +576,9 @@ const GEN_CITY = [
       const bride = r() < 0.3, units = [genU(genInt(r, 4, 5), genShuf(r, [genR("Keeper's hall", "living"), genR("Kitchen", "kitchen")]), up ? { up: [genR("Keeper's chamber", "bed")].concat(genShuf(r, [genR("Master's-side room", "bed"), genR("Master's-side room", "bed"), genR("Turnkey's room", "bed")]).slice(0, 2)) } : {}),
         genU(3, [genR("Turnkey's lodge", "office"), genR("Strong room", "vault", { dark: 1, w: 0.6 })], { entry: 1 }),
         genU(sm ? 4 : genInt(r, 4, 6), sm ? genR(bride ? "Work room" : "Common ward", bride ? "work" : "ward") : genShuf(r, [genR("Debtors' ward", "ward"), genR(bride ? "Work room" : "Felons' day room", bride ? "work" : "ward")]), up && !sm ? { up: big ? [genR("Chapel", "temple"), genR("Women's ward", "ward")] : [genR(r() < 0.5 ? "Women's ward" : "Infirmary", "ward")] } : {})];
-      const cells = []; for (let i = 0; i < nc; i++) cells.push(genU(2, [genR("Ward passage", "passage", { zone: "gl", hub: 1, dark: 1 }), genR(i === nc - 1 && big ? "Condemned cell" : "Cell", "cell", { dark: 1 })], { sizes: [2, D - 2] }));
+      const cells = []; for (let i = 0; i < nc; i++) cells.push(genU(2, [genR("Ward passage", "passage", { zone: "gl", hub: 1, dark: 1 }), genR(i === nc - 1 && big ? "Condemned cell" : "Cell", "cell", { dark: 1, cub: 1 })], { sizes: [2, D - 2] }));
       if (r() < 0.4) { const back = genInt(r, 3, 6), n = Math.max(2, Math.floor((D + back) / 3)); // a cell block running back from the street, its passage beside the cells
-        units.push(genU(2, genR("Cell passage", "passage", { dark: 1 }), { back }), genU(3, Array.from({ length: n }, (_, i) => genR(i === 0 && big ? "Condemned cell" : "Cell", "cell", { dark: 1 })), { back })); }
+        units.push(genU(2, genR("Cell passage", "passage", { dark: 1 }), { back }), genU(3, Array.from({ length: n }, (_, i) => genR(i === 0 && big ? "Condemned cell" : "Cell", "cell", { dark: 1, cub: 1 })), { back })); }
       else units.push(...cells);
       return { D, name: bride ? "Bridewell" : sm ? "Lock-up gaol" : "City gaol", units }; } },
   { id: "warehouse", name: "Warehouse", icon: "📦", group: "city", mirror: 1, blurb: "A merchant's storehouse floor over floor, wide doors to the street and a hoist to the loft, the counting house and weighbeam by the door; or a long cloth or wool hall of open bays; the biggest a kontor, a walled trading yard of warehouses, weigh house, counting houses and the merchants' lodgings.",
@@ -613,7 +613,7 @@ const GEN_CITY = [
     cellar: 0.1, porch: 0, floorsMax: 2, doorBonus: 0, under: [{ n: "Cistern", k: "cellar", w: 1 }],
     plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 5, 6) : genInt(r, 6, 7), v = genInt(r, 0, 1);
       const units = [genU(genInt(r, 3, 4), sm ? genR("Changing room", "living") : genShuf(r, [genR("Entrance", "office", { w: 0.7 }), genR("Changing room", "living")]), Object.assign({ entry: 1 }, up ? { up: genShuf(r, [genR("Rest chamber", "bed"), genR("Rest chamber", "bed"), genR("Bath-keeper's room", "bed"), genR("Linen room", "store")]).slice(0, 3) } : {}))];
-      if (v === 1) { const n = sm ? 2 : big ? 4 : 3; for (let i = 0; i < n; i++) units.push(genU(2, [genR("Bath passage", "passage", { zone: "bp", hub: 1 }), genR("Bath chamber", "bath")], { sizes: [2, D - 2] })); }
+      if (v === 1) { const n = sm ? 2 : big ? 4 : 3; for (let i = 0; i < n; i++) units.push(genU(2, [genR("Bath passage", "passage", { zone: "bp", hub: 1 }), genR("Bath chamber", "bath", { cub: 1 })], { sizes: [2, D - 2] })); }
       else if (big) units.push(genU(genInt(r, 5, 6), [genR("Men's bath", "bath"), genR("Women's bath", "bath")]));
       else units.push(genU(sm ? genInt(r, 4, 5) : genInt(r, 5, 6), genR(genOne(r, ["Bath hall", "Tub room"]), "bath"), up ? { upJoin: 1 } : {}));
       const hot = [genU(3, genR(genOne(r, ["Sweating room", "Hot room", "Steam room"]), "bath", { dark: 1 })), genU(3, genShuf(r, [genR("Furnace room", "furnace"), genR("Wood store", "store")]))];
@@ -866,6 +866,7 @@ function genOpenings(r, L, F, stairs, front) {
   const connect = (secretPass, byStairs) => { const q = [...seen]; while (q.length) { const a = q.shift(); for (let b = 0; b < n; b++) {
       if (seen.has(b) || isPorch(b) || !!L.rooms[b].secret !== secretPass) continue; let e = shared(a, b); if (!e.length) continue;
       if (genOpen(L.rooms[a], L.rooms[b])) { seen.add(b); q.push(b); continue; } // open to each other: no door needed
+      if (L.rooms[a].cub && L.rooms[b].cub) continue; // a bath chamber, cell or almsman's room opens onto its passage, never through the next one
       if ((L.rooms[a].zone && !L.rooms[a].hub && !L.rooms[a].zdoor) || (L.rooms[b].zone && !L.rooms[b].hub && !L.rooms[b].zdoor)) continue; // a stall opens only onto its aisle (zdoor: a ward or an aisle can still have a door)
       const clear = e.filter(k => !onStairs(k)); if (clear.length) e = clear; else if (!byStairs) continue; // doors don't open onto the stairs, unless there's no other way
       const mid = e.filter((_, i) => e.length < 3 || (i > 0 && i < e.length - 1)), list = mid.length ? mid : e, pick = list[Math.floor(r() * list.length)];
