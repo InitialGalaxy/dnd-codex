@@ -1779,7 +1779,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vbtn.icon { text-align: center; font-size: 1rem; min-width: 34px; } .vgroup:has(.icon) { flex-direction: row; flex-wrap: wrap; } .vgroup:has(.icon) .vlab { width: 100%; }
 .vview { position: relative; overflow: hidden; background: #0b0d12; touch-action: none; outline: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .vstage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.vstage > * { position: absolute; left: 0; top: 0; } .vbg, .vlayer { width: 100%; height: 100%; } .vgrid, .vwalls, .vfog { pointer-events: none; }
+.vstage > * { position: absolute; left: 0; top: 0; } .vbg, .vlayer { width: 100%; height: 100%; } .vgrid, .vwalls, .vfog, .vwallcv, .vgridcv { pointer-events: none; } .vrclip { position: absolute; left: 0; top: 0; }
+.vstage img.vobj[data-far] { display: none; } .vstage.vzfar.vhasfar img.vobj[data-far] { display: block; }
+.vstage.vzfar.vhasfar .vmap img.vobj:not([data-far]), .vstage.vzfar.vhasfar .vroofl img.vobj { display: none; }
 .vobj { position: absolute; user-select: none; -webkit-user-drag: none; max-width: none; }
 .vlayer { pointer-events: none; } .vlayer > * { pointer-events: auto; }
 .vstage[data-layer="map"] .vgm > *, .vstage[data-layer="map"] .vtokl > *, .vstage[data-layer="walls"] .vlayer > * { pointer-events: none; }
@@ -1816,7 +1818,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vtok.gmonly { opacity: .55; } .vtok.gmonly::after { content: "GM"; position: absolute; top: -6px; right: -6px; font: 700 .6rem var(--ui); background: #b080ff; color: #000; border-radius: 4px; padding: 0 3px; }
 .vtok.vhide { visibility: hidden; }
 .vdoor.vhide, .vgo.vhide { visibility: hidden !important; pointer-events: none !important; }
-.vwalls line { stroke: #ff9a3c; stroke-width: 3; opacity: .55; } .vwalls.active line { opacity: 1; stroke-width: 4; }
+.vwalls line { stroke: #ff9a3c; stroke-width: 3; opacity: .55; } .vwalls.vwchunk { overflow: visible; }
+.vgridcss { background-image: linear-gradient(to right, rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.18) 1px, transparent 1px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.vstage.vzfar .vgrid, .vstage.vzfar .vdoors { display: none; } .vstage.vzfar img.vobj[data-layer="gm"] { visibility: hidden; } .vwalls.active line { opacity: 1; stroke-width: 4; }
 .vwalls line.sel { stroke: #ff3c3c; stroke-width: 6; opacity: 1; }
 .vwalls .draft { fill: none; stroke: #ffd23c; stroke-width: 3; stroke-dasharray: 8 5; } .vwalls circle { fill: #ffd23c; }
 .vhandle { width: 18px; height: 18px; border-radius: 4px; background: var(--brass); border: 2px solid #000; cursor: nwse-resize; }

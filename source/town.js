@@ -464,8 +464,18 @@ async function tnUpload(svgUrl, w, h, cache, px) {
 async function tnPlace(camp, o) {
   tnProgress("Laying out the town…", 0); await new Promise(res => setTimeout(res, 40));
   try { await tnPlaceRun(camp, o); } finally { tnProgress(null); } }
+// The whole town in one picture (ground and roofs) for when the map is zoomed far out: one picture on the board instead
+// of hundreds (the board swaps to it below 30% zoom).
+async function tnOverview(T, page) {
+  if (!S.assets || !S.assets.upload) return null; const k = 8, cv = document.createElement("canvas"); cv.width = T.W * k; cv.height = T.H * k; const g = cv.getContext("2d");
+  const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  g.drawImage(await load(genUrl(tnTerrainSvg(T, k))), 0, 0, cv.width, cv.height);
+  for (const ob of page.objs.filter(x => x.roof && String(x.img).startsWith("data:image/svg"))) { try { const im = await load(ob.img); g.save(); g.translate((ob.x + ob.w / 2) * k, (ob.y + ob.h / 2) * k); if (ob.rot) g.rotate(ob.rot * Math.PI / 180); g.drawImage(im, -ob.w / 2 * k, -ob.h / 2 * k, ob.w * k, ob.h * k); g.restore(); } catch (e) { } }
+  const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.85)); cv.width = cv.height = 0; if (!blob) return null;
+  return assetPath(await S.assets.upload(new File([blob], "town-overview.webp", { type: blob.type || "image/webp" }))); }
 async function tnPlaceRun(camp, o) {
   const { T, page } = tnTownPage(o), cache = page.town.img, todo = page.objs.filter(ob => ob.land || String(ob.img).startsWith("data:image/svg"));
+  tnProgress("Drawing the town from afar…", 0); try { const ov = await tnOverview(T, page); if (ov) page.objs.unshift({ id: vid("o"), layer: "map", level: 0, x: 0, y: 0, w: T.W, h: T.H, img: ov, far: 1 }); } catch (e) { }
   // A few at a time: while one picture is drawn the others upload.
   let n = 0; const one = async ob => { if (ob.land) { const svg = genUrl(tnTerrainSvg(T, ob.px, ob.vb)); delete ob.vb; delete ob.land; delete ob.px; ob.img = svg; }
     const r = await tnUpload(ob.img, ob.w, ob.h, cache, page.town.px); ob.img = r.img; if (r.lod) ob.lod = r.lod; if (++n % 2 === 0) tnProgress(`Drawing the town… ${n} of ${todo.length} pictures`, n / todo.length); };

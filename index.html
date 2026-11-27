@@ -1780,7 +1780,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vbtn.icon { text-align: center; font-size: 1rem; min-width: 34px; } .vgroup:has(.icon) { flex-direction: row; flex-wrap: wrap; } .vgroup:has(.icon) .vlab { width: 100%; }
 .vview { position: relative; overflow: hidden; background: #0b0d12; touch-action: none; outline: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .vstage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.vstage > * { position: absolute; left: 0; top: 0; } .vbg, .vlayer { width: 100%; height: 100%; } .vgrid, .vwalls, .vfog { pointer-events: none; }
+.vstage > * { position: absolute; left: 0; top: 0; } .vbg, .vlayer { width: 100%; height: 100%; } .vgrid, .vwalls, .vfog, .vwallcv, .vgridcv { pointer-events: none; } .vrclip { position: absolute; left: 0; top: 0; }
+.vstage img.vobj[data-far] { display: none; } .vstage.vzfar.vhasfar img.vobj[data-far] { display: block; }
+.vstage.vzfar.vhasfar .vmap img.vobj:not([data-far]), .vstage.vzfar.vhasfar .vroofl img.vobj { display: none; }
 .vobj { position: absolute; user-select: none; -webkit-user-drag: none; max-width: none; }
 .vlayer { pointer-events: none; } .vlayer > * { pointer-events: auto; }
 .vstage[data-layer="map"] .vgm > *, .vstage[data-layer="map"] .vtokl > *, .vstage[data-layer="walls"] .vlayer > * { pointer-events: none; }
@@ -1817,7 +1819,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vtok.gmonly { opacity: .55; } .vtok.gmonly::after { content: "GM"; position: absolute; top: -6px; right: -6px; font: 700 .6rem var(--ui); background: #b080ff; color: #000; border-radius: 4px; padding: 0 3px; }
 .vtok.vhide { visibility: hidden; }
 .vdoor.vhide, .vgo.vhide { visibility: hidden !important; pointer-events: none !important; }
-.vwalls line { stroke: #ff9a3c; stroke-width: 3; opacity: .55; } .vwalls.active line { opacity: 1; stroke-width: 4; }
+.vwalls line { stroke: #ff9a3c; stroke-width: 3; opacity: .55; } .vwalls.vwchunk { overflow: visible; }
+.vgridcss { background-image: linear-gradient(to right, rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.18) 1px, transparent 1px); box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+.vstage.vzfar .vgrid, .vstage.vzfar .vdoors { display: none; } .vstage.vzfar img.vobj[data-layer="gm"] { visibility: hidden; } .vwalls.active line { opacity: 1; stroke-width: 4; }
 .vwalls line.sel { stroke: #ff3c3c; stroke-width: 6; opacity: 1; }
 .vwalls .draft { fill: none; stroke: #ffd23c; stroke-width: 3; stroke-dasharray: 8 5; } .vwalls circle { fill: #ffd23c; }
 .vhandle { width: 18px; height: 18px; border-radius: 4px; background: var(--brass); border: 2px solid #000; cursor: nwse-resize; }
@@ -9353,16 +9357,16 @@ function vDraw() {
   if (VTT.lvlShowPid !== cur.id) { VTT.lvlShowPid = cur.id; VTT.lvlShow = null; }
   { const sig = cur.id + "|" + vMinLevel(p) + "|" + vMaxLevel(p) + "|" + JSON.stringify(p.levelNames || {}); if (VTT.lvlSig !== sig || !document.querySelector("#vtools .vlvgroup")) { VTT.lvlSig = sig; const tl = document.getElementById("vtools"); if (tl) tl.innerHTML = vToolsHtml(); } }
   const lvlCls = l => vLvlHid(l) ? " lvlhid" : gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : gm && !VTT.preview && (l || 0) < 0 && (l || 0) < VTT.lvl ? " lvlhid" : "";
-  const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}" ${vImgAttr(o)} alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
+  const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}"${o.far ? ' data-far="1"' : ""} ${o.far ? `src="${esc(o.img)}"` : vImgAttr(o)} alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
   const tok = ([id, t]) => { const src = vTokSrc(t), s = vTokSz(t) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
     return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t) : ""}
       ${vDead(t) ? `<span class="vdeadx" aria-label="Down"></span>` : vBarsHtml(t)}${src ? `<img src="${esc(src)}" alt="" draggable="false">` : `<span class="vinit">${esc((t.name || "?")[0])}</span>`}<span class="vname">${esc(t.name || "")}</span></div>`; };
-  const grid = p.grid !== false && vHexOf(p) ? vHexGridSvg(p, W, H) : p.grid !== false ? `<svg class="vgrid" width="${W}" height="${H}" aria-hidden="true"><defs><pattern id="vgp" width="${VCELL}" height="${VCELL}" patternUnits="userSpaceOnUse"><path d="M ${VCELL} 0 L 0 0 0 ${VCELL}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#vgp)"/><rect width="100%" height="100%" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/></svg>` : "";
+  const grid = p.grid !== false && vHexOf(p) ? vHexGridSvg(p, W, H) : p.grid !== false ? `<canvas id="vgridcv" class="vgrid vgridcv" aria-hidden="true"></canvas>` : ""; // (drawn for the screen only: vWallsPaint)
   const showWalls = gm && !VTT.preview;
   const wallSel = VTT.sel && VTT.sel.kind === "wall" ? VTT.sel.i : -1;
   const areaSel = VTT.sel && VTT.sel.kind === "area" ? VTT.sel.id : "";
-  const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${(p.areas || []).map(a => vAreaSvg(p, a, a.id === areaSel)).join("")}
-    ${(p.walls || []).map((w, i) => `<line x1="${w[0] * VCELL}" y1="${w[1] * VCELL}" x2="${w[2] * VCELL}" y2="${w[3] * VCELL}" class="${i === wallSel ? "sel" : ""}${(w[4] || 0) !== VTT.lvl ? " otherlvl" : ""}${vLvlHid(w[4]) ? " lvlhid" : ""}${w[5] ? " " + w[5].k + (w[5].open ? " open" : "") + (w[5].secret ? " secret" : "") : ""}"/>`).join("")}
+  const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${""/* (the areas are drawn on the canvas with the walls: vWallsPaint) */}
+    </svg><canvas id="vwallcv" class="vwallcv" aria-hidden="true"></canvas><svg class="vwalls vwdraft${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
   const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t)).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
@@ -9379,7 +9383,7 @@ function vDraw() {
     ${gm && VTT.sel && VTT.sel.kind === "wall" && (p.walls || [])[VTT.sel.i] ? (w => `<div class="vwh" data-wh="0" style="left:${w[0] * VCELL}px;top:${w[1] * VCELL}px" title="Drag to move this end"></div><div class="vwh" data-wh="1" style="left:${w[2] * VCELL}px;top:${w[3] * VCELL}px" title="Drag to move this end"></div>`)(p.walls[VTT.sel.i]) : ""}`;
   vCvKeep(stage, oldCv);
   stage.dataset.layer = VTT.layer; stage.classList.toggle("vbelow", !!VTT.shipBelow); VTT.stageW = W; VTT.stageH = H;
-  vFog(cur.id, p, toks); vSteerDraw(); vGridEdDraw(); vTrDraw();
+  vFog(cur.id, p, toks); vSteerDraw(); vGridEdDraw(); vTrDraw(); vWallsPaint();
   if (gm && !VTT.preview) document.querySelectorAll(".vtok").forEach(el => { const t = S.vttTokens.get(el.dataset.tid); if (t && t.ship && vIsShip(S.vttTokens.get(t.ship))) el.classList.toggle("vflooroff", !vShipVis(t.ship).toks.has(Number(t.deck) || 0)); });
   vSlideTokens(stage, prevPos);
   vMeasDraw(); vPingDraw(); vFxRun(p); vQuestDraw(); vLightsPaint(cur.id, p, toks);
@@ -9388,7 +9392,9 @@ function vDraw() {
   const hint = document.getElementById("vhint");
   if (hint) hint.textContent = VTT.tool === "measure" ? "Drag to measure · Esc to clear" : gm ? (VTT.tool === "wall" ? (VTT.draft ? "Click to add points · double-click or Enter to finish · Esc to cancel" : "Click to start a wall") : VTT.tool === "area" ? `Drag over squares that are up on ${vLevelName(p, VTT.lvl || 1)} · hold Alt to remove squares` : VTT.tool === "link" ? "Drag over the squares for stairs or a lift" : VTT.layer === "walls" ? "Select a wall to delete it, or pick the wall tool to draw" : "") : (p.light ? "" : "");
 }
-function vApplyView() { const st = document.getElementById("vstage"); if (st) { st.style.transform = `translate(${VTT.panX}px,${VTT.panY}px) scale(${VTT.zoom})`; st.style.setProperty("--vinv", Math.max(1, 1 / VTT.zoom).toFixed(3)); vCullSoon(); } }
+function vApplyView() { const st = document.getElementById("vstage"); if (st) { st.style.transform = `translate(${VTT.panX}px,${VTT.panY}px) scale(${VTT.zoom})`; st.style.setProperty("--vinv", Math.max(1, 1 / VTT.zoom).toFixed(3));
+  // Zoomed far out, the grid (finer than a pixel by then) and the GM's name labels are left out.
+  st.classList.toggle("vzfar", VTT.zoom < 0.3); const cur = vPageNow(); st.classList.toggle("vhasfar", !!(cur && cur.p && (cur.p.objs || []).some(o => o.far))); vCullSoon(); } }
 // ----- Drawing big maps: only what's on screen, at the detail the zoom needs -----
 // As on web maps (a tile pyramid, only the tiles in the viewport loaded): a picture can carry smaller copies of itself
 // (o.lod = [[pixels per square, url], …], from most detailed down), and the board shows the smallest copy that is still sharp
@@ -9398,12 +9404,64 @@ function vViewRect(pad) { const vw = document.getElementById("vview"); if (!vw) 
 function vLodSrc(o) { if (!o.lod || !o.lod.length) return o.img; const need = VCELL * VTT.zoom * (window.devicePixelRatio || 1) * 0.85; let best = o.img;
   for (const [px, url] of o.lod) { if (px >= need) best = url; else break; } return best; }
 const vObjIn = (o, R) => { const m = o.rot ? Math.max(o.w, o.h) / 2 : 0, cx = o.x + o.w / 2, cy = o.y + o.h / 2, hw = o.rot ? m : o.w / 2, hh = o.rot ? m : o.h / 2; return cx + hw >= R[0] && cx - hw <= R[0] + R[2] && cy + hh >= R[1] && cy - hh <= R[1] + R[3]; };
-function vImgAttr(o) { if (!o.lod && !(o.w * o.h > 64)) return `src="${esc(o.img)}"`; const R = vViewRect(1); if (!R || vObjIn(o, R)) return `src="${esc(vLodSrc(o))}"`; return `data-lazy="1"`; }
-let vCullRaf = 0; const vCullSoon = () => { if (!vCullRaf) vCullRaf = requestAnimationFrame(() => { vCullRaf = 0; vCull(); }); };
+const vFarOn = () => { const cur = vPageNow(); return VTT.zoom < 0.3 && !!(cur && cur.p && (cur.p.objs || []).some(o => o.far)); };
+function vImgAttr(o) { if (!o.lod && !(o.w * o.h > 64)) return `src="${esc(o.img)}"`; if (vFarOn() && (o.lod || o.roof)) return `data-lazy="1"`; const R = vViewRect(1); if (!R || vObjIn(o, R)) return `src="${esc(vLodSrc(o))}"`; return `data-lazy="1"`; }
+let vCullRaf = 0; const vCullSoon = () => { if (!vCullRaf) vCullRaf = requestAnimationFrame(() => { vCullRaf = 0; vCull(); vWallsPaint(); }); };
+// The GM's wall lines: drawn on a canvas just the size of the screen, only the walls in view, again on each pan or zoom
+// (thousands of lines as one drawing made every zoom step slow). Same colours as before: doors, windows, secret, other floors.
+// (and the grid, and the GM's floor areas: each as a screen-sized canvas, only what's in view)
+function vScreenCanvas(cv, R, sw, sh, z, dpr) { cv.style.left = R[0] * VCELL + "px"; cv.style.top = R[1] * VCELL + "px"; cv.style.width = sw / z + "px"; cv.style.height = sh / z + "px";
+  const W = Math.round(sw * dpr), H = Math.round(sh * dpr); if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } const c = cv.getContext("2d"); c.clearRect(0, 0, W, H); return c; }
+function vAreaGeo(p) { if (VTT.areaGeoFor === p.areas) return VTT.areaGeo; VTT.areaGeoFor = p.areas;
+  VTT.areaGeo = (p.areas || []).map(a => { if (!Array.isArray(a.cells)) return a.pts ? { a, pts: a.pts, box: [Math.min(...a.pts.map(q => q[0])), Math.min(...a.pts.map(q => q[1])), Math.max(...a.pts.map(q => q[0])), Math.max(...a.pts.map(q => q[1]))] } : null; if (!a.cells.length) return null;
+    const has = new Set(a.cells.map(c => c[0] + "," + c[1])), on = (x, y) => has.has(x + "," + y), edges = []; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    a.cells.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + 1); y1 = Math.max(y1, y + 1);
+      if (!on(x, y - 1)) edges.push([x, y, x + 1, y]); if (!on(x, y + 1)) edges.push([x, y + 1, x + 1, y + 1]); if (!on(x - 1, y)) edges.push([x, y, x, y + 1]); if (!on(x + 1, y)) edges.push([x + 1, y, x + 1, y + 1]); });
+    // Rows of squares merged into strips, so filling an area is a few rectangles, not one per square.
+    const rows = new Map(); a.cells.forEach(([x, y]) => (rows.get(y) || rows.set(y, []).get(y)).push(x)); const runs = [];
+    rows.forEach((xs, y) => { xs.sort((p1, p2) => p1 - p2); let st = xs[0], pr = xs[0]; for (let i = 1; i <= xs.length; i++) { if (i < xs.length && xs[i] === pr + 1) { pr = xs[i]; continue; } runs.push([st, y, pr + 1 - st]); if (i < xs.length) { st = pr = xs[i]; } } });
+    // Edges joined end to end where they run on in a line.
+    const hz = new Map(), vt = new Map(); edges.forEach(e => { if (e[1] === e[3]) (hz.get(e[1]) || hz.set(e[1], []).get(e[1])).push(e[0]); else (vt.get(e[0]) || vt.set(e[0], []).get(e[0])).push(e[1]); });
+    const joined = []; hz.forEach((xs, y) => { xs.sort((p1, p2) => p1 - p2); let st = xs[0], pr = xs[0]; for (let i = 1; i <= xs.length; i++) { if (i < xs.length && xs[i] === pr + 1) { pr = xs[i]; continue; } joined.push([st, y, pr + 1, y]); if (i < xs.length) st = pr = xs[i]; } });
+    vt.forEach((ys, x) => { ys.sort((p1, p2) => p1 - p2); let st = ys[0], pr = ys[0]; for (let i = 1; i <= ys.length; i++) { if (i < ys.length && ys[i] === pr + 1) { pr = ys[i]; continue; } joined.push([x, st, x, pr + 1]); if (i < ys.length) st = pr = ys[i]; } });
+    return { a, cells: a.cells, runs, edges: joined, box: [x0, y0, x1, y1] }; }).filter(Boolean); return VTT.areaGeo; }
+function vWallsPaint() {
+  const cv = document.getElementById("vwallcv"), gcv = document.getElementById("vgridcv"), vw = document.getElementById("vview"), cur = vPageNow(); if ((!cv && !gcv) || !vw || !cur || !cur.p) return;
+  const p = cur.p, z = VTT.zoom, dpr = window.devicePixelRatio || 1, sw = vw.clientWidth, sh = vw.clientHeight, R = vViewRect(0); if (!R) return;
+  if (gcv) { const g = vScreenCanvas(gcv, R, sw, sh, z, dpr), k = VCELL * z * dpr;
+    if (VCELL * z >= 9) { g.strokeStyle = "rgba(255,255,255,.18)"; g.lineWidth = Math.max(1, dpr); g.beginPath();
+      for (let x = Math.max(0, Math.ceil(R[0])); x <= Math.min(p.w, R[0] + R[2]); x++) { const X = Math.round((x - R[0]) * k) + 0.5; g.moveTo(X, Math.max(0, (0 - R[1]) * k)); g.lineTo(X, Math.min(gcv.height, (p.h - R[1]) * k)); }
+      for (let y = Math.max(0, Math.ceil(R[1])); y <= Math.min(p.h, R[1] + R[3]); y++) { const Y = Math.round((y - R[1]) * k) + 0.5; g.moveTo(Math.max(0, (0 - R[0]) * k), Y); g.lineTo(Math.min(gcv.width, (p.w - R[0]) * k), Y); } g.stroke(); }
+    g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 2 * dpr; g.strokeRect((0 - R[0]) * k, (0 - R[1]) * k, p.w * k, p.h * k); }
+  if (!cv) return;
+  cv.style.left = R[0] * VCELL + "px"; cv.style.top = R[1] * VCELL + "px"; cv.style.width = sw / z + "px"; cv.style.height = sh / z + "px";
+  const c = vScreenCanvas(cv, R, sw, sh, z, dpr), k = VCELL * z * dpr, act = VTT.layer === "walls", sel = VTT.sel && VTT.sel.kind === "wall" ? VTT.sel.i : -1;
+  // The floor areas (roofs and upper floors over rooms): a light fill, a dashed edge, the floor's name.
+  const aSel = VTT.sel && VTT.sel.kind === "area" ? VTT.sel.id : "", inV = b => !(b[2] < R[0] || b[0] > R[0] + R[2] || b[3] < R[1] || b[1] > R[1] + R[3]);
+  vAreaGeo(p).forEach(g => { const a = g.a; if (vLvlHid(a.level) || !inV(g.box)) return; const curL = a.level === VTT.lvl, isSel = a.id === aSel;
+    c.globalAlpha = curL ? 1 : 0.6; c.fillStyle = curL ? "rgba(127,208,255,.18)" : "rgba(127,208,255,.1)";
+    if (g.pts) { c.beginPath(); g.pts.forEach((q, i) => i ? c.lineTo((q[0] - R[0]) * k, (q[1] - R[1]) * k) : c.moveTo((q[0] - R[0]) * k, (q[1] - R[1]) * k)); c.closePath(); c.fill(); c.globalAlpha = isSel || curL ? 1 : 0.5; c.strokeStyle = isSel ? "#ff3c3c" : "#7fd0ff"; c.lineWidth = (isSel ? 4 : 2) * z * dpr; c.setLineDash(isSel ? [] : [10 * z * dpr, 6 * z * dpr]); c.stroke(); }
+    else { g.runs.forEach(([x, y, n]) => c.fillRect((x - R[0]) * k, (y - R[1]) * k, n * k + 0.5, k + 0.5)); c.globalAlpha = isSel || curL ? 1 : 0.55; c.strokeStyle = isSel ? "#ff3c3c" : "#7fd0ff"; c.lineWidth = Math.max(1, (isSel ? 4 : 2) * z) * dpr; c.setLineDash(isSel || curL || z < 0.45 ? [] : [10 * z * dpr, 6 * z * dpr]);
+      c.beginPath(); g.edges.forEach(e => { c.moveTo((e[0] - R[0]) * k, (e[1] - R[1]) * k); c.lineTo((e[2] - R[0]) * k, (e[3] - R[1]) * k); }); c.stroke(); }
+    if (z >= 0.45) { const f = g.pts ? g.pts[0] : g.cells[0]; c.globalAlpha = 0.8; c.setLineDash([]); c.font = `700 ${14 * z * dpr}px sans-serif`; c.lineWidth = 3 * z * dpr; c.strokeStyle = "#000"; c.fillStyle = "#7fd0ff"; const tx = (f[0] - R[0]) * k + 6 * z * dpr, ty = (f[1] - R[1]) * k + 18 * z * dpr, t = vLevelName(p, a.level); c.strokeText(t, tx, ty); c.fillText(t, tx, ty); } });
+  c.globalAlpha = 1; c.setLineDash([]);
+  const buckets = new Map(); (p.walls || []).forEach((w, i) => {
+    if (Math.max(w[0], w[2]) < R[0] - 1 || Math.min(w[0], w[2]) > R[0] + R[2] + 1 || Math.max(w[1], w[3]) < R[1] - 1 || Math.min(w[1], w[3]) > R[1] + R[3] + 1 || vLvlHid(w[4])) return;
+    const m = w[5], other = (w[4] || 0) !== VTT.lvl; let col = "#ff9a3c", lw = act ? 4 : 3, a = act ? 1 : 0.55, dash = "";
+    if (m && m.k === "door") { col = "#c98b4a"; lw = 6; if (m.open) { dash = "4,8"; a = 0.8; } } else if (m && m.k === "window") { col = "#7fd0ff"; lw = 5; dash = "10,4"; }
+    if (m && m.secret) col = "#b06ad6"; if (other) { dash = "6,6"; a = 0.3; } if (i === sel) { col = "#ff3c3c"; lw = 6; a = 1; }
+    const key = [col, lw, a, dash].join("|"); (buckets.get(key) || buckets.set(key, []).get(key)).push(w); });
+  c.lineCap = "butt"; buckets.forEach((ws, key) => { const [col, lw, a, dash] = key.split("|"); c.strokeStyle = col; c.globalAlpha = +a; c.lineWidth = Math.max(1 * dpr, +lw * z * dpr); c.setLineDash(dash && z >= 0.45 ? dash.split(",").map(n => +n * z * dpr) : []); // (dashes only once they're big enough to see: they're slow to draw)
+    c.beginPath(); ws.forEach(w => { c.moveTo((w[0] - R[0]) * k, (w[1] - R[1]) * k); c.lineTo((w[2] - R[0]) * k, (w[3] - R[1]) * k); }); c.stroke(); });
+  c.globalAlpha = 1; c.setLineDash([]);
+}
+function vObjIndex(p) { if (VTT.cullFor !== p.objs) { VTT.cullFor = p.objs; VTT.cullIdx = new Map((p.objs || []).map(o => [o.id, o])); } return VTT.cullIdx; }
 function vCull() {
   const cur = vPageNow(); if (!cur || !cur.p) return; const near = vViewRect(1), far = vViewRect(2); if (!near) return;
   if (VTT.cullFor !== cur.p.objs) { VTT.cullFor = cur.p.objs; VTT.cullIdx = new Map((cur.p.objs || []).map(o => [o.id, o])); }
-  document.querySelectorAll("#vstage img.vobj").forEach(el => { const o = VTT.cullIdx.get(el.dataset.oid); if (!o || (!o.lod && !(o.w * o.h > 64))) return;
+  const farOn = vFarOn();
+  document.querySelectorAll("#vstage img.vobj").forEach(el => { const o = VTT.cullIdx.get(el.dataset.oid); if (!o || o.far || (!o.lod && !(o.w * o.h > 64))) return;
+    if (farOn && o.lod) return; // (the overview stands in for them)
     if (vObjIn(o, near)) { const want = vLodSrc(o); if (el.getAttribute("src") !== want) el.setAttribute("src", want); }
     else if (!vObjIn(o, far) && el.hasAttribute("src")) el.removeAttribute("src"); });
 }
@@ -9441,6 +9499,41 @@ function vVisPoly(x, y, segs) {
   }
   pts.sort((p1, p2) => p1[2] - p2[2]);
   return pts.map(q => [q[0], q[1]]);
+}
+// The same, fast enough for a town of thousands of walls: the walls are sorted into a grid of 4-square cells once (and again
+// only when a wall or door changes), each ray steps through the cells along its path and stops at the first wall it meets,
+// and sight reaches at most R squares (80, 400 ft). Corners walls share are cast at once, and a spot's result is kept
+// until the walls change.
+const VSG = { key: null, map: new Map(), C: 4 };
+function vSegGrid(p, lvl) {
+  const cur = vPageNow(), sw = cur && cur.p === p ? vShipWallsOn(cur.id) : [];
+  if (sw.length || VSG.walls !== p.walls || VSG.w !== p.w || VSG.h !== p.h) { VSG.walls = sw.length ? null : p.walls; VSG.w = p.w; VSG.h = p.h; VSG.map = new Map(); VSG.vis = new Map(); }
+  let g = VSG.map.get(lvl); if (g) return g; const C = VSG.C, segs = vSegs(p, lvl).slice(0, -4), gw = Math.ceil(p.w / C) + 1, gh = Math.ceil(p.h / C) + 1, cells = new Array(gw * gh);
+  segs.forEach((sg, i) => { const x0 = Math.floor(Math.min(sg[0], sg[2]) / C), x1 = Math.floor(Math.max(sg[0], sg[2]) / C), y0 = Math.floor(Math.min(sg[1], sg[3]) / C), y1 = Math.floor(Math.max(sg[1], sg[3]) / C);
+    for (let cy = Math.max(0, y0); cy <= Math.min(gh - 1, y1); cy++) for (let cx = Math.max(0, x0); cx <= Math.min(gw - 1, x1); cx++) { const k = cy * gw + cx; (cells[k] || (cells[k] = [])).push(i); } });
+  g = { segs, cells, gw, gh, C }; VSG.map.set(lvl, g); return g;
+}
+function vVisPolyFast(x, y, p, h, R) {
+  R = R || 80; const lvl = Math.round(h || 0), G = vSegGrid(p, lvl), key = lvl + ":" + x.toFixed(3) + "," + y.toFixed(3) + ":" + R; if (VSG.vis && VSG.vis.has(key)) return VSG.vis.get(key);
+  const { segs, cells, gw, gh, C } = G, bx0 = Math.max(0, x - R), by0 = Math.max(0, y - R), bx1 = Math.min(p.w, x + R), by1 = Math.min(p.h, y + R);
+  const box = [[bx0, by0, bx1, by0], [bx1, by0, bx1, by1], [bx1, by1, bx0, by1], [bx0, by1, bx0, by0]];
+  // The walls near enough to matter, and their corners (each once).
+  const near = new Set(), cx0 = Math.floor(bx0 / C), cx1 = Math.floor(bx1 / C), cy0 = Math.floor(by0 / C), cy1 = Math.floor(by1 / C);
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) { const l = cells[cy * gw + cx]; if (l) for (const i of l) near.add(i); }
+  const corners = new Map(); const addC = (px, py) => { if (px < bx0 - 1e-9 || px > bx1 + 1e-9 || py < by0 - 1e-9 || py > by1 + 1e-9) return; corners.set(px.toFixed(4) + "," + py.toFixed(4), [px, py]); };
+  near.forEach(i => { const sg = segs[i]; addC(sg[0], sg[1]); addC(sg[2], sg[3]); }); box.forEach(sg => addC(sg[0], sg[1]));
+  const hit = (sg, dx, dy) => { const sx = sg[2] - sg[0], sy = sg[3] - sg[1], den = dx * sy - dy * sx; if (Math.abs(den) < 1e-12) return Infinity;
+    const t = ((sg[0] - x) * sy - (sg[1] - y) * sx) / den, u = ((sg[0] - x) * dy - (sg[1] - y) * dx) / den; return t > 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 ? t : Infinity; };
+  const cast = a => { const dx = Math.cos(a), dy = Math.sin(a); let best = Infinity; for (const sg of box) { const t = hit(sg, dx, dy); if (t < best) best = t; }
+    // Step through the grid cells along the ray (Amanatides & Woo), testing the walls in each, until a hit closer than the next cell.
+    let cx = Math.floor(x / C), cy = Math.floor(y / C); const stx = dx > 0 ? 1 : -1, sty = dy > 0 ? 1 : -1;
+    let tmx = dx !== 0 ? ((cx + (dx > 0 ? 1 : 0)) * C - x) / dx : Infinity, tmy = dy !== 0 ? ((cy + (dy > 0 ? 1 : 0)) * C - y) / dy : Infinity; const tdx = dx !== 0 ? C / Math.abs(dx) : Infinity, tdy = dy !== 0 ? C / Math.abs(dy) : Infinity;
+    for (let guard = 0; guard < 400; guard++) { if (cx >= 0 && cy >= 0 && cx < gw && cy < gh) { const l = cells[cy * gw + cx]; if (l) for (const i of l) { const t = hit(segs[i], dx, dy); if (t < best) best = t; } }
+      const tNext = Math.min(tmx, tmy); if (best <= tNext || tNext > R * 1.5) break; if (tmx < tmy) { tmx += tdx; cx += stx; } else { tmy += tdy; cy += sty; } }
+    return best < Infinity ? [x + dx * best, y + dy * best, a] : null; };
+  const pts = []; corners.forEach(([px, py]) => { const a = Math.atan2(py - y, px - x); for (const b of [a - 1e-5, a, a + 1e-5]) { const q = cast(b); if (q) pts.push(q); } });
+  pts.sort((p1, p2) => p1[2] - p2[2]); const poly = pts.map(q => [q[0], q[1]]);
+  if (VSG.vis) { if (VSG.vis.size > 400) VSG.vis.clear(); VSG.vis.set(key, poly); } return poly;
 }
 function vInPoly(x, y, poly) { let inside = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside; } return inside; }
 const vB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); };
@@ -9489,10 +9582,10 @@ function vFog(pid, p, toks) {
   // Each viewer is blocked only by the walls on its own height: standing level plus flight band.
   // Without dynamic lighting, walls don't block sight and only darkness limits it.
   const rect = [[0, 0], [p.w, 0], [p.w, p.h], [0, p.h]];
-  const vw = viewers.map(([, t]) => { const s = vTokSz(t) / 2, x = t.x + s, y = t.y + s; return { x, y, s, dv: dark ? vDarkvision(t) / 5 : 0, poly: p.light ? vVisPoly(x, y, vSegs(p, vHeight(t))) : rect }; });
+  const vw = viewers.map(([, t]) => { const s = vTokSz(t) / 2, x = t.x + s, y = t.y + s; return { x, y, s, dv: dark ? vDarkvision(t) / 5 : 0, poly: p.light ? vVisPolyFast(x, y, p, vHeight(t)) : rect }; });
   const polys = vw.map(v => v.poly);
   // In the dark, only lit places (and what darkvision reaches) can be seen.
-  const em = dark ? vEmitters(p, toks).map(e => Object.assign({ r: (e.bright + e.dim) / 5, poly: vVisPoly(e.x, e.y, vSegs(p, e.h)) }, e)).filter(e => e.r > 0) : [];
+  const em = dark ? vEmitters(p, toks).map(e => Object.assign({ r: (e.bright + e.dim) / 5, poly: vVisPolyFast(e.x, e.y, p, e.h, Math.ceil((e.bright + e.dim) / 5) + 2) }, e)).filter(e => e.r > 0) : [];
   const path = (c, poly, k) => { c.beginPath(); poly.forEach(([x, y], i) => i ? c.lineTo(x * k, y * k) : c.moveTo(x * k, y * k)); c.closePath(); };
   const drawSeen = (c, k) => vw.forEach(v => {
     if (v.poly.length < 3) return;
@@ -10709,15 +10802,15 @@ function vHolePath(cells) { const e = VCELL * 0.16, m = VCELL - 2 * e, has = (x,
       const on = (dx && dy) ? (has(x + dx, y) || has(x, y + dy) || has(x + dx, y + dy)) : has(x + dx, y + dy); if (on) d += R(X + off[i], Y + off[j], sz[i], sz[j]); } });
   return d; }
 function vRoofHoles(p, viewers, L) {
-  let d = "";
+  let d = "", containing = null; // (the areas over each viewer: worked out once, not for every area)
   const seen = new Set(), hole = new Set();
   (p.areas || []).filter(a => a.level === L).forEach(a => {
     const below = viewers.filter(([, t]) => vHeight(t) < L).map(([, t]) => { const s = vTokSz(t) / 2; return [t.x + s, t.y + s]; });
-    const under = below.filter(([x, y]) => vInArea(a, x, y));
+    const under = below.filter(([x, y]) => vInArea(a, x, y)); if (!containing) containing = below.map(([x, y]) => (p.areas || []).filter(b => (b.level || 0) > L && Array.isArray(b.cells) && vInArea(b, x, y)));
     // Inside a building but not right under this floor (in an open hall beside a loft): this floor lifts away too, all of
     // it, when the roof (or a floor) over where they stand covers part of it — a floor that's only over some rooms.
     if (!under.length && Array.isArray(a.cells)) { const mine = new Set(a.cells.map(c => c[0] + "," + c[1]));
-      const inside = below.find(([x, y]) => (p.areas || []).some(b => b !== a && (b.level || 0) > L && Array.isArray(b.cells) && vInArea(b, x, y) && b.cells.some(c => mine.has(c[0] + "," + c[1]))));
+      const inside = below.find((pt, bi) => containing[bi].some(b => b !== a && b.cells.some(c => mine.has(c[0] + "," + c[1]))));
       if (inside) { a.cells.forEach(c => { const k = c[0] + "," + c[1]; if (seen.has(k)) return; seen.add(k); hole.add(k); }); return; } }
     if (!under.length) return;
     if (!Array.isArray(a.cells)) { d += "M" + a.pts.map(q => q[0] * VCELL + " " + q[1] * VCELL).join("L") + "Z"; return; }
@@ -10732,6 +10825,10 @@ function vRoofHoles(p, viewers, L) {
       }
     });
   });
+  // Where the hole is (so only the roofs there need cutting).
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; hole.forEach(k => { const [x, y] = k.split(",").map(Number); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + 1); y1 = Math.max(y1, y + 1); });
+  (d.match(/-?[\d.]+ -?[\d.]+/g) || []).forEach(q => { const [a, b] = q.split(" ").map(n => Number(n) / VCELL); x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, a); y1 = Math.max(y1, b); });
+  vRoofHoles.box = x0 < Infinity ? [x0 - 1, y0 - 1, x1 + 1, y1 + 1] : null;
   return d + vHolePath(hole);
 }
 function vRoofs(p, viewers) {
@@ -10741,9 +10838,12 @@ function vRoofs(p, viewers) {
   document.querySelectorAll(".vrlv").forEach(el => {
     const L = Number(el.dataset.lvl) || 0;
     el.style.display = (L < 0 && !floors.has(L)) || (L > 0 && floors.size && top < 0) ? "none" : "";
-    if (L < 0) { el.style.clipPath = ""; return; }
-    const holes = vRoofHoles(p, viewers, L);
-    el.style.clipPath = holes ? `path(evenodd, "M0 0H${W}V${H}H0Z${holes}")` : "";
+    // Only the roofs over the hole are cut (in a group of their own); a cut across the whole map, redone on every zoom
+    // step, made big maps crawl.
+    let cl = el.querySelector(":scope > .vrclip"); if (!cl) { cl = document.createElement("div"); cl.className = "vrclip"; el.appendChild(cl); }
+    el.style.clipPath = ""; const holes = L < 0 ? "" : vRoofHoles(p, viewers, L), box = holes ? vRoofHoles.box : null, idx = vObjIndex(p);
+    el.querySelectorAll("img.vobj").forEach(im => { const o = idx.get(im.dataset.oid), hit = box && o && vObjIn(o, [box[0], box[1], box[2] - box[0], box[3] - box[1]]), want = hit ? cl : el; if (im.parentElement !== want) want.appendChild(im); });
+    cl.style.clipPath = holes ? `path(evenodd, "M0 0H${W}V${H}H0Z${holes}")` : "";
   });
 }
 
@@ -11136,7 +11236,7 @@ function vLightsPaint(pid, p, toks) {
   const cuts = [...document.querySelectorAll("#vstage .vfxcut")], glow = document.getElementById("vlglow");
   if (!cuts.length && !glow) return;
   const R = vCvRes(p, 24), W = p.w * R, H = p.h * R, em = vEmitters(p, toks), polyCache = new Map();
-  const polyOf = e => { const k = e.x + "," + e.y + "," + e.h; if (!polyCache.has(k)) polyCache.set(k, vVisPoly(e.x, e.y, vSegs(p, e.h))); return polyCache.get(k); };
+  const polyOf = e => { const k = e.x + "," + e.y + "," + e.h; if (!polyCache.has(k)) polyCache.set(k, vVisPolyFast(e.x, e.y, p, e.h, Math.ceil(((e.bright || 0) + (e.dim || 0)) / 5) + 2)); return polyCache.get(k); };
   const clip = (ctx, e) => { const poly = polyOf(e); ctx.beginPath(); if (poly.length < 3) { ctx.rect(0, 0, W, H); return; } poly.forEach(([x, y], i) => i ? ctx.lineTo(x * R, y * R) : ctx.moveTo(x * R, y * R)); ctx.closePath(); };
   cuts.forEach(cv => {
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } cv.style.width = p.w * VCELL + "px"; cv.style.height = p.h * VCELL + "px";
@@ -15960,8 +16060,18 @@ async function tnUpload(svgUrl, w, h, cache, px) {
 async function tnPlace(camp, o) {
   tnProgress("Laying out the town…", 0); await new Promise(res => setTimeout(res, 40));
   try { await tnPlaceRun(camp, o); } finally { tnProgress(null); } }
+// The whole town in one picture (ground and roofs) for when the map is zoomed far out: one picture on the board instead
+// of hundreds (the board swaps to it below 30% zoom).
+async function tnOverview(T, page) {
+  if (!S.assets || !S.assets.upload) return null; const k = 8, cv = document.createElement("canvas"); cv.width = T.W * k; cv.height = T.H * k; const g = cv.getContext("2d");
+  const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  g.drawImage(await load(genUrl(tnTerrainSvg(T, k))), 0, 0, cv.width, cv.height);
+  for (const ob of page.objs.filter(x => x.roof && String(x.img).startsWith("data:image/svg"))) { try { const im = await load(ob.img); g.save(); g.translate((ob.x + ob.w / 2) * k, (ob.y + ob.h / 2) * k); if (ob.rot) g.rotate(ob.rot * Math.PI / 180); g.drawImage(im, -ob.w / 2 * k, -ob.h / 2 * k, ob.w * k, ob.h * k); g.restore(); } catch (e) { } }
+  const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.85)); cv.width = cv.height = 0; if (!blob) return null;
+  return assetPath(await S.assets.upload(new File([blob], "town-overview.webp", { type: blob.type || "image/webp" }))); }
 async function tnPlaceRun(camp, o) {
   const { T, page } = tnTownPage(o), cache = page.town.img, todo = page.objs.filter(ob => ob.land || String(ob.img).startsWith("data:image/svg"));
+  tnProgress("Drawing the town from afar…", 0); try { const ov = await tnOverview(T, page); if (ov) page.objs.unshift({ id: vid("o"), layer: "map", level: 0, x: 0, y: 0, w: T.W, h: T.H, img: ov, far: 1 }); } catch (e) { }
   // A few at a time: while one picture is drawn the others upload.
   let n = 0; const one = async ob => { if (ob.land) { const svg = genUrl(tnTerrainSvg(T, ob.px, ob.vb)); delete ob.vb; delete ob.land; delete ob.px; ob.img = svg; }
     const r = await tnUpload(ob.img, ob.w, ob.h, cache, page.town.px); ob.img = r.img; if (r.lod) ob.lod = r.lod; if (++n % 2 === 0) tnProgress(`Drawing the town… ${n} of ${todo.length} pictures`, n / todo.length); };
