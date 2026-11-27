@@ -1601,9 +1601,9 @@ function viewGen(camp, kind, type) {
       <h1>${T.icon} ${esc(T.name)}</h1><p class="muted">${esc(T.blurb)}</p>
       <div class="genlayout"><div class="genopts">
         <label><span>Size</span>${seg("size", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</label>
-        <label><span>Floors</span>${seg("floors", [["auto", "Any"], [1, "1"], [2, "2"], [3, "3"], [4, "4"]].slice(0, T.plan ? 1 + (T.floorsMax || 1) : 4))}</label>
+        <label><span>Floors</span>${seg("floors", [["auto", "Any"], [1, "1"], [2, "2"], [3, "3"], [4, "4"]].slice(0, T.plan || T.build ? 1 + (T.floorsMax || 1) : 4))}</label>
         <label><span>Cellar</span>${seg("cellar", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
-        ${T.plan ? "" : `<label><span>Shape</span>${seg("shape", [["auto", "Any"], ...Object.keys(T.shapes).map(k => [k, ({ rect: "Box", L: "L", U: "U", long: "Long" })[k]])])}</label>`}
+        ${T.plan || T.build ? "" : `<label><span>Shape</span>${seg("shape", [["auto", "Any"], ...Object.keys(T.shapes).map(k => [k, ({ rect: "Box", L: "L", U: "U", long: "Long" })[k]])])}</label>`}
         <label><span>Porch</span>${seg("porch", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
         <label class="genchk"><input type="checkbox" data-act="genchk" data-k="furn"${o.furn !== false ? " checked" : ""}> <span>Furniture <small class="muted">each piece movable on the tabletop · <a href="#gen-${esc(camp)}/furniture">the pieces</a></small></span></label>
         <label class="genchk"><input type="checkbox" data-act="genchk" data-k="overlay"${o.overlay ? " checked" : ""}> <span>Show grid, walls, doors &amp; windows <small class="muted">as the tabletop will use them</small></span></label>
