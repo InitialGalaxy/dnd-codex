@@ -157,8 +157,11 @@ function gedFloorsHtml() {
 function gedCanvasHtml(B) {
   const o = GEN.o, C = o.custom, L = B.levels.find(q => q.level === GED.lv), TW = C.W + GEN_PAD * 2, TH = C.H + GEN_PAD * 2, lib = genFurnLib();
   const furn = o.furn !== false ? genFurnBoxes(L, lib).map(f => `<img class="genfp" src="${esc(f.src)}" alt="" style="left:${((f.x + GEN_PAD) / TW * 100).toFixed(3)}%;top:${((f.y + GEN_PAD) / TH * 100).toFixed(3)}%;width:${(f.w / TW * 100).toFixed(3)}%;height:${(f.h / TH * 100).toFixed(3)}%${f.rot ? `;transform:rotate(${f.rot}deg)` : ""}">`).join("") : "";
-  return `<div class="gedfl genfl" style="aspect-ratio:${TW} / ${TH};max-width:${Math.max(560, TW * 46)}px"><img src="${genUrl(genFloorSvg(B, L, false, o.seed, false, "base"))}" alt="">${furn}<img class="genfp gentop" src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay, "top"))}" alt="">
-    <svg class="gedsvg" viewBox="${-GEN_PAD} ${-GEN_PAD} ${TW} ${TH}" preserveAspectRatio="none">${gedGridSvg()}<g id="ged-ov">${gedOverlay()}</g></svg></div>`;
+  const v = GED.view || (GED.view = { z: 1, x: 0, y: 0 });
+  return `<div class="gedvp" id="ged-vp"><div class="gedpan" id="ged-pan" style="transform:translate(${v.x}px,${v.y}px) scale(${v.z})"><div class="gedfl genfl" style="aspect-ratio:${TW} / ${TH};max-width:${Math.max(560, TW * 46)}px"><img src="${genUrl(genFloorSvg(B, L, false, o.seed, false, "base"))}" alt="">${furn}<img class="genfp gentop" src="${genUrl(genFloorSvg(B, L, true, o.seed, o.overlay, "top"))}" alt="">
+    <svg class="gedsvg" viewBox="${-GEN_PAD} ${-GEN_PAD} ${TW} ${TH}" preserveAspectRatio="none">${gedGridSvg()}<g id="ged-ov">${gedOverlay()}</g></svg></div></div>
+    <div class="gedzoom"><button type="button" data-act="gedzoom" data-v="-1" title="Zoom out">−</button><span id="ged-zl">${Math.round(v.z * 100)}%</span><button type="button" data-act="gedzoom" data-v="1" title="Zoom in">＋</button><button type="button" data-act="gedzoom" data-v="0" title="Fit the whole building">⤢</button></div>
+    <div class="gedzhint small muted">Scroll to zoom · drag with the middle or right button, or hold Space, to pan · pinch on a touch screen</div></div>`;
 }
 function gedGridSvg() {
   const C = GEN.o.custom; let d = ""; for (let x = 0; x <= C.W; x++) d += `M${x} 0V${C.H}`; for (let y = 0; y <= C.H; y++) d += `M0 ${y}H${C.W}`;
@@ -355,3 +358,36 @@ document.addEventListener("keydown", ev => {
 });
 // The editor's canvas is drawn after the page is on screen.
 new MutationObserver(() => { const cv = document.getElementById("ged-canvas"); if (cv && !cv.firstChild) gedPaint(false); }).observe(document.documentElement, { childList: true, subtree: true });
+
+// ----- Zoom and pan: the scroll wheel zooms where the pointer is; the middle or right button (or Space held, or two fingers)
+// drags the plan about. Kept across repaints; the drawing tools still land on the right square (they read the page's own
+// transform back).
+const gedViewSet = (z, x, y) => { const vp = document.getElementById("ged-vp"), pan = document.getElementById("ged-pan"); if (!vp || !pan) return;
+  z = Math.max(0.5, Math.min(6, z)); const W = vp.clientWidth, H = vp.clientHeight, cw = pan.offsetWidth * z, ch = pan.offsetHeight * z, m = 60;
+  x = Math.min(W - m, Math.max(m - cw, x)); y = Math.min(H - m, Math.max(m - ch, y)); // always some of the plan on screen
+  GED.view = { z, x, y }; pan.style.transform = `translate(${x}px,${y}px) scale(${z})`; const zl = document.getElementById("ged-zl"); if (zl) zl.textContent = Math.round(z * 100) + "%"; };
+const gedZoomAt = (f, cx, cy) => { const v = GED.view || { z: 1, x: 0, y: 0 }, z = Math.max(0.5, Math.min(6, v.z * f)), k = z / v.z; gedViewSet(z, cx - (cx - v.x) * k, cy - (cy - v.y) * k); };
+const GEDP = { pts: new Map(), pan: null, space: false, pinch: null };
+document.addEventListener("wheel", ev => { const vp = ev.target.closest && ev.target.closest("#ged-vp"); if (!vp) return; ev.preventDefault();
+  const r = vp.getBoundingClientRect(); gedZoomAt(Math.exp(-ev.deltaY * (ev.deltaMode === 1 ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
+document.addEventListener("contextmenu", ev => { if (ev.target.closest && ev.target.closest("#ged-vp")) ev.preventDefault(); });
+document.addEventListener("pointerdown", ev => { const vp = ev.target.closest && ev.target.closest("#ged-vp"); if (!vp || (ev.target.closest && ev.target.closest(".gedzoom"))) return;
+  if (ev.pointerType === "touch") { GEDP.pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (GEDP.pts.size === 2) { GED.drag = null; gedOv(); const [a, b] = [...GEDP.pts.values()], v = GED.view || { z: 1, x: 0, y: 0 };
+      GEDP.pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, v: Object.assign({}, v) }; ev.stopImmediatePropagation(); ev.preventDefault(); }
+    return; }
+  if (ev.button === 1 || ev.button === 2 || (ev.button === 0 && GEDP.space)) { ev.preventDefault(); ev.stopImmediatePropagation(); const v = GED.view || { z: 1, x: 0, y: 0 };
+    GEDP.pan = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, x: v.x, y: v.y }; vp.classList.add("panning"); try { vp.setPointerCapture(ev.pointerId); } catch (e) { } } }, true);
+document.addEventListener("pointermove", ev => {
+  if (GEDP.pan && ev.pointerId === GEDP.pan.id) { const v = GED.view; gedViewSet(v.z, GEDP.pan.x + ev.clientX - GEDP.pan.sx, GEDP.pan.y + ev.clientY - GEDP.pan.sy); ev.stopImmediatePropagation(); return; }
+  if (GEDP.pts.has(ev.pointerId)) { GEDP.pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (GEDP.pinch && GEDP.pts.size === 2) { const vp = document.getElementById("ged-vp"); if (!vp) return; const r = vp.getBoundingClientRect(), [a, b] = [...GEDP.pts.values()], P = GEDP.pinch;
+      const z = Math.max(0.5, Math.min(6, P.v.z * Math.hypot(a[0] - b[0], a[1] - b[1]) / P.d)), k = z / P.v.z, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      gedViewSet(z, (P.mx - r.left) - ((P.mx - r.left) - P.v.x) * k + (mx - P.mx), (P.my - r.top) - ((P.my - r.top) - P.v.y) * k + (my - P.my)); ev.stopImmediatePropagation(); } } }, true);
+const gedPtrEnd = ev => { if (GEDP.pan && ev.pointerId === GEDP.pan.id) { GEDP.pan = null; const vp = document.getElementById("ged-vp"); if (vp) vp.classList.remove("panning"); ev.stopImmediatePropagation(); }
+  if (GEDP.pts.delete(ev.pointerId) && GEDP.pinch) { if (GEDP.pts.size < 2) GEDP.pinch = null; ev.stopImmediatePropagation(); } };
+document.addEventListener("pointerup", gedPtrEnd, true); document.addEventListener("pointercancel", gedPtrEnd, true);
+document.addEventListener("keydown", ev => { if (ev.code !== "Space" || !document.getElementById("ged-vp") || /INPUT|SELECT|TEXTAREA|BUTTON/.test((ev.target && ev.target.tagName) || "")) return; ev.preventDefault(); if (!GEDP.space) { GEDP.space = true; const vp = document.getElementById("ged-vp"); if (vp) vp.classList.add("canpan"); } });
+document.addEventListener("keyup", ev => { if (ev.code !== "Space") return; GEDP.space = false; const vp = document.getElementById("ged-vp"); if (vp) vp.classList.remove("canpan"); });
+document.addEventListener("click", ev => { const b = ev.target.closest && ev.target.closest("[data-act=gedzoom]"); if (!b) return; const vp = document.getElementById("ged-vp"); if (!vp) return;
+  const v = Number(b.dataset.v); if (v === 0) gedViewSet(1, 0, 0); else gedZoomAt(v > 0 ? 1.25 : 0.8, vp.clientWidth / 2, vp.clientHeight / 2); });

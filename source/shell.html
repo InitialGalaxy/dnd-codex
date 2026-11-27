@@ -2312,6 +2312,10 @@ a.gencard:hover { transform:translateY(-2px); border-color:var(--brass); } a.gen
 .tnside { margin:10px 0; padding:10px; border:1px solid var(--brass); border-radius:10px; } .tnside h3 { margin:0 0 4px; }
 .gedmain { min-width:0; } @media (max-width:860px) { .gedlayout .gedmain { order:-1; } } .gedfloors { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; } .gedfloors .seg { margin:0; }
 .gedfl { background:#6f8f4f; border-radius:8px; overflow:hidden; margin:0 auto; } .gedfl > img:first-child { position:absolute; inset:0; }
+.gedvp { position:relative; overflow:hidden; border-radius:8px; background:#2a2620; } .gedpan { transform-origin:0 0; } .gedvp.canpan .gedsvg { cursor:grab; } .gedvp.panning, .gedvp.panning .gedsvg { cursor:grabbing; }
+.gedzoom { position:absolute; right:10px; bottom:10px; z-index:5; display:flex; align-items:center; gap:2px; background:rgba(20,18,15,.82); border:1px solid var(--line); border-radius:8px; padding:3px; }
+.gedzoom button { font:600 1rem var(--ui); color:var(--text); background:none; border:0; border-radius:6px; width:30px; height:28px; cursor:pointer; } .gedzoom button:hover { background:var(--panel-2); } .gedzoom span { font:.75rem var(--ui); color:var(--muted); min-width:40px; text-align:center; }
+.gedzhint { position:absolute; left:10px; bottom:12px; z-index:5; pointer-events:none; text-shadow:0 1px 2px #000; } @media (max-width:700px) { .gedzhint { display:none; } }
 .gedsvg { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; z-index:3; user-select:none; -webkit-user-select:none; }
 .gedtools { display:grid; grid-template-columns:1fr 1fr; gap:4px; } .gedtools button { font:500 .82rem var(--ui); color:var(--muted); background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:6px 6px; cursor:pointer; text-align:left; }
 .genopts button[data-act=gedauto] { white-space:normal; text-align:left; line-height:1.3; }
