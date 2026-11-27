@@ -632,6 +632,9 @@ GEN_FURN.push(
 (() => { const R = {
     "keep:Great hall": [["hightable", 1, 1], ["longtable|trestle", 2, 6], ["bench", 0, 4], ["carvedchair", 0, 1, 0.6], ["banner", 1, 4], ["corelamp", 0, 3, 0.7], ["buffet", 0, 1, 0.6], ["lightfountain", 0, 1, 0.25]],
     "keep:Screens passage": [["banner", 0, 1, 0.5]],
+    "keep:Cross gallery": [["banner", 1, 3], ["statue", 0, 2, 0.6], ["bench", 0, 2, 0.6], ["corelamp", 1, 2], ["heirloomcase", 0, 1, 0.3], ["longtable|table2", 0, 1, 0.3]],
+    "keep:Heir's chamber": [["bigbed|bed", 1, 1], ["chest", 1, 2], ["cleansebasin", 0, 1, 0.7], ["warmglyph", 0, 1, 0.6], ["desk", 0, 1, 0.5]],
+    "keep:Lady's closet": [["chair", 1, 2], ["smalltable", 0, 1], ["bookshelf", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.5]],
     "keep:Gallery": [["banner", 2, 5], ["statue", 0, 3, 0.7], ["bench", 0, 2, 0.6], ["corelamp", 1, 3], ["heirloomcase", 0, 1, 0.3]],
     "keep:Guard hall": [["trestle|table2", 1, 2], ["bench", 1, 4], ["weaponrack", 1, 2], ["dummy", 0, 1, 0.4], ["chest", 0, 1], ["corelamp", 0, 1, 0.6]],
     "keep:Guard hall (hoist)": [["hoist", 1, 1], ["trestle|table2", 1, 2], ["bench", 1, 3], ["weaponrack", 1, 2], ["chest", 0, 1]],

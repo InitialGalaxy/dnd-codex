@@ -721,26 +721,40 @@ const GEN_CASTLE = [
     cellar: 1, porch: 0.9, floorsMax: 4, doorBonus: 3,
     under: [{ n: "Undercroft", k: "cellar", w: 1.6 }, { n: "Wine cellar", k: "cellar", w: 0.9 }, { n: "Well chamber", k: "cellar", w: 0.6 }, { n: "Mana station", k: "mana", w: 1.2 }, { n: "Core vault", k: "vault", w: 0.7, priv: 1 }, { n: "Treasury", k: "vault", w: 0.7, priv: 1 }],
     under2: [{ n: "Guardroom", k: "office", w: 1 }, { n: "Cells", k: "cell", w: 1.2 }, { n: "Cells", k: "cell", w: 1.2, opt: 0.6 }, { n: "Oubliette", k: "cell", w: 0.35, priv: 1 }, { n: "Family crypt", k: "vault", w: 1.4 }, { n: "Sally passage", k: "passage", w: 0.8, secret: 1 }],
-    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", lift = !sm;
-      const nf = !up ? 1 : fl ? Math.max(2, fl) : sm ? 3 : big ? 4 : genInt(r, 3, 4), D = sm ? genInt(r, 10, 11) : big ? genInt(r, 13, 14) : genInt(r, 12, 13);
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large";
+      const nf = !up ? 1 : fl ? Math.max(2, fl) : sm ? 3 : big ? 4 : genInt(r, 3, 4), D = sm ? genInt(r, 11, 12) : big ? genInt(r, 13, 14) : genInt(r, 12, 13);
       const off = (n, k, e) => genR(n, k, Object.assign({ priv: 1 }, e || {}));
-      // The hall range: the kitchen block, the screens passage (the way in, from the forebuilding), the great hall.
-      const service = genU(genInt(r, 5, 6), [genR("Buttery", "store", { w: 0.8 }), genR("Pantry", "store", { w: 0.8 }), genR("Kitchen", "kitchen", { w: 1.6, fl: sm ? "keep:Kitchen (hoist)" : undefined })]);
-      const screens = genU(2, genR("Screens passage", "passage"), { entry: 1, pass: 1, doorW: 2 });
-      const hall = genU(sm ? genInt(r, 9, 10) : big ? genInt(r, 12, 14) : genInt(r, 10, 12), genR("Great hall", "hall"));
-      // The keep proper, its floors.
-      const L1 = [genR("Great chamber", "living", { w: 1.6 }), off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.3 })];
-      const L2 = [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), genR("Library", "library", { w: 1.3 }), off("Ward room", "office", { w: 1.1 })].concat(big ? [off("Imbuement workshop", "forge", { w: 1.3 })] : [genR("Guest chamber", "bed")]);
-      const L3 = (big ? [off("Court mage's study", "office"), off("Court mage's chamber", "bed"), genR("Observatory", "office", { w: 1.2 }), genR("Heirloom gallery", "hall", { w: 1.3 }), off("Spell vault", "vault", { w: 0.6 })]
-        : [off("Court mage's chamber", "bed"), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed"), genR("Guest chamber", "bed")]);
-      const floors = u => { if (nf > 1) u.up = L1; if (nf > 2) u.up2 = sm && nf === 3 ? L2.slice(0, 4) : L2; if (nf > 3) u.up3 = L3; u.landName = lift ? "Gallery" : "Landing"; return u; };
+      // The hall range along the front: the service end (the kitchen, buttery, pantry), the screens passage in from the
+      // forebuilding, the great hall. The service end runs back as a wing behind the hall.
+      const service = genU(sm ? 6 : genInt(r, 7, 8), [genR("Buttery", "store", { w: 0.8 }), genR("Pantry", "store", { w: 0.8 }), genR("Kitchen", "kitchen", { w: 1.8, fl: sm ? "keep:Kitchen (hoist)" : undefined })], { back: sm ? 0 : genInt(r, 3, 4) });
+      const screens = genU(3, genR("Screens passage", "passage"), { entry: 1, pass: 1, doorW: 2 });
+      const hall = genU(sm ? genInt(r, 10, 12) : big ? genInt(r, 15, 18) : genInt(r, 12, 15), genR("Great hall", "hall"));
+      const chapel = b => genU(genInt(r, 6, 7), [genR("Chapel", "temple", { w: 1.6 }), genR("Vestry", "office", { w: 0.6 })], { back: b });
       const units = [service, screens, hall];
-      if (lift) { // the keep round its lift well: the guard hall and the officers' rooms either side of the lift hall
-        const a = floors(genU(genInt(r, 6, 7), big ? [genR("Guard hall", "hall", { w: 1.4 }), off("Waystone room", "mana", { dark: 1 })] : [genR("Guard hall", "hall", { w: 1.4 }), off("Steward's room", "office")]));
-        const w = genU(7, genR("Lift hall", "hall", { w: 1 }), { liftWell: [3, 4], upJoin: 1 });
-        const b = genU(genInt(r, 6, 7), genShuf(r, [off("Muniment room", "office"), off(big ? "Steward's room" : "Chamberlain's room", "office")]).concat([genR("Chapel", "temple", { w: 1.4 })]), { upJoin: 1 });
+      if (big) { // the donjon (as at Chambord): a cross of halls meeting at the lift well, a suite of rooms in each corner
+        const q = genInt(r, 8, 9), a = 6, tall = 2 * q + a, back = tall - D, qw = genInt(r, 9, 11);
+        const L1 = [genR("Great chamber", "living", { w: 1.4 }), off("Lord's bedchamber", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.4 }), off("Lady's bower", "bed", { w: 1.2 }), off("Wardrobe", "store", { w: 0.7 }), off("Heir's chamber", "bed"), off("Lady's closet", "office", { w: 0.7 }), genR("Guest chamber", "bed")];
+        const L2 = [off("Study", "office"), genR("Library", "library", { w: 1.4 }), off("Magical workshop", "work", { w: 1.3 }), off("Ward room", "office", { w: 1.1 }), off("Imbuement workshop", "forge", { w: 1.3 }), off("Spell vault", "vault", { w: 0.7 }), genR("Guest chamber", "bed"), genR("Guest chamber", "bed")];
+        const L3 = [off("Court mage's study", "office"), genR("Observatory", "office", { w: 1.2 }), off("Court mage's chamber", "bed"), genR("Heirloom gallery", "hall", { w: 1.3 }), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed"), genR("Guest chamber", "bed"), genR("Guest chamber", "bed")];
+        const W = genU(qw, [genR("Guard hall", "hall", { w: 1.2 }), genR("West hall", "hall", { zone: "x", zdoor: 1, fl: "keep:Cross gallery" }), off("Waystone room", "mana", { dark: 1 })], Object.assign({ back, sizes: [q, a, q] }, nf > 1 ? { up: L1 } : {}, nf > 2 ? { up2: L2 } : {}, nf > 3 ? { up3: L3 } : {}));
+        const M = genU(7, [genR("South hall", "hall", { zone: "x", zdoor: 1, fl: "keep:Cross gallery" }), genR("Lift hall", "hall", { zone: "x", hub: 1 }), genR("North hall", "hall", { zone: "x", zdoor: 1, fl: "keep:Cross gallery" })], { back, sizes: [q, a, q], liftWell: [3, 4], cross: [q, a], upJoin: 1 });
+        const E = genU(qw, [off("Steward's room", "office"), genR("East hall", "hall", { zone: "x", zdoor: 1, fl: "keep:Cross gallery" }), off("Muniment room", "office")], { back, sizes: [q, a, q], upJoin: 1 });
+        units.push(W, M, E, chapel(genInt(r, 3, 5))); }
+      else if (!sm) { // the private wing at the high end of the hall, running back past it, built round the lift well
+        const back = genInt(r, 5, 6);
+        const L1 = [genR("Great chamber", "living", { w: 1.6 }), off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.3 })];
+        const L2 = [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), genR("Library", "library", { w: 1.3 }), off("Ward room", "office", { w: 1.1 }), genR("Guest chamber", "bed")];
+        const L3 = [off("Court mage's chamber", "bed"), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed"), genR("Guest chamber", "bed")];
+        const a = genU(genInt(r, 7, 8), [genR("Guard hall", "hall", { w: 1.4 }), off("Steward's room", "office"), off("Muniment room", "office", { w: 0.8 })], Object.assign({ back, landName: "Gallery" }, nf > 1 ? { up: L1 } : {}, nf > 2 ? { up2: L2 } : {}, nf > 3 ? { up3: L3 } : {}));
+        const w = genU(7, genR("Lift hall", "hall"), { back, liftWell: [3, 4], upJoin: 1 });
+        const b = genU(genInt(r, 7, 8), [genR("Chapel", "temple", { w: 1.6 }), off("Chamberlain's room", "office")], { back, upJoin: 1 });
         units.push(a, w, b); }
-      else units.push(floors(genU(genInt(r, 9, 10), [genR("Guard hall", "hall", { w: 1.4, fl: "keep:Guard hall (hoist)" }), off("Steward's room", "office"), genR("Chapel", "temple", { w: 1.2 })])));
+      else { // a tower keep: the tower at the end of the hall, standing back behind it, the hoist inside
+        const L1 = [genR("Great chamber", "living", { w: 1.6 }), off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.2 })];
+        const L2 = [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), genR("Library", "library", { w: 1.2 }), off("Ward room", "office")];
+        const L3 = [off("Court mage's chamber", "bed"), genR("Guest chamber", "bed"), genR("Schoolroom", "meet")];
+        units.push(genU(genInt(r, 10, 11), [genR("Guard hall", "hall", { w: 1.4, fl: "keep:Guard hall (hoist)" }), off("Steward's room", "office"), genR("Chapel", "temple", { w: 1.2 })],
+          Object.assign({ back: genInt(r, 3, 4) }, nf > 1 ? { up: L1 } : {}, nf > 2 ? { up2: L2 } : {}, nf > 3 ? { up3: L3 } : {}))); }
       return { D, name: sm ? "Tower keep" : big ? "Great keep" : "Keep", units }; } },
 ];
 GEN_BUILDINGS.push(...GEN_CASTLE);
@@ -810,10 +824,10 @@ function genPlanTry(o, attempt) {
   // and its stairs, so the rooms open off the gallery.
   Lay.regions.forEach(g => { const li = g.units.find(i => Lay.units[i].liftWell); if (li === undefined) return; const [sw, sh] = Lay.units[li].liftWell, rc = Lay.rects[li];
     const sx = rc.x + Math.floor((rc.w - sw) / 2), sy = rc.y + Math.floor((rc.h - sh) / 2);
-    g.shaft = { x: sx, y: sy, w: sw, h: sh }; g.U = { x: sx - 1, y: sy, w: sw + 2, h: sh };
+    g.shaft = { x: sx, y: sy, w: sw, h: sh }; g.U = { x: sx - 1, y: sy, w: sw + 2, h: sh }; if (Lay.units[li].cross) { g.cross = Lay.units[li].cross; g.mid = rc; }
     g.liftStair = lo => { const busy = new Set(stairs.filter(t => Math.abs(t.lo - lo) <= 1).flatMap(cellsOf)); return genStairSpot(r, { x: lo % 2 === 0 ? sx - 1 : sx + sw, y: sy, w: 1, h: sh }, { longX: false, within: g.rect, avoid: busy }); }; });
   Lay.regions.forEach(g => { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
-    if (g.shaft) { const s = g.liftStair(0); if (!s) return; s.lo = 0; stairs.push(s); g.made = genUpper(r, g.rect, g.U, g.rooms, minD, 1, g.landName || "Gallery"); upRooms.push(...g.made); return; }
+    if (g.shaft) { const s = g.liftStair(0); if (!s) return; s.lo = 0; stairs.push(s); g.made = g.cross ? genCross(r, g.rect, g.mid, g.cross[0], g.cross[1], g.rooms) : genUpper(r, g.rect, g.U, g.rooms, minD, 1, g.landName || "Gallery"); upRooms.push(...g.made); return; }
     const shopLast = rm => rm.k === "shop" ? 1 : 0; // the stairs out of the shop, if anywhere else will do: it needs its floor for the counter
     const cands = g.below.filter(rm => !rm.pass && !rm.hub && !rm.priv && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass && !rm.priv)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -824,7 +838,7 @@ function genPlanTry(o, attempt) {
   let higher = 0;
   for (let k = 2; k <= 4; k++) { const lv = [];
     Lay.regions.forEach(g => { const want = g.higher[k - 2]; if (!want || !g.made) { g.made = null; return; } higher++;
-      if (g.shaft) { const s = g.liftStair(k - 1); if (!s) { g.made = null; return; } s.lo = k - 1; stairs.push(s); g.made = genUpper(r, g.rect, g.U, want.map(x => Object.assign({}, x)), minD, 1, g.landName || "Gallery"); lv.push(...g.made); return; }
+      if (g.shaft) { const s = g.liftStair(k - 1); if (!s) { g.made = null; return; } s.lo = k - 1; stairs.push(s); const rs = want.map(x => Object.assign({}, x)); g.made = g.cross ? genCross(r, g.rect, g.mid, g.cross[0], g.cross[1], rs) : genUpper(r, g.rect, g.U, rs, minD, 1, g.landName || "Gallery"); lv.push(...g.made); return; }
       const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), below = g.made;
       const cands = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.pass && !x.priv)); let s = null;
       for (const rm of cands) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -979,6 +993,21 @@ function genUpper(r, R, st, rooms, minD, cw, landName) {
   const parts = bands.length > 1 ? [rooms.slice(0, split), rooms.slice(split)] : [rooms];
   return [Object.assign({ n: landName || (cw > 1 ? "Corridor" : "Landing"), k: landName === "Hayloft" ? "hay" : "landing", circ: 1 }, c)].concat(...bands.map((b, i) => genStrip(r, b, parts[i], minD)));
 }
+// A great keep's floor on the Chambord plan: a cross of halls meeting at the lift (the gallery the width of the keep, the
+// north and south galleries open to it), and in each corner a suite of rooms, every one opening off the cross.
+function genCross(r, R, mid, q, a, rooms) {
+  const out = [Object.assign({ n: "Gallery", k: "landing", circ: 1, hub: 1, zone: "x" }, { x: R.x, y: R.y + q, w: R.w, h: a }),
+    Object.assign({ n: "North gallery", k: "hall", zone: "x", zdoor: 1, fl: "keep:Cross gallery" }, { x: mid.x, y: R.y, w: mid.w, h: q }),
+    Object.assign({ n: "South gallery", k: "hall", zone: "x", zdoor: 1, fl: "keep:Cross gallery" }, { x: mid.x, y: R.y + q + a, w: mid.w, h: R.h - q - a })];
+  const quads = [{ x: R.x, y: R.y, w: mid.x - R.x, h: q }, { x: mid.x + mid.w, y: R.y, w: R.x + R.w - mid.x - mid.w, h: q },
+    { x: R.x, y: R.y + q + a, w: mid.x - R.x, h: R.h - q - a }, { x: mid.x + mid.w, y: R.y + q + a, w: R.x + R.w - mid.x - mid.w, h: R.h - q - a }];
+  const cap = quads.map(Q => Math.max(1, Math.floor(Q.w / 3))), groups = quads.map(() => []);
+  rooms.forEach((rm, i) => { for (let k = 0; k < 4; k++) { const j = (i + k) % 4; if (groups[j].length < cap[j]) { groups[j].push(rm); break; } } });
+  quads.forEach((Q, j) => { const list = groups[j]; if (!list.length) { out.push(Object.assign({ n: "Chamber", k: "bed" }, Q)); return; } // every room in the corner a strip off the cross
+    const tot = list.reduce((s, x) => s + (x.w || 1), 0); let pos = 0;
+    list.forEach((rm, i) => { const left = list.length - i - 1; let sz = i === list.length - 1 ? Q.w - pos : Math.round(Q.w * (rm.w || 1) / tot); sz = Math.max(3, Math.min(Q.w - pos - left * 3, sz));
+      out.push(Object.assign({}, rm, { x: Q.x + pos, y: Q.y, w: sz, h: Q.h })); pos += sz; }); });
+  return out; }
 // Turn a row of units the other way round: an upper floor that started at its first unit and ran on over the next ones now
 // starts at the last of them.
 function genMirrorUnits(units) { const UP = ["up", "up2", "up3", "up4", "upSlice", "landName"];
