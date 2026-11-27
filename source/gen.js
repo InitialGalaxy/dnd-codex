@@ -473,13 +473,13 @@ const GEN_CITY = [
       const ch = h => Object.assign({ zone: "ch" }, h ? { hub: 1 } : { zdoor: 1 }), qu = h => Object.assign({ zone: "qu" }, h ? { hub: 1 } : { zdoor: 1 });
       // The aisles run from the west front (perhaps under a tower each) to the choir, or on to the east end past a row of chapels.
       const aisle = side => { const rooms = [], sz = [];
-        if (towers) { rooms.push(genR(`${side}-west tower`, "tower", { tall: 2 })); sz.push(aw); }
-        rooms.push(genR(`${side} aisle`, "temple", Object.assign(ch(), { low: 1 })), genR(`${side} transept`, "temple", ch(1)), genR(`${side} choir aisle`, "temple", Object.assign(qu(), { low: 1 }))); sz.push(nave - (towers ? aw : 0), tb, choir + (flat ? presb : 0));
-        if (flat) { rooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })); sz.push(lady); }
+        if (towers) { rooms.push(genR(`${side}-west tower`, "tower", { tall: 2, fl: "Tower base" })); sz.push(aw); }
+        rooms.push(genR(`${side} aisle`, "temple", Object.assign(ch(), { low: 1, fl: "Aisle" })), genR(`${side} transept`, "temple", Object.assign(ch(1), { fl: "Transept" })), genR(`${side} choir aisle`, "temple", Object.assign(qu(), { low: 1, fl: "Aisle" }))); sz.push(nave - (towers ? aw : 0), tb, choir + (flat ? presb : 0));
+        if (flat) { rooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })); sz.push(lady); }
         return genU(aw, rooms, { inset: [flat ? 0 : presb + lady, 0], sizes: sz }); };
       const chapA = !sm && r() < 0.7 ? genInt(r, 3, 4) : 0, chapB = !sm && r() < 0.4 ? genInt(r, 3, 4) : 0, vs = 3;
-      const armA = genU(tw, chapA ? [genR("North transept", "temple", ch()), genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })] : genR("North transept", "temple", ch()), { inset: [D - nave - tb - chapA, nave], sizes: chapA ? [tb, chapA] : null });
-      const sRooms = [genR("South transept", "temple", ch())], sSz = [tb]; if (chapB) { sRooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })); sSz.push(chapB); } sRooms.push(genR(genOne(r, ["Vestry", "Sacristy", "Treasury"]), "store", { low: 1 })); sSz.push(vs);
+      const armA = genU(tw, chapA ? [genR("North transept", "temple", Object.assign(ch(), { fl: "Transept" })), genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })] : genR("North transept", "temple", Object.assign(ch(), { fl: "Transept" })), { inset: [D - nave - tb - chapA, nave], sizes: chapA ? [tb, chapA] : null });
+      const sRooms = [genR("South transept", "temple", Object.assign(ch(), { fl: "Transept" }))], sSz = [tb]; if (chapB) { sRooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })); sSz.push(chapB); } sRooms.push(genR(genOne(r, ["Vestry", "Sacristy", "Treasury"]), "store", { low: 1 })); sSz.push(vs);
       const armB = genU(tw, sRooms, { inset: [D - nave - tb - sSz.slice(1).reduce((a, b) => a + b, 0), nave], sizes: sSz });
       const east = [genR("Nave", "temple", ch(1)), genR("Crossing", "temple", Object.assign(ch(1), central ? { tall: 2 } : {})), genR("Choir", "temple", qu(1)), genR("Presbytery", "sanctum", qu())].concat(lady ? [genR("Lady chapel", "sanctum")] : []);
       const units = [armA, aisle("North"), genU(nw, east, { entry: 1, doorW: nw >= 5 ? 3 : 2, porch: r() < 0.5 ? [3, 2] : null, sizes: [nave, tb, choir, presb].concat(lady ? [lady] : []) }), aisle("South"), armB];
@@ -538,7 +538,7 @@ const GEN_CITY = [
         const units = [genU(genInt(r, 4, 5), ground()), genU(3, [genR("Stair hall", "living"), genR("Counting house", "office")], floors([first().concat([genR("Parlour", "living")]), second().concat([genR("Chamber", "bed")]), garret().concat([genR("Garret", "bed")])], { entry: 1 })), genU(genInt(r, 4, 5), genOne(r, [[genR("Parlour", "living"), genR("Kitchen", "kitchen")], [shop(), genR("Back shop", "store")], [genR("Counting house", "office"), genR("Warehouse", "store")]]))];
         if (nf > 1) { const m = units[1]; units[0].up = m.up; units[0].up2 = m.up2; units[0].up3 = m.up3; ["up", "up2", "up3"].forEach(k => delete m[k]); m.upJoin = 1; units[2].upJoin = 1; }
         return { D, name: "Double-fronted house", units }; }
-      const D = genInt(r, 8, 10), lodge = n => Array.from({ length: n }, (_, i) => genR(`Lodger's room ${i + 1}`, "bed")); // let out as rooms
+      const D = genInt(r, 8, 10), lodge = n => Array.from({ length: n }, (_, i) => genR(`Lodger's room ${i + 1}`, "bed", { fl: "Lodger's room" })); // let out as rooms
       const u = [genU(genInt(r, 4, 5), [shop(), genR("Back shop", "store")]), genU(2, genR("Entry", "passage"), { entry: 1 }), genU(genInt(r, 4, 5), [shop(), genR("Back shop", "store")])];
       if (nf > 1) { u[0].up = lodge(genInt(r, 2, 3)); if (nf > 2) u[0].up2 = lodge(genInt(r, 2, 3)); if (nf > 3) u[0].up3 = [genR("Garret", "bed"), genR("Garret", "bed")]; u[1].upJoin = 1; u[2].upJoin = 1; }
       return { D, name: "Tenement of lodgings", units: u }; } },
@@ -547,7 +547,7 @@ const GEN_CITY = [
     plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 5, 6) : big ? genInt(r, 8, 10) : genInt(r, 6, 8), hl = sm ? genInt(r, 6, 8) : big ? genInt(r, 11, 15) : genInt(r, 8, 11);
       const inf = h => Object.assign({ zone: "inf" }, h ? { hub: 1 } : { zdoor: 1 });
       const ward = genInt(r, 0, D >= 8 ? 2 : 1), wards = ward === 1 ? [genR("Women's ward", "ward", inf()), genR("Men's ward", "ward", inf())]
-        : ward === 2 ? [genR("South aisle", "ward", Object.assign(inf(), { low: 1 })), genR("Infirmary hall", "ward", Object.assign(inf(1), { tall: 1 })), genR("North aisle", "ward", Object.assign(inf(), { low: 1 }))] : genR("Infirmary hall", "ward", Object.assign(inf(), { tall: 1 }));
+        : ward === 2 ? [genR("South aisle", "ward", Object.assign(inf(), { low: 1, fl: "Infirmary aisle" })), genR("Infirmary hall", "ward", Object.assign(inf(1), { tall: 1 })), genR("North aisle", "ward", Object.assign(inf(), { low: 1, fl: "Infirmary aisle" }))] : genR("Infirmary hall", "ward", Object.assign(inf(), { tall: 1 }));
       const master = genU(genInt(r, 4, 5), sm ? [genR("Master's room", "living"), genR("Kitchen", "kitchen")] : genShuf(r, [genR("Master's hall", "living"), genR("Kitchen", "kitchen"), genR(genOne(r, ["Larder", "Infirmarer's room", "Apothecary"]), r() < 0.5 ? "store" : "office", { w: 0.7 })]), up ? { up: sm ? [genR("Master's chamber", "bed")] : genShuf(r, [genR("Master's chamber", "bed"), genR("Chaplain's chamber", "bed"), genR("Sisters' dormitory", "bed")]).slice(0, 2) } : {});
       const T = r() < 0.4, chap = T ? genU(genInt(r, 4, 5), genR("Chapel", "temple", inf(1)), { back: genInt(r, 2, 4) }) : genU(genInt(r, 4, 5), genR("Chapel", "temple", inf(1)), { inset: [1, 1] });
       const units = [master, genU(2, genR("Entry", "passage"), Object.assign({ entry: 1, pass: 1, porch: r() < 0.5 ? [2, 2] : null }, up ? { upJoin: 1 } : {})), genU(hl, wards), chap];
@@ -562,7 +562,7 @@ const GEN_CITY = [
       let units;
       if (v === 1) { const a = Math.floor(n / 2); units = []; for (let i = 0; i < a; i++) units.push(cell(i)); units.push(Object.assign(hall, { entry: 1 })); if (r() < 0.6) units.push(genU(genInt(r, 3, 4), genR("Chapel", "temple"))); for (let i = a; i < n; i++) units.push(cell(i)); }
       else if (v === 2) { const back = genInt(r, 4, 7), k = Math.max(2, Math.floor((D + back) / 3)), wing = () => genU(3, Array.from({ length: k }, () => genR(r() < 0.5 ? "Almsman's room" : "Almswoman's room", "bed")), { back });
-        units = [wing(), hall]; const mid = Math.max(1, n - 2); for (let i = 0; i < mid; i++) units.push(cell(i, i === Math.floor(mid / 2))); units.push(chapel(), wing()); }
+        units = [wing(), hall]; const mid = Math.max(1, n - 2); for (let i = 0; i < mid; i++) units.push(cell(i, i === Math.floor(mid / 2))); units.push(genU(genInt(r, 3, 4), genR("Chapel", "temple")), wing()); }
       else { const mid = Math.floor(n / 2); units = [hall]; for (let i = 0; i < n; i++) units.push(cell(i, i === mid)); units.push(chapel()); }
       if (two) { const first = units.findIndex(u => u.rooms.length === 2 && u.rooms[0].arcade); if (first >= 0 && !units[first].up) { units[first].up = Array.from({ length: Math.max(2, n - 1) }, () => genR("Upper room", "bed")); units[first].landName = "Upper gallery"; for (let i = first + 1; i < units.length && units[i].rooms[0].arcade; i++) units[i].upJoin = 1; } }
       return { D, name: v === 1 ? "Almshouse with hall in the middle" : v === 2 ? "Almshouse round a court" : "Almshouse row", units }; } },
@@ -590,7 +590,7 @@ const GEN_CITY = [
       if (v === 0) return { D, name: `${goods} warehouse`, units: [office(), stack(genU(sm ? genInt(r, 5, 6) : genInt(r, 7, 9), genR(`${goods} store`, "store"), { entry: 1, doorW: 2 }))] };
       if (v === 1) { const units = [office(), stack(genU(genInt(r, 4, 6), genR(`${goods} store`, "store"))), genU(3, genR("Cart bay", "passage", { gate: 1 }), { entry: 1, pass: 1, doorW: 3, upJoin: nf > 1 ? 1 : 0 }), genU(genInt(r, 4, 6), genR(`${goods} store`, "store"), nf > 1 ? { upJoin: 1 } : {})];
         units[1].endDoor = null; return { D, name: "Warehouse with a cart bay", units }; }
-      if (v === 2) { const bays = sm ? 3 : big ? 6 : 4, units = [office()]; for (let i = 0; i < bays; i++) units.push(genU(genInt(r, 3, 4), genR(`${goods} hall`, "market", { zone: "cl", hub: 1 }), i === Math.floor(bays / 2) ? { entry: 1, doorW: 2 } : {}));
+      if (v === 2) { const bays = sm ? 3 : big ? 6 : 4, units = [office()]; for (let i = 0; i < bays; i++) units.push(genU(genInt(r, 3, 4), genR(`${goods} hall`, "market", { zone: "cl", hub: 1, fl: "Trade hall" }), i === Math.floor(bays / 2) ? { entry: 1, doorW: 2 } : {}));
         return { D, name: `${goods} hall`, units }; }
       const units = [genU(4, genShuf(r, [genR("Counting house", "office"), genR("Merchants' hall", "hall", { w: 1.3 })]), nf > 1 ? { up: [genR("Merchants' dormitory", "bed", { w: 1.5 }), genR("Clerks' chamber", "bed")] } : {}),
         genU(3, genR("Yard gate", "passage", { gate: 1, dark: 1 }), { entry: 1, pass: 1, doorW: 3 }),

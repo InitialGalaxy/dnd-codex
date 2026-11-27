@@ -13328,13 +13328,13 @@ const GEN_CITY = [
       const ch = h => Object.assign({ zone: "ch" }, h ? { hub: 1 } : { zdoor: 1 }), qu = h => Object.assign({ zone: "qu" }, h ? { hub: 1 } : { zdoor: 1 });
       // The aisles run from the west front (perhaps under a tower each) to the choir, or on to the east end past a row of chapels.
       const aisle = side => { const rooms = [], sz = [];
-        if (towers) { rooms.push(genR(`${side}-west tower`, "tower", { tall: 2 })); sz.push(aw); }
-        rooms.push(genR(`${side} aisle`, "temple", Object.assign(ch(), { low: 1 })), genR(`${side} transept`, "temple", ch(1)), genR(`${side} choir aisle`, "temple", Object.assign(qu(), { low: 1 }))); sz.push(nave - (towers ? aw : 0), tb, choir + (flat ? presb : 0));
-        if (flat) { rooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })); sz.push(lady); }
+        if (towers) { rooms.push(genR(`${side}-west tower`, "tower", { tall: 2, fl: "Tower base" })); sz.push(aw); }
+        rooms.push(genR(`${side} aisle`, "temple", Object.assign(ch(), { low: 1, fl: "Aisle" })), genR(`${side} transept`, "temple", Object.assign(ch(1), { fl: "Transept" })), genR(`${side} choir aisle`, "temple", Object.assign(qu(), { low: 1, fl: "Aisle" }))); sz.push(nave - (towers ? aw : 0), tb, choir + (flat ? presb : 0));
+        if (flat) { rooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })); sz.push(lady); }
         return genU(aw, rooms, { inset: [flat ? 0 : presb + lady, 0], sizes: sz }); };
       const chapA = !sm && r() < 0.7 ? genInt(r, 3, 4) : 0, chapB = !sm && r() < 0.4 ? genInt(r, 3, 4) : 0, vs = 3;
-      const armA = genU(tw, chapA ? [genR("North transept", "temple", ch()), genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })] : genR("North transept", "temple", ch()), { inset: [D - nave - tb - chapA, nave], sizes: chapA ? [tb, chapA] : null });
-      const sRooms = [genR("South transept", "temple", ch())], sSz = [tb]; if (chapB) { sRooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1 })); sSz.push(chapB); } sRooms.push(genR(genOne(r, ["Vestry", "Sacristy", "Treasury"]), "store", { low: 1 })); sSz.push(vs);
+      const armA = genU(tw, chapA ? [genR("North transept", "temple", Object.assign(ch(), { fl: "Transept" })), genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })] : genR("North transept", "temple", Object.assign(ch(), { fl: "Transept" })), { inset: [D - nave - tb - chapA, nave], sizes: chapA ? [tb, chapA] : null });
+      const sRooms = [genR("South transept", "temple", Object.assign(ch(), { fl: "Transept" }))], sSz = [tb]; if (chapB) { sRooms.push(genR(`Chapel of ${saint()}`, "sanctum", { low: 1, fl: "Chantry chapel" })); sSz.push(chapB); } sRooms.push(genR(genOne(r, ["Vestry", "Sacristy", "Treasury"]), "store", { low: 1 })); sSz.push(vs);
       const armB = genU(tw, sRooms, { inset: [D - nave - tb - sSz.slice(1).reduce((a, b) => a + b, 0), nave], sizes: sSz });
       const east = [genR("Nave", "temple", ch(1)), genR("Crossing", "temple", Object.assign(ch(1), central ? { tall: 2 } : {})), genR("Choir", "temple", qu(1)), genR("Presbytery", "sanctum", qu())].concat(lady ? [genR("Lady chapel", "sanctum")] : []);
       const units = [armA, aisle("North"), genU(nw, east, { entry: 1, doorW: nw >= 5 ? 3 : 2, porch: r() < 0.5 ? [3, 2] : null, sizes: [nave, tb, choir, presb].concat(lady ? [lady] : []) }), aisle("South"), armB];
@@ -13393,7 +13393,7 @@ const GEN_CITY = [
         const units = [genU(genInt(r, 4, 5), ground()), genU(3, [genR("Stair hall", "living"), genR("Counting house", "office")], floors([first().concat([genR("Parlour", "living")]), second().concat([genR("Chamber", "bed")]), garret().concat([genR("Garret", "bed")])], { entry: 1 })), genU(genInt(r, 4, 5), genOne(r, [[genR("Parlour", "living"), genR("Kitchen", "kitchen")], [shop(), genR("Back shop", "store")], [genR("Counting house", "office"), genR("Warehouse", "store")]]))];
         if (nf > 1) { const m = units[1]; units[0].up = m.up; units[0].up2 = m.up2; units[0].up3 = m.up3; ["up", "up2", "up3"].forEach(k => delete m[k]); m.upJoin = 1; units[2].upJoin = 1; }
         return { D, name: "Double-fronted house", units }; }
-      const D = genInt(r, 8, 10), lodge = n => Array.from({ length: n }, (_, i) => genR(`Lodger's room ${i + 1}`, "bed")); // let out as rooms
+      const D = genInt(r, 8, 10), lodge = n => Array.from({ length: n }, (_, i) => genR(`Lodger's room ${i + 1}`, "bed", { fl: "Lodger's room" })); // let out as rooms
       const u = [genU(genInt(r, 4, 5), [shop(), genR("Back shop", "store")]), genU(2, genR("Entry", "passage"), { entry: 1 }), genU(genInt(r, 4, 5), [shop(), genR("Back shop", "store")])];
       if (nf > 1) { u[0].up = lodge(genInt(r, 2, 3)); if (nf > 2) u[0].up2 = lodge(genInt(r, 2, 3)); if (nf > 3) u[0].up3 = [genR("Garret", "bed"), genR("Garret", "bed")]; u[1].upJoin = 1; u[2].upJoin = 1; }
       return { D, name: "Tenement of lodgings", units: u }; } },
@@ -13402,7 +13402,7 @@ const GEN_CITY = [
     plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? genInt(r, 5, 6) : big ? genInt(r, 8, 10) : genInt(r, 6, 8), hl = sm ? genInt(r, 6, 8) : big ? genInt(r, 11, 15) : genInt(r, 8, 11);
       const inf = h => Object.assign({ zone: "inf" }, h ? { hub: 1 } : { zdoor: 1 });
       const ward = genInt(r, 0, D >= 8 ? 2 : 1), wards = ward === 1 ? [genR("Women's ward", "ward", inf()), genR("Men's ward", "ward", inf())]
-        : ward === 2 ? [genR("South aisle", "ward", Object.assign(inf(), { low: 1 })), genR("Infirmary hall", "ward", Object.assign(inf(1), { tall: 1 })), genR("North aisle", "ward", Object.assign(inf(), { low: 1 }))] : genR("Infirmary hall", "ward", Object.assign(inf(), { tall: 1 }));
+        : ward === 2 ? [genR("South aisle", "ward", Object.assign(inf(), { low: 1, fl: "Infirmary aisle" })), genR("Infirmary hall", "ward", Object.assign(inf(1), { tall: 1 })), genR("North aisle", "ward", Object.assign(inf(), { low: 1, fl: "Infirmary aisle" }))] : genR("Infirmary hall", "ward", Object.assign(inf(), { tall: 1 }));
       const master = genU(genInt(r, 4, 5), sm ? [genR("Master's room", "living"), genR("Kitchen", "kitchen")] : genShuf(r, [genR("Master's hall", "living"), genR("Kitchen", "kitchen"), genR(genOne(r, ["Larder", "Infirmarer's room", "Apothecary"]), r() < 0.5 ? "store" : "office", { w: 0.7 })]), up ? { up: sm ? [genR("Master's chamber", "bed")] : genShuf(r, [genR("Master's chamber", "bed"), genR("Chaplain's chamber", "bed"), genR("Sisters' dormitory", "bed")]).slice(0, 2) } : {});
       const T = r() < 0.4, chap = T ? genU(genInt(r, 4, 5), genR("Chapel", "temple", inf(1)), { back: genInt(r, 2, 4) }) : genU(genInt(r, 4, 5), genR("Chapel", "temple", inf(1)), { inset: [1, 1] });
       const units = [master, genU(2, genR("Entry", "passage"), Object.assign({ entry: 1, pass: 1, porch: r() < 0.5 ? [2, 2] : null }, up ? { upJoin: 1 } : {})), genU(hl, wards), chap];
@@ -13417,7 +13417,7 @@ const GEN_CITY = [
       let units;
       if (v === 1) { const a = Math.floor(n / 2); units = []; for (let i = 0; i < a; i++) units.push(cell(i)); units.push(Object.assign(hall, { entry: 1 })); if (r() < 0.6) units.push(genU(genInt(r, 3, 4), genR("Chapel", "temple"))); for (let i = a; i < n; i++) units.push(cell(i)); }
       else if (v === 2) { const back = genInt(r, 4, 7), k = Math.max(2, Math.floor((D + back) / 3)), wing = () => genU(3, Array.from({ length: k }, () => genR(r() < 0.5 ? "Almsman's room" : "Almswoman's room", "bed")), { back });
-        units = [wing(), hall]; const mid = Math.max(1, n - 2); for (let i = 0; i < mid; i++) units.push(cell(i, i === Math.floor(mid / 2))); units.push(chapel(), wing()); }
+        units = [wing(), hall]; const mid = Math.max(1, n - 2); for (let i = 0; i < mid; i++) units.push(cell(i, i === Math.floor(mid / 2))); units.push(genU(genInt(r, 3, 4), genR("Chapel", "temple")), wing()); }
       else { const mid = Math.floor(n / 2); units = [hall]; for (let i = 0; i < n; i++) units.push(cell(i, i === mid)); units.push(chapel()); }
       if (two) { const first = units.findIndex(u => u.rooms.length === 2 && u.rooms[0].arcade); if (first >= 0 && !units[first].up) { units[first].up = Array.from({ length: Math.max(2, n - 1) }, () => genR("Upper room", "bed")); units[first].landName = "Upper gallery"; for (let i = first + 1; i < units.length && units[i].rooms[0].arcade; i++) units[i].upJoin = 1; } }
       return { D, name: v === 1 ? "Almshouse with hall in the middle" : v === 2 ? "Almshouse round a court" : "Almshouse row", units }; } },
@@ -13445,7 +13445,7 @@ const GEN_CITY = [
       if (v === 0) return { D, name: `${goods} warehouse`, units: [office(), stack(genU(sm ? genInt(r, 5, 6) : genInt(r, 7, 9), genR(`${goods} store`, "store"), { entry: 1, doorW: 2 }))] };
       if (v === 1) { const units = [office(), stack(genU(genInt(r, 4, 6), genR(`${goods} store`, "store"))), genU(3, genR("Cart bay", "passage", { gate: 1 }), { entry: 1, pass: 1, doorW: 3, upJoin: nf > 1 ? 1 : 0 }), genU(genInt(r, 4, 6), genR(`${goods} store`, "store"), nf > 1 ? { upJoin: 1 } : {})];
         units[1].endDoor = null; return { D, name: "Warehouse with a cart bay", units }; }
-      if (v === 2) { const bays = sm ? 3 : big ? 6 : 4, units = [office()]; for (let i = 0; i < bays; i++) units.push(genU(genInt(r, 3, 4), genR(`${goods} hall`, "market", { zone: "cl", hub: 1 }), i === Math.floor(bays / 2) ? { entry: 1, doorW: 2 } : {}));
+      if (v === 2) { const bays = sm ? 3 : big ? 6 : 4, units = [office()]; for (let i = 0; i < bays; i++) units.push(genU(genInt(r, 3, 4), genR(`${goods} hall`, "market", { zone: "cl", hub: 1, fl: "Trade hall" }), i === Math.floor(bays / 2) ? { entry: 1, doorW: 2 } : {}));
         return { D, name: `${goods} hall`, units }; }
       const units = [genU(4, genShuf(r, [genR("Counting house", "office"), genR("Merchants' hall", "hall", { w: 1.3 })]), nf > 1 ? { up: [genR("Merchants' dormitory", "bed", { w: 1.5 }), genR("Clerks' chamber", "bed")] } : {}),
         genU(3, genR("Yard gate", "passage", { gate: 1, dark: 1 }), { entry: 1, pass: 1, doorW: 3 }),
@@ -14342,6 +14342,44 @@ const GEN_FURN = [
   { id: "plant", name: "Potted plant", cat: "Outside", w: 1, h: 1, place: "free", access: "any", corner: 1, draw: P => gfCShadow(P / 2, P / 2, P * 0.26) + gfC(P / 2, P / 2, P * 0.26, "#b8643a") + [[0.4, 0.4], [0.6, 0.42], [0.5, 0.58], [0.38, 0.58], [0.62, 0.6], [0.5, 0.36]].map(([x, y]) => `<circle cx="${P * x}" cy="${P * y}" r="${P * 0.12}" fill="#5a8a3a" stroke="#2f4f1f" stroke-width="1"/>`).join("") },
 ];
 
+// City furniture, after the real things: a church's short pews, pulpit, tomb chests with their effigies, the bishop's throne
+// (cathedra), bell ropes in the tower, the stone bench round a chapter house; an infirmary's curtained beds; the gaol's stocks;
+// a mint's coining blocks (the pile die set in a log, the trussel struck on it), melting furnace, ingot moulds, the assay
+// balance and furnace; the bathhouse's canopied tubs (curtains drawn round them), sweating benches by the heated stones, the
+// plunge, the copper boiler, the barber's chair; a warehouse's great weighbeam (the tron); a college library's chained book
+// desks (the lectern system); a brazier; pegs for clothes. "rows": set out in rows across the room (pews facing the altar,
+// desks either side of an aisle); "line": one after another along the walls (beds in a ward).
+const gfPewDraw = n => P => gfShadow(4, P * 0.12, n * P - 8, P * 0.7) + gfR(4, P * 0.1, n * P - 8, P * 0.2, genfWood[0]) + gfR(4, P * 0.3, n * P - 8, P * 0.36, genfWood[1]) + gfR(4, P * 0.72, n * P - 8, P * 0.12, "#7a2e2e") + gfR(2, P * 0.08, 6, P * 0.8, genfWood[0]) + gfR(n * P - 8, P * 0.08, 6, P * 0.8, genfWood[0]);
+GEN_FURN.forEach(a => { if (a.id === "pew") a.rows = 1; if (a.id === "choirstall") a.stalls = 1; });
+GEN_FURN.push(
+  { id: "pew2", name: "Short pew", cat: "Hall & church", w: 2, h: 1, place: "free", access: "side", face: "altar", rows: 1, draw: gfPewDraw(2) },
+  { id: "pulpit", name: "Pulpit", cat: "Hall & church", w: 1, h: 1, place: "free", access: "front", draw: P => gfCShadow(P / 2, P * 0.45, P * 0.36) + `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P / 2 + Math.cos(a) * P * 0.36).toFixed(1)},${(P * 0.45 + Math.sin(a) * P * 0.36).toFixed(1)}`; }).join(" ")}" fill="${genfWood[1]}" stroke="${GENF_INK}" stroke-width="2"/>` + `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P / 2 + Math.cos(a) * P * 0.25).toFixed(1)},${(P * 0.45 + Math.sin(a) * P * 0.25).toFixed(1)}`; }).join(" ")}" fill="${genfWood[2]}" stroke="rgba(43,37,32,.5)" stroke-width="1"/>` + gfR(P * 0.36, P * 0.78, P * 0.28, P * 0.18, genfWood[0]) + gfBook(P * 0.38, P * 0.24, P * 0.24, P * 0.16, "#7a2e2e") },
+  { id: "tomb", name: "Tomb chest with effigy", cat: "Hall & church", w: 2, h: 1, place: "free", access: "any", corner: 1, draw: P => gfShadow(3, 4, 2 * P - 6, P - 8) + gfR(3, 4, 2 * P - 6, P - 8, "#bdb6a8", ` rx="2"`) + gfR(7, 8, 2 * P - 14, P - 16, "#d3ccbe") + gfE(P * 0.3, P / 2, P * 0.13, P * 0.14, "#e8e2d4") + `<path d="M${P * 0.45} ${P * 0.3}H${P * 1.7}L${P * 1.8} ${P / 2}L${P * 1.7} ${P * 0.7}H${P * 0.45}Z" fill="#e3dccb" stroke="rgba(43,37,32,.5)" stroke-width="1.2"/>` + gfL(P * 0.8, P * 0.4, P * 0.95, P / 2, "rgba(43,37,32,.45)", 1.5) + gfL(P * 0.8, P * 0.6, P * 0.95, P / 2, "rgba(43,37,32,.45)", 1.5) + gfC(P * 1.84, P / 2, P * 0.08, "#c9b062") },
+  { id: "cathedra", name: "Bishop's throne", cat: "Hall & church", w: 1, h: 1, place: "wall", access: "front", door: "far", draw: P => gfShadow(P * 0.12, 3, P * 0.76, P * 0.8) + gfR(P * 0.12, 3, P * 0.76, P * 0.32, genfWood[0]) + `<path d="M${P * 0.12} ${P * 0.35}L${P / 2} 1L${P * 0.88} ${P * 0.35}" fill="none" stroke="#c9a45e" stroke-width="2.5"/>` + gfR(P * 0.18, P * 0.35, P * 0.64, P * 0.45, "#8f2f2f") + gfR(P * 0.12, P * 0.3, P * 0.1, P * 0.52, genfWood[0]) + gfR(P * 0.78, P * 0.3, P * 0.1, P * 0.52, genfWood[0]) + gfC(P / 2, P * 0.2, 3.5, "#e0b23c") },
+  { id: "bellrope", name: "Bell ropes", cat: "Hall & church", w: 1, h: 1, place: "free", access: "any", draw: P => [[0.3, 0.32], [0.7, 0.4], [0.45, 0.72]].map(([x, y]) => gfC(x * P, y * P, P * 0.11, "#b23a3a") + `<circle cx="${x * P}" cy="${y * P}" r="${P * 0.06}" fill="#f1ead8"/>` + gfL(x * P, y * P - P * 0.11, x * P, y * P - P * 0.22, "#c9a86a", 2)).join("") },
+  { id: "chapterbench", name: "Stone wall bench", cat: "Hall & church", w: 3, h: 1, place: "wall", access: "front", draw: P => gfShadow(2, 2, 3 * P - 4, P * 0.5) + gfR(2, 2, 3 * P - 4, P * 0.5, "#bdb6a8") + gfL(2, P * 0.36, 3 * P - 2, P * 0.36, "rgba(43,37,32,.35)", 1.2) + [1, 2].map(i => gfL(i * P, 2, i * P, P * 0.52, "rgba(43,37,32,.35)", 1.2)).join("") },
+  { id: "sickbed", name: "Infirmary bed", cat: "Beds", w: 1, h: 2, place: "wall", access: "side", line: 1, draw: P => gfShadow(4, 3, P - 8, 2 * P - 7) + gfR(4, 3, P - 8, 2 * P - 7, genfWood[2], ` rx="2"`) + gfR(7, 6, P - 14, P * 0.34, "#f1ead8", ` rx="5"`) + gfR(6, P * 0.5, P - 12, P * 1.4, "#c9c0a8", ` rx="3"`) + gfL(8, P * 0.7, P - 8, P * 0.7, "rgba(255,255,255,.45)", 2) + `<path d="M3 ${P * 0.2}V3H${P - 3}V${P * 0.2}" fill="none" stroke="#8a3a3a" stroke-width="2.5"/>` },
+  { id: "stocks", name: "Stocks", cat: "Town", w: 2, h: 1, place: "free", access: "front", draw: P => gfShadow(4, P * 0.3, 2 * P - 8, P * 0.36) + gfR(4, P * 0.3, 2 * P - 8, P * 0.36, genfWood[1]) + gfL(4, P * 0.48, 2 * P - 4, P * 0.48, GENF_INK, 1.5) + [0.4, 0.8, 1.2, 1.6].map(x => gfC(x * P, P * 0.48, P * 0.08, "#2b2520")).join("") + gfR(P * 0.15, P * 0.22, 6, P * 0.52, genfWood[0]) + gfR(2 * P - P * 0.15 - 6, P * 0.22, 6, P * 0.52, genfWood[0]) },
+  { id: "bucket", name: "Slop bucket", cat: "Town", w: 1, h: 1, place: "free", access: "any", corner: 1, draw: P => gfCShadow(P / 2, P / 2, P * 0.2) + gfC(P / 2, P / 2, P * 0.2, genfWood[1]) + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.14}" fill="#5a4a30"/>` + `<path d="M${P * 0.3} ${P / 2}Q${P / 2} ${P * 0.15} ${P * 0.7} ${P / 2}" fill="none" stroke="#4a4d52" stroke-width="1.5"/>` },
+  { id: "keyrack", name: "Key board", cat: "Town", w: 1, h: 1, place: "wall", access: "front", draw: P => gfR(P * 0.15, 3, P * 0.7, P * 0.2, genfWood[1]) + [0.28, 0.5, 0.72].map(x => gfC(x * P, P * 0.36, P * 0.07, "none") + gfL(x * P, P * 0.43, x * P, P * 0.58, "#4a4d52", 2.5)).join("").replace(/fill="none"/g, 'fill="#4a4d52"') },
+  { id: "weighbeam", name: "Weighbeam (tron)", cat: "Town", w: 2, h: 1, place: "free", access: "any", draw: P => gfShadow(P * 0.9, P * 0.35, P * 0.2, P * 0.3) + gfR(P * 0.9, P * 0.35, P * 0.2, P * 0.3, genfWood[0]) + gfL(P * 0.15, P / 2, P * 1.85, P / 2, "#6a6560", 4) + gfC(P * 0.22, P / 2, P * 0.18, "#8a7a5a") + gfC(P * 1.78, P / 2, P * 0.18, "#8a7a5a") + gfR(P * 1.65, P * 0.38, P * 0.26, P * 0.24, "#6a6560") + gfSack(P * 0.22, P / 2, P * 0.12) },
+  { id: "pile", name: "Coining block (pile and trussel)", cat: "Town", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.34) + gfC(P / 2, P / 2, P * 0.34, "#8a6a44") + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.26}" fill="none" stroke="rgba(43,37,32,.35)" stroke-width="1"/>` + gfC(P / 2, P / 2, P * 0.1, "#9a9a9e") + gfC(P / 2, P / 2, P * 0.05, "#d8b45a") + gfR(P * 0.62, P * 0.62, P * 0.3, P * 0.08, genfWood[0]) + gfR(P * 0.78, P * 0.56, P * 0.12, P * 0.2, "#4a4d52") },
+  { id: "meltfurnace", name: "Melting furnace", cat: "Town", w: 2, h: 2, place: "corner", access: "front", tall: 1, draw: P => gfShadow(4, 4, 2 * P - 8, 2 * P - 8, 6) + gfR(4, 4, 2 * P - 8, 2 * P - 8, "#8a5a44", ` rx="6"`) + [0.5, 1, 1.5].map(y => gfL(4, y * P, 2 * P - 4, y * P, "rgba(43,37,32,.35)", 1.2)).join("") + gfC(P, P, P * 0.5, "#3a2a20") + `<circle cx="${P}" cy="${P}" r="${P * 0.42}" fill="#e8742c" opacity=".85"/>` + gfC(P, P, P * 0.24, "#6a6560") + `<circle cx="${P}" cy="${P}" r="${P * 0.15}" fill="#f5d36a"/>` + gfR(P * 0.75, 2 * P - 14, P * 0.5, 10, "#2b2520") },
+  { id: "ingotmould", name: "Ingot moulds", cat: "Town", w: 2, h: 1, place: "free", access: "any", group: "store", draw: P => gfShadow(5, P * 0.2, 2 * P - 10, P * 0.6) + gfR(5, P * 0.2, 2 * P - 10, P * 0.6, "#4a4d52") + [0.3, 0.7, 1.1, 1.5].map((x, i) => gfR(x * P, P * 0.3, P * 0.26, P * 0.4, i === 2 ? "#d8d8dc" : "#2b2a2a")).join("") },
+  { id: "blankbin", name: "Tub of blanks", cat: "Town", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.32) + gfC(P / 2, P / 2, P * 0.32, genfWood[1]) + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.24}" fill="#5a4a30"/>` + [[0.4, 0.42], [0.55, 0.4], [0.47, 0.55], [0.62, 0.55], [0.38, 0.6], [0.55, 0.66]].map(([x, y]) => gfC(x * P, y * P, P * 0.055, "#d8d8dc")).join("") },
+  { id: "assaybalance", name: "Assay balance", cat: "Town", w: 1, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, P - 8, P * 0.62) + gfR(4, 4, P - 8, P * 0.62, genfWood[0]) + gfR(7, 7, P - 14, P * 0.56, "rgba(200,225,235,.55)") + gfL(P * 0.25, P * 0.25, P * 0.75, P * 0.25, "#c9a45e", 2) + gfC(P * 0.27, P * 0.4, P * 0.08, "#d8b45a") + gfC(P * 0.73, P * 0.4, P * 0.08, "#d8b45a") + gfL(P / 2, P * 0.18, P / 2, P * 0.5, "#8a6a2a", 1.5) },
+  { id: "assayfurnace", name: "Assay furnace", cat: "Town", w: 1, h: 1, place: "corner", access: "front", draw: P => gfShadow(4, 4, P - 8, P - 8, 4) + gfR(4, 4, P - 8, P - 8, "#8a5a44", ` rx="4"`) + gfR(P * 0.28, P * 0.3, P * 0.44, P * 0.4, "#3a2a20") + `<rect x="${P * 0.32}" y="${P * 0.36}" width="${P * 0.36}" height="${P * 0.28}" fill="#e8742c" opacity=".8"/>` + gfC(P * 0.42, P * 0.5, P * 0.06, "#f5d36a") + gfC(P * 0.58, P * 0.5, P * 0.06, "#f5d36a") },
+  { id: "canopytub", name: "Canopied bath tub", cat: "Bath", w: 2, h: 2, place: "free", access: "any", draw: P => gfShadow(6, 6, 2 * P - 12, 2 * P - 12, P * 0.5) + gfR(6, 6, 2 * P - 12, 2 * P - 12, genfWood[2], ` rx="${P * 0.5}"`) + `<rect x="12" y="12" width="${2 * P - 24}" height="${2 * P - 24}" rx="${P * 0.4}" fill="#6f9fb8"/>` + gfL(18, P, 2 * P - 18, P, "rgba(255,255,255,.35)", 2) + `<path d="M4 ${P * 0.7}V4H${2 * P - 4}V${P * 0.7}" fill="none" stroke="#e9dfc6" stroke-width="5" stroke-dasharray="7 3"/>` + gfR(P * 0.75, P * 0.85, P * 0.5, P * 0.3, genfWood[3]) + gfMug(P * 0.88, P) + gfMug(P * 1.12, P) },
+  { id: "sweatbench", name: "Sweating bench", cat: "Bath", w: 3, h: 1, place: "wall", access: "front", draw: P => gfShadow(2, 2, 3 * P - 4, P * 0.7) + gfR(2, 2, 3 * P - 4, P * 0.34, genfWood[1]) + gfR(2, P * 0.38, 3 * P - 4, P * 0.34, genfWood[2]) + gfPlanks(2, 2, 3 * P - 4, P * 0.34, 3, false) + gfPlanks(2, P * 0.38, 3 * P - 4, P * 0.34, 3, false) },
+  { id: "heatstones", name: "Heated stones", cat: "Bath", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.38) + gfC(P / 2, P / 2, P * 0.38, "#5a4a40") + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.3}" fill="#c8562c" opacity=".55"/>` + [[0.38, 0.4], [0.6, 0.38], [0.5, 0.58], [0.34, 0.62], [0.66, 0.6]].map(([x, y]) => gfC(x * P, y * P, P * 0.1, "#7a7068")).join("") + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.48}" fill="rgba(255,240,220,.12)"/>` },
+  { id: "plunge", name: "Plunge tub", cat: "Bath", w: 2, h: 2, place: "free", access: "any", draw: P => gfCShadow(P, P, P * 0.86) + gfC(P, P, P * 0.86, genfWood[1]) + `<circle cx="${P}" cy="${P}" r="${P * 0.72}" fill="#5f8fa8"/>` + [0, 1, 2, 3].map(i => { const a = i * Math.PI / 2 + 0.4; return gfL(P + Math.cos(a) * P * 0.72, P + Math.sin(a) * P * 0.72, P + Math.cos(a) * P * 0.86, P + Math.sin(a) * P * 0.86, "#4a4d52", 3); }).join("") + gfR(P * 0.15, P * 0.92, P * 0.3, P * 0.16, genfWood[3]) },
+  { id: "boiler", name: "Copper boiler", cat: "Bath", w: 2, h: 2, place: "corner", access: "front", tall: 1, draw: P => gfShadow(4, 4, 2 * P - 8, 2 * P - 8, 6) + gfR(4, 4, 2 * P - 8, 2 * P - 8, "#8a5a44", ` rx="6"`) + gfC(P, P * 0.9, P * 0.62, "#b8703a") + `<circle cx="${P}" cy="${P * 0.9}" r="${P * 0.48}" fill="#6f9fb8"/>` + gfR(P * 0.7, 2 * P - 16, P * 0.6, 12, "#2b2520") + `<rect x="${P * 0.76}" y="${2 * P - 14}" width="${P * 0.48}" height="8" fill="#e8742c"/>` },
+  { id: "barberchair", name: "Barber's chair", cat: "Bath", w: 1, h: 1, place: "free", access: "any", near: "washstand", draw: P => gfSeatChair(P, genfWood[0], "#6f4a2f") + gfC(P * 0.82, P * 0.82, P * 0.13, "#c9d6e8") },
+  { id: "pegs", name: "Clothes pegs", cat: "Storage", w: 2, h: 1, place: "wall", access: "front", draw: P => gfR(4, 3, 2 * P - 8, P * 0.12, genfWood[0]) + [["#7a2e2e", 0.35], ["#4f6f8f", 0.9], ["#6b8f4e", 1.5]].map(([c, x]) => `<path d="M${x * P - P * 0.2} ${P * 0.14}H${x * P + P * 0.2}L${x * P + P * 0.26} ${P * 0.58}H${x * P - P * 0.26}Z" fill="${c}" stroke="${GENF_INK}" stroke-width="1.5"/>`).join("") },
+  { id: "bookdesk", name: "Chained book desk", cat: "Storage", w: 3, h: 1, place: "free", access: "frontback", rows: 1, draw: P => gfShadow(4, 4, 3 * P - 8, P - 8) + gfR(4, 4, 3 * P - 8, P - 8, genfWood[1]) + gfL(4, P / 2, 3 * P - 4, P / 2, GENF_INK, 2) + [0.4, 1.2, 1.9, 2.5].map((x, i) => gfBook(x * P, P * 0.12, P * 0.34, P * 0.3, ["#7a2e2e", "#3f5f3a", "#5a3f6a", "#7a5a2e"][i]) + gfL(x * P + P * 0.17, P * 0.42, x * P + P * 0.17, P / 2, "#9a9a9e", 1.2)).join("") + [0.7, 1.6, 2.3].map((x, i) => gfBook(x * P, P * 0.58, P * 0.34, P * 0.3, ["#3f5f3a", "#7a2e2e", "#4f6f8f"][i])).join("") },
+  { id: "brazier", name: "Brazier", cat: "Hall & church", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.28) + gfC(P / 2, P / 2, P * 0.28, "#3a3530") + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.2}" fill="#e8742c"/>` + `<circle cx="${P / 2}" cy="${P / 2}" r="${P * 0.4}" fill="rgba(255,170,60,.18)"/>` + gfC(P * 0.45, P * 0.46, P * 0.06, "#f5d36a") },
+);
+
 // What each room holds: [piece, least, most, chance (of having any at all)], most important first. "a|b" means one of these
 // (in a random order: if the first won't fit, the next); "a>b" means a, or b if a won't fit. Rooms not listed borrow from another room of the same kind.
 const GEN_FURN_ROOMS = (() => {
@@ -14523,6 +14561,128 @@ const GEN_FURN_ROOMS = (() => {
       .map(([who, ware]) => [`${who}'s shop`, [["counter>counter2>stallboard", 1, 1], ware, ["shelves", 0, 1, 0.6], ["display", 0, 1, 0.5], ["crate", 0, 1, 0.4]]])),
   };
 })();
+// City buildings' rooms ("city:Room", or "type:Room" where a name means different things), from what such rooms held: a
+// cathedral nave with its font by the door, rows of benches facing east and the pulpit; the choir's stalls facing each other
+// across it, the lectern, the bishop's throne; the presbytery's high altar with sedilia and piscina; chantry chapels with an
+// altar and a founder's tomb; a chapter house ringed by its stone bench; an infirmary's beds in lines along the walls; a
+// gaol's pallets, shackles and stocks; a mint's furnaces, coining blocks and balances; a bathhouse's curtained tubs, the
+// sweating room's benches round the heated stones; a college library's chained desks in rows.
+(() => { const chapel = [["altar", 1, 1], ["pew|pew2", 2, 12], ["candles", 1, 2], ["lectern", 0, 1, 0.5], ["statue", 0, 1, 0.4]];
+  const bedroom = [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.5], ["washstand", 0, 1, 0.4], ["cupboard", 0, 1, 0.3]];
+  const servant = [["bed|pallet", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.4]];
+  const best = [["bigbed|bed", 1, 1], ["chest", 1, 2], ["press", 0, 1, 0.6], ["carvedchair", 0, 1, 0.5], ["washstand", 0, 1, 0.5]];
+  const office = [["desk", 1, 1], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5], ["strongbox", 0, 1, 0.4]];
+  const council = [["longtable|table2", 1, 1], ["carvedchair", 0, 1, 0.7], ["chest", 1, 1], ["bookshelf", 0, 1, 0.4]];
+  const feast = [["hightable", 1, 1], ["trestle", 1, 4], ["buffet", 0, 1, 0.7], ["chest", 0, 1, 0.4], ["lectern", 0, 1, 0.3]];
+  const parlour = [["table2|smalltable", 1, 1], ["settle", 0, 1, 0.6], ["chest", 1, 1], ["cupboard", 0, 1, 0.5], ["carvedchair", 0, 1, 0.5]];
+  const ward = [["sickbed", 3, 18], ["chest", 0, 2], ["brazier", 0, 1, 0.6], ["washstand", 0, 1, 0.6], ["smalltable", 0, 1, 0.4]];
+  const store = [["crate", 1, 4], ["sacks", 1, 3], ["barrel", 0, 2], ["shelves", 0, 1, 0.5]];
+  const linen = [["press", 1, 2], ["chest", 1, 2], ["shelves", 0, 1, 0.6]];
+  const cell = [["pallet", 1, 1], ["bucket", 0, 1, 0.7], ["shackles", 0, 1, 0.5]];
+  const cells = [["shackles", 2, 4], ["pallet", 0, 2, 0.6], ["bucket", 0, 1, 0.5], ["bones", 0, 1, 0.3]];
+  const gaolward = [["pallet|bed", 2, 6], ["trestle", 0, 1, 0.6], ["chest", 0, 2], ["stool", 0, 2], ["bucket", 0, 1, 0.5]];
+  const lodge = [["desk|smalltable", 1, 1], ["keyrack", 1, 1], ["chest", 1, 1], ["stool", 0, 1], ["weaponrack", 0, 1, 0.4]];
+  const shop = (...ware) => [["counter>counter2>stallboard", 1, 1], ...ware, ["shelves", 0, 1, 0.6], ["display", 0, 1, 0.4], ["crate", 0, 1, 0.4]];
+  const bath = [["canopytub", 1, 6], ["tub", 0, 2, 0.5], ["bench", 0, 2], ["smalltable", 0, 1, 0.4]];
+  const sweat = [["heatstones", 1, 1], ["sweatbench", 1, 4], ["barrel", 0, 1, 0.5]];
+  const exchange = [["countboard", 1, 4], ["scales", 1, 2], ["strongbox", 1, 1], ["bench", 0, 2, 0.5]];
+  const count = [["countboard>desk", 1, 1], ["strongbox", 0, 1, 0.6], ["chest", 1, 1], ["bookshelf", 0, 1, 0.5], ["scales", 0, 1, 0.5]];
+  const C = {
+    // The cathedral (and every church and chapel in the city)
+    "cathedral:Nave": [["font", 0, 1, 0.8], ["pew|pew2", 6, 60], ["pulpit", 0, 1, 0.8], ["almsbox", 0, 1, 0.5], ["candles", 0, 2]],
+    "Crossing": [["candles", 0, 2, 0.6]], "Transept": [["tomb", 0, 2, 0.6], ["statue", 0, 1, 0.5], ["candles", 0, 1, 0.5]], "Aisle": [["tomb", 0, 2, 0.4], ["statue", 0, 1, 0.3]],
+    "Choir": [["choirstall", 4, 16], ["lectern", 1, 1], ["cathedra", 0, 1, 0.8], ["candles", 0, 2]],
+    "Presbytery": [["altar", 1, 1], ["sedilia", 0, 1, 0.8], ["piscina", 0, 1, 0.7], ["candles", 2, 3]],
+    "Lady chapel": [["altar", 1, 1], ["candles", 1, 2], ["statue", 0, 1, 0.7], ["pew2", 0, 6]],
+    "Chantry chapel": [["altar", 1, 1], ["tomb", 0, 1, 0.7], ["candles", 1, 2], ["priedieu", 0, 2]],
+    "Tower base": [["bellrope", 1, 1], ["chest", 0, 1, 0.4]], "Chapter vestibule": [],
+    "Chapter house": [["chapterbench", 3, 10], ["lectern", 1, 1], ["carvedchair", 1, 1]],
+    "Sacristy": [["press", 1, 1], ["cupboard", 1, 1], ["chest", 1, 2], ["washstand", 0, 1, 0.5]], "cathedral:Treasury": [["strongbox", 1, 2], ["chest", 1, 3], ["press", 0, 1, 0.5]],
+    "Chapel": chapel, "Guild chapel": chapel, "Antechapel": [["tomb", 0, 1, 0.5], ["statue", 0, 1, 0.5], ["bench", 0, 2, 0.4]],
+    "college:Chapel": [["altar", 1, 1], ["choirstall", 2, 12], ["lectern", 1, 1], ["candles", 1, 2]],
+    // The guildhall and livery hall
+    "Great hall": feast, "Common hall": feast, "Livery hall": feast, "Feast hall": feast, "Merchants' hall": feast,
+    "Council chamber": council, "Aldermen's chamber": council, "Governor's chamber": council, "Court parlour": council, "Jury room": council,
+    "Mayor's court": [["hightable", 1, 1], ["bench3|bench", 2, 5], ["lectern", 0, 1, 0.5], ["chest", 0, 1, 0.5]],
+    "Court room": [["hightable", 1, 1], ["bench3|bench", 2, 5], ["lectern", 0, 1, 0.5], ["chest", 0, 1, 0.5]],
+    "Inner chamber": [["desk", 1, 1], ["press", 0, 1, 0.6], ["chest", 1, 1]], "Robing room": [["press", 1, 2], ["chest", 1, 1], ["pegs", 0, 1, 0.6]], "Recorder's room": office,
+    "Exchequer": [["countboard", 1, 1], ["strongbox", 1, 2], ["chest", 1, 1], ["scales", 0, 1, 0.6]], "Chamberlain's office": office, "Clerk's office": office, "Treasury": [["strongbox", 1, 2], ["chest", 1, 2], ["desk", 0, 1, 0.5]],
+    "Muniment room": [["chest", 2, 3], ["strongbox", 1, 1], ["bookshelf", 0, 1, 0.6]], "Armoury": [["weaponrack", 2, 4], ["chest", 1, 2], ["dummy", 0, 1, 0.3]],
+    "Serjeants' room": [["weaponrack", 0, 1, 0.7], ["bench", 1, 1], ["chest", 1, 1], ["table2|smalltable", 0, 1, 0.5]], "Beadle's room": [["bed|pallet", 0, 1, 0.6], ["desk|smalltable", 1, 1], ["chest", 1, 1]],
+    "Entrance hall": [["bench", 0, 2], ["chest", 0, 1, 0.5]], "Mayor's parlour": parlour, "Governor's parlour": parlour, "Parlour": parlour, "Great parlour": [["longtable|table2", 1, 1], ["buffet", 0, 1, 0.6], ["settle", 0, 1, 0.5], ["carvedchair", 0, 1, 0.6]],
+    "Plate room": [["buffet|shelves", 1, 2], ["strongbox", 1, 1], ["chest", 1, 2]], "Cage": [["shackles", 1, 2], ["bench", 0, 1, 0.5]], "Lock-up": [["shackles", 1, 3], ["pallet", 0, 2], ["stocks", 0, 1, 0.5]],
+    "Weigh room": [["weighbeam", 1, 1], ["scales", 0, 1, 0.6], ["desk", 0, 1, 0.5], ["sacks", 0, 2]], "Toll office": [["desk", 1, 1], ["strongbox", 1, 1], ["scales", 0, 1, 0.6], ["bench", 0, 1, 0.5]],
+    "Undercroft": [["bale", 1, 4], ["barrel", 1, 4], ["crate", 1, 3], ["sacks", 0, 2]], "Hospital": ward,
+    "Master's chamber": best, "Butler's room": servant, "Cook's room": servant, "Linen room": linen, "Linen store": linen,
+    "Scullery": [["cauldron", 1, 1], ["tub", 0, 1, 0.6], ["barrel", 1, 2], ["shelves", 0, 1, 0.5]],
+    "Almsfolk's room": [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.6], ["smalltable", 0, 1, 0.4]],
+    // The tall house
+    "Back shop": [["workbench|worktable", 1, 1], ["shelves", 1, 2], ["crate", 0, 2], ["barrel", 0, 1, 0.5]], "Workshop": [["workbench", 1, 2], ["toolrack", 0, 1, 0.7], ["stool", 0, 1], ["crate", 0, 2]],
+    "Mercer's shop": shop(["clothbolts", 1, 2], ["scales", 0, 1, 0.6]), "Draper's shop": shop(["clothbolts", 2, 3], ["cuttingtable", 0, 1, 0.5]), "Haberdasher's shop": shop(["clothbolts", 0, 1], ["display", 0, 1]),
+    "Cook-shop": [["counter>counter2>stallboard", 1, 1], ["cauldron", 1, 1], ["worktable", 1, 1], ["breadrack", 0, 1, 0.6], ["barrel", 0, 1, 0.5]], "Spicer's shop": shop(["jars", 1, 2], ["scales", 1, 1], ["sacks", 0, 2]),
+    "Cordwainer's shop": shop(["workbench", 0, 1, 0.6], ["hides", 0, 1, 0.5]), "Bookseller's shop": shop(["bookshelf", 1, 2], ["lectern", 0, 1, 0.5]), "Glover's shop": shop(["hides", 0, 1]), "Goldsmith's shop": shop(["strongbox", 1, 1], ["scales", 1, 1]), "Chandler's shop": shop(["candlerack", 1, 2]),
+    "Shop": [["counter>counter2>stallboard", 1, 1], ["shelves", 1, 2], ["scales", 0, 1, 0.6], ["display", 0, 1, 0.5], ["barrel", 0, 2], ["crate", 0, 2]],
+    "Garret": [["pallet|bed", 1, 2], ["chest", 0, 1, 0.7], ["stool", 0, 1, 0.3]], "Servants' garret": [["pallet", 2, 3], ["chest", 1, 1]], "Apprentices' garret": [["pallet", 2, 3], ["chest", 1, 1]],
+    "Loft store": store, "Closet": [["desk", 0, 1, 0.6], ["chest", 1, 1], ["shelves", 0, 1, 0.5]], "Wardrobe": [["press", 1, 2], ["chest", 1, 2], ["pegs", 0, 1, 0.5]],
+    "Stair hall": [["chest", 0, 1, 0.5], ["bench", 0, 1, 0.5]], "Counting room": count, "Lodger's room": [["bed|pallet", 1, 2], ["chest", 0, 1, 0.7], ["stool", 0, 1, 0.5], ["smalltable", 0, 1, 0.4]],
+    "Coal hole": [["coalbin", 1, 2], ["sacks", 0, 1]], "Hall": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.7], ["settle", 0, 1, 0.5], ["stool", 0, 2], ["carvedchair", 0, 1, 0.3]],
+    "Great chamber": best, "Best chamber": best, "Solar": best, "Chamber": [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.4], ["cupboard", 0, 1, 0.3], ["press", 0, 1, 0.3]],
+    // The hospital and almshouse
+    "Infirmary hall": ward, "Men's ward": ward, "Women's ward": ward, "Infirmary aisle": ward, "Infirmary": ward,
+    "Mortuary": [["coffin", 1, 3], ["candles", 1, 1], ["shelves", 0, 1, 0.4]], "Washhouse": [["cauldron", 1, 1], ["tub", 1, 2], ["barrel", 1, 2], ["pegs", 0, 1, 0.5]],
+    "Apothecary": [["jars", 1, 2], ["mortar", 1, 1], ["worktable", 0, 1, 0.6], ["still", 0, 1, 0.5]], "Infirmarer's room": [["desk", 1, 1], ["bed", 0, 1, 0.6], ["jars", 0, 1, 0.6], ["chest", 1, 1]],
+    "Larder": [["shelves", 1, 2], ["barrel", 1, 2], ["sacks", 1, 2], ["meathooks", 0, 1, 0.5]],
+    "Master's hall": [["trestle|table2", 1, 1], ["carvedchair", 0, 1, 0.6], ["chest", 1, 1], ["cupboard", 0, 1, 0.6], ["settle", 0, 1, 0.5]], "Master's room": parlour,
+    "Chaplain's chamber": [["bed", 1, 1], ["desk", 0, 1, 0.6], ["priedieu", 0, 1, 0.6], ["chest", 1, 1]], "Sisters' dormitory": [["bed", 2, 6], ["chest", 1, 3], ["priedieu", 0, 1, 0.5]],
+    "Almsman's room": [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.6], ["smalltable", 0, 1, 0.5]], "Almswoman's room": [["bed", 1, 1], ["chest", 1, 1], ["spinning", 0, 1, 0.4], ["stool", 0, 1, 0.6]],
+    "Upper room": [["bed", 1, 1], ["chest", 1, 1], ["stool", 0, 1, 0.5]], "almshouse:Common hall": [["trestle", 1, 2], ["settle", 0, 1, 0.6], ["chest", 0, 1, 0.5], ["stool", 0, 2]],
+    "Warden's chamber": bedroom, "Warden's room": office,
+    // The gaol
+    "Cell": cell, "Condemned cell": [["pallet", 1, 1], ["shackles", 1, 1], ["stool", 0, 1, 0.5], ["bucket", 0, 1]], "Dungeon": cells, "Condemned hold": cells, "Press room": [["stocks", 1, 1], ["shackles", 1, 2], ["bucket", 0, 1]],
+    "Debtors' ward": gaolward, "Felons' ward": [["pallet", 3, 6], ["shackles", 1, 3], ["bucket", 0, 1]], "gaol:Women's ward": gaolward, "Common ward": gaolward,
+    "Felons' day room": [["bench3|bench", 1, 3], ["trestle", 0, 1, 0.6], ["shackles", 0, 2], ["stocks", 0, 1, 0.4]],
+    "Work room": [["spinning", 1, 3], ["loom", 0, 1, 0.5], ["workbench", 0, 1, 0.5], ["stool", 1, 3]],
+    "Keeper's hall": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.6], ["settle", 0, 1, 0.5], ["stool", 0, 2]],
+    "Keeper's lodge": lodge, "Turnkey's lodge": lodge, "Keeper's chamber": bedroom, "Turnkey's room": servant, "Master's-side room": [["bed", 1, 1], ["chest", 0, 1, 0.6], ["smalltable", 0, 1, 0.6], ["stool", 0, 1, 0.5]],
+    // The warehouse and kontor
+    "Storage floor": [["crate", 2, 5], ["sacks", 1, 4], ["bale", 0, 4], ["barrel", 0, 3]], "Wool store": [["bale", 3, 8], ["sacks", 0, 2]], "Wine store": [["caskrack", 1, 3], ["barrel", 2, 5]],
+    "Salt store": [["sacks", 2, 5], ["barrel", 1, 3]], "Spice store": [["sacks", 1, 3], ["crate", 1, 3], ["jars", 0, 1, 0.6], ["scales", 0, 1, 0.5]], "Grain store": [["sacks", 2, 5], ["oatbin", 0, 1, 0.5]],
+    "Cloth store": [["clothbolts", 2, 4], ["bale", 0, 2], ["shelves", 0, 1]], "Timber store": [["planks", 1, 3], ["logs", 1, 2]],
+    "Trade hall": [["stall2|stall", 1, 2], ["bale|sacks", 0, 2], ["scales", 0, 1, 0.5]],
+    "Hoist loft": [["sackhoist", 1, 1], ["crate", 1, 3], ["sacks", 1, 3]], "Crane loft": [["sackhoist", 1, 1], ["crate", 1, 3], ["bale", 0, 2]], "Drying loft": [["herbrack", 1, 3], ["sacks", 0, 2]],
+    "Weigh house": [["weighbeam", 1, 2], ["scales", 1, 1], ["desk", 0, 1, 0.6], ["sacks", 0, 3]],
+    "Tally room": count, "Clerks' room": count, "Factor's room": count, "Counting house": count, "Warehouse": [["bale", 2, 4], ["crate", 1, 3], ["barrel", 1, 3], ["sacks", 0, 2]],
+    "Merchants' dormitory": [["bed", 2, 6], ["chest", 1, 4], ["washstand", 0, 1, 0.5]], "Clerk's chamber": [["bed", 1, 1], ["desk", 0, 1, 0.6], ["chest", 1, 1]], "Clerks' chamber": [["bed", 1, 3], ["chest", 1, 2], ["desk", 0, 1, 0.5]],
+    "Wine vault": [["caskrack", 1, 3], ["winerack", 0, 2], ["barrel", 1, 3]],
+    // The mint and exchange
+    "Melting house": [["meltfurnace", 1, 2], ["ingotmould", 1, 2], ["coalbin", 1, 1], ["toolrack", 0, 1, 0.6], ["quench", 0, 1, 0.5]],
+    "Coining house": [["pile", 2, 5], ["blankbin", 1, 2], ["stool", 1, 3], ["workbench", 0, 1, 0.5], ["coins", 0, 1, 0.5]],
+    "Blanching room": [["cauldron", 1, 2], ["assayfurnace", 0, 1, 0.6], ["barrel", 1, 2], ["worktable", 0, 1, 0.5]],
+    "Assay office": [["assaybalance", 1, 1], ["assayfurnace", 1, 1], ["worktable", 1, 1], ["jars", 0, 1, 0.5]], "Assay room": [["assaybalance", 1, 1], ["assayfurnace", 0, 1, 0.7], ["worktable", 1, 1]],
+    "Engraver's room": [["workbench", 1, 2], ["toolrack", 0, 1, 0.7], ["stool", 1, 1], ["chest", 0, 1, 0.5]],
+    "Sorting room": [["countboard", 1, 2], ["scales", 1, 1], ["coins", 0, 2], ["stool", 0, 2]], "Weighing room": [["scales", 1, 2], ["weighbeam", 0, 1, 0.6], ["countboard", 1, 1], ["coins", 0, 1]],
+    "Pyx chamber": [["strongbox", 1, 2], ["chest", 1, 1], ["candles", 0, 1, 0.4]], "Treasure vault": [["chest", 2, 4], ["strongbox", 1, 3], ["coins", 1, 3]], "mint:Treasury": [["chest", 2, 4], ["strongbox", 1, 3], ["coins", 1, 3]],
+    "Warden's office": office, "Comptroller's office": count, "Exchange hall": exchange, "Changing hall": exchange, "Money-changers' hall": exchange, "Ledger room": [["desk", 1, 1], ["bookshelf", 1, 1], ["chest", 1, 1]],
+    "Moneyers' chamber": [["bed|pallet", 1, 3], ["chest", 1, 2], ["stool", 0, 1]], "Changer's chamber": bedroom, "Warden's hall": [["trestle|table2", 1, 1], ["carvedchair", 0, 1, 0.6], ["chest", 1, 1], ["cupboard", 0, 1, 0.5]], "Warden's chamber": bedroom,
+    "Fuel store": [["coalbin", 1, 3], ["woodpile", 0, 1, 0.6], ["sacks", 0, 2]],
+    // The bathhouse
+    "Changing room": [["bench", 1, 3], ["pegs", 1, 2], ["chest", 0, 2], ["press", 0, 1, 0.4]], "Entrance": [["desk|smalltable", 1, 1], ["strongbox", 0, 1, 0.6], ["bench", 0, 1, 0.5]],
+    "Bath hall": bath, "Tub room": bath, "Men's bath": bath, "Women's bath": bath, "Bath chamber": [["canopytub|tub", 1, 1], ["stool", 0, 1, 0.6], ["smalltable", 0, 1, 0.5]],
+    "Sweating room": sweat, "Hot room": sweat, "Steam room": sweat, "Plunge pool": [["plunge", 1, 1], ["bench", 0, 2]],
+    "Furnace room": [["boiler", 1, 1], ["woodpile", 1, 2], ["coalbin", 0, 1, 0.5]], "Wood store": [["woodpile", 1, 3]], "Cistern": [["barrel", 1, 3]],
+    "Barber's room": [["barberchair", 1, 2], ["washstand", 1, 1], ["shelves", 0, 1, 0.6], ["chest", 0, 1, 0.5]], "Rest chamber": [["bed", 1, 2], ["washstand", 0, 1, 0.6], ["stool", 0, 1, 0.5]], "Bath-keeper's room": bedroom,
+    // The college
+    "Chambers": [["bed", 1, 3], ["desk", 1, 2], ["chest", 1, 2], ["bookshelf", 0, 1, 0.5]], "college:Hall": feast,
+    "college:Library": [["bookdesk", 2, 12], ["bookshelf", 0, 2, 0.5], ["chest", 0, 1, 0.5]], "Library": [["bookdesk", 1, 8], ["bookshelf", 1, 2], ["lectern", 0, 1, 0.4]], "Study": [["desk", 1, 1], ["bookshelf", 1, 2], ["lectern", 0, 1, 0.5], ["chest", 0, 1, 0.3]], "Master's study": [["desk", 1, 1], ["bookshelf", 1, 2], ["carvedchair", 0, 1, 0.5], ["chest", 0, 1, 0.5]],
+    "Gate chamber": office, "Kitchen": [["worktable", 1, 2], ["cauldron", 1, 1], ["shelves", 1, 2], ["oven", 0, 1, 0.6], ["block", 0, 1, 0.7], ["barrel", 1, 2], ["sacks", 0, 2]],
+    "Buttery": [["caskrack", 1, 2], ["barrel", 1, 3], ["shelves", 0, 1, 0.6]], "Pantry": [["shelves", 1, 2], ["breadrack", 0, 1, 0.5], ["sacks", 1, 2], ["cupboard", 0, 1, 0.5]],
+    "Storage": store, "Store": store, "Guard room": [["table2|smalltable", 1, 1], ["weaponrack", 1, 1], ["bench", 0, 1, 0.6], ["chest", 0, 1, 0.6], ["brazier", 0, 1, 0.4]],
+  };
+  Object.entries(C).forEach(([k, v]) => { GEN_FURN_ROOMS[k.includes(":") ? k : "city:" + k] = v; }); })();
+// A city room with no list of its own furnishes as its kind does.
+const GEN_FURN_CITY_KIND = { living: "city:Parlour", bed: "city:Chamber", kitchen: "city:Kitchen", store: "city:Storage", cellar: "Cellar", office: "Office", hall: "city:Feast hall", library: "city:Study",
+  temple: "city:Chapel", sanctum: "city:Chantry chapel", ward: "city:Infirmary hall", cell: "city:Cell", work: "city:Workshop", vault: "Vault", bath: "city:Bath hall", furnace: "city:Furnace room",
+  forge: "city:Melting house", lab: "city:Assay room", loft: "city:Hoist loft", market: "city:Trade hall", meet: "city:Chapter house", shop: "city:Shop", tower: "city:Tower base" };
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
   hall: "Great hall", office: "Office", meet: "Meeting room", library: "Library", temple: "Nave", sanctum: "Sanctum", bath: "Bathhouse", pit: "Fighting pit", vault: "Vault", porch: "Porch", privy: "Privy" };
 const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
@@ -14561,7 +14721,8 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (Village buildings are only furnished where a room's own name has a list, for now: their furniture comes later.)
   const tk = B.type + ":" + rm.n, has = n => GEN_FURN_ROOMS[n] || lib.some(a => a.rooms && a.rooms[n]);
   if (rm.fl === "-") return; // drawn as an empty room
-  const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : has(rm.n) ? rm.n : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
+  const city = B.plan && genType(B.type).group === "city", cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
+  const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : city && cf && has(cf) ? cf : city && has(cn) ? cn : has(rm.n) ? rm.n : city ? GEN_FURN_CITY_KIND[rm.k] || null : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
   const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
   const list = [...entries.values()].sort((a, b) => a.ord - b.ord); if (!list.length) return;
@@ -14574,6 +14735,8 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // Squares to keep clear: inside every door, the ends of the stairs, in front of a fire.
   const doorCells = [];
   [...L.doors].forEach(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); (d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]).forEach(([cx, cy]) => { if (inRoom(cx, cy)) { clear.add(K(cx, cy)); keys.push(K(cx, cy)); doorCells.push([cx, cy]); } }); });
+  const outDoors = [...L.doors].filter(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); return (d === "h" ? L.own(x, y - 1) < 0 || L.own(x, y) < 0 : L.own(x - 1, y) < 0 || L.own(x, y) < 0); })
+    .map(k => { const [d, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); return (d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]).find(([cx, cy]) => inRoom(cx, cy)); }).filter(Boolean); // the ways in from outside
   (L.stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) if (inRoom(x, y)) solid.add(K(x, y));
     genStairEntry(L, t).cells.forEach(c => { const [x, y] = c.split(",").map(Number); if (inRoom(x, y)) { clear.add(c); keys.push(c); } }); });
   const fires = [];
@@ -14631,11 +14794,14 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
         // Turned to face something?
         const fv = GENF_FRONT[k], fc = { x: x + W / 2, y: y + H / 2 };
         const facing = (px, py) => fv[0] * (px + 0.5 - fc.x) + fv[1] * (py + 0.5 - fc.y);
-        if (a.face === "door" && doorCells.length && facing(...doorCells.reduce((b, d) => (dist(x, y, W, H, d[0], d[1]) < dist(x, y, W, H, b[0], b[1]) ? d : b))) <= 0) continue;
+        if (a.face === "door" && a.id !== "altar" && doorCells.length && facing(...doorCells.reduce((b, d) => (dist(x, y, W, H, d[0], d[1]) < dist(x, y, W, H, b[0], b[1]) ? d : b))) <= 0) continue;
+        if (a.id === "altar" && doorCells.length) { const d = (outDoors.length ? outDoors : doorCells)[0], ex = d[0] + 0.5 - center.x, ey = d[1] + 0.5 - center.y; // facing back down the room to the way in // an altar stands against the far wall, square to the way in
+          if (Math.abs(ex) >= Math.abs(ey) ? fv[0] !== Math.sign(ex) : fv[1] !== Math.sign(ey)) { if (rm.w > 2 && rm.h > 2) continue; } }
+        const altarMid = a.id === "altar" ? -(fv[0] ? Math.abs(fc.y - center.y) : Math.abs(fc.x - center.x)) * 2.5 : 0; // and in the middle of it
         if (a.face === "altar" && faceAltar != null && k !== faceAltar.k) continue;
         if (a.perpTo) { const tg = placed.find(p => p.a === a.perpTo); if (tg && k % 2 === tg.k % 2) continue; } // down the hall from the high table
         // How good a spot: attractors and a little chance.
-        let sc = r() * 1.2;
+        let sc = r() * 1.2 + altarMid;
         const dDoor = doorCells.length ? Math.min(...doorCells.map(d => dist(x, y, W, H, d[0], d[1]))) : 0;
         if (a.door === "near") sc -= dDoor * 0.9; else if (a.door === "far") sc += dDoor * 0.7; else if (a.place !== "free" && a.place !== "centre") sc += Math.min(dDoor, 3) * 0.3;
         if (a.near === "hearth" && fires.length) sc -= Math.min(...fires.map(([fx, fy]) => dist(x, y, W, H, fx, fy))) * 1.3;
@@ -14668,7 +14834,43 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
           if (spot && (len === 1 || (horiz ? spot.W === len : spot.H === len))) { if (r() < 0.12 && len === 1 && made.length >= spec.min) { done = true; i++; break; } const p = tryAt(s, spot); if (p) { made.push([s, spot, p]); i += len; done = true; break; } } }
         if (!done) i++; } }
     return made; };
+  // Rows across the room: pews in blocks either side of a middle aisle, every row facing the altar (or the high table, or
+  // the way into the sanctuary); choir stalls down both sides facing each other across; book desks in rows with room to read.
+  const layRows = (pcs, max) => {
+    const stalls = pcs.some(a => a.stalls), desks = pcs.some(a => a.access === "frontback");
+    const anchor = placed.find(p => p.a === "altar" || p.a === "hightable"); let tx, ty;
+    if (anchor) { tx = anchor.x + anchor.w / 2; ty = anchor.y + anchor.h / 2; }
+    else { const holy = L.rooms.filter((o, j) => j !== ri && o.k === "sanctum").map(o => ({ o, pri: /Presbytery|Chancel|Sanctuary|Sanctum/.test(o.n) ? 0 : 1, d: Math.abs(o.x + o.w / 2 - center.x) + Math.abs(o.y + o.h / 2 - center.y) })).sort((p, q) => p.pri - q.pri || p.d - q.d);
+      if (holy.length && !desks) { tx = holy[0].o.x + holy[0].o.w / 2; ty = holy[0].o.y + holy[0].o.h / 2; }
+      else if (doorCells.length && !desks) { tx = 2 * center.x - doorCells[0][0] - 0.5; ty = 2 * center.y - doorCells[0][1] - 0.5; }
+      else { tx = rm.w >= rm.h ? rm.x : center.x; ty = rm.w >= rm.h ? center.y : rm.y; } } // desks: rows down the length of the room
+    const dx = tx - center.x, dy = ty - center.y, kF = anchor ? (anchor.k + 2) % 4 : GENF_FRONT.map(([fx, fy], i) => [fx * dx + fy * dy, i]).sort((p, q) => q[0] - p[0])[0][1]; // facing the altar square on
+    const f = GENF_FRONT[kF], vd = [-f[0], -f[1]], ud = [-f[1], f[0]], A = ud[0] ? rm.w : rm.h, D = vd[0] ? rm.w : rm.h;
+    const O = [(ud[0] < 0 || vd[0] < 0) ? rm.x + rm.w - 1 : rm.x, (ud[1] < 0 || vd[1] < 0) ? rm.y + rm.h - 1 : rm.y];
+    const at = (u, v) => [O[0] + u * ud[0] + v * vd[0], O[1] + u * ud[1] + v * vd[1]];
+    const box = (u0, u1, v0, v1) => { const c = [at(u0, v0), at(u1, v1)]; return [Math.min(c[0][0], c[1][0]), Math.min(c[0][1], c[1][1])]; };
+    let made = 0; const put1 = (a, u0, u1, v0, v1, k) => { if (made >= max) return false; const [x, y] = box(u0, u1, v0, v1), sp = besides(a, x, y, k); if (!sp) return false; const p = tryAt(a, sp); if (p) { made++; return true; } return false; };
+    // The first row clear of the altar end (and of the altar itself), the last a square short of the far wall.
+    let g0 = stalls ? 1 : D >= 10 ? 2 : 1; if (anchor) for (let u = 0; u < A; u++) for (let v = 0; v < D; v++) { const [x, y] = at(u, v); if (x >= anchor.x && x < anchor.x + anchor.w && y >= anchor.y && y < anchor.y + anchor.h) g0 = Math.max(g0, v + 2); }
+    const g1 = D >= 14 ? 2 : 1, byLen = pcs.slice().sort((p, q) => q.w - p.w);
+    if (stalls) { const a = byLen[0], L2 = a.w; if (A < 3) return;
+      const kIn = GENF_FRONT.findIndex(([x, y]) => x === ud[0] && y === ud[1]), kOut = GENF_FRONT.findIndex(([x, y]) => x === -ud[0] && y === -ud[1]);
+      for (let v = g0; v + L2 <= D - g1; v += L2) { put1(a, 0, 0, v, v + L2 - 1, kIn); put1(a, A - 1, A - 1, v, v + L2 - 1, kOut); }
+      return; }
+    // Fill a block of n squares with the longest pieces that go (3s, then 2s), from the aisle outwards.
+    const fill = n => { const lens = byLen.map(a => a.w), out = []; let r = n;
+      while (r > 0) { if (r === 4 && lens.includes(2)) { out.push(2, 2); break; } const l = lens.find(l => l <= r && !(l === 3 && r === 4 && lens.includes(2))); if (!l) break; out.push(l); r -= l; } return out; };
+    const pieceOf = l => byLen.find(a => a.w === l);
+    let blocks; // [start, length, from the aisle: +1 outward to higher u, -1 to lower]
+    if (A >= 7) { const side = A >= 9 ? 1 : 0, B = Math.floor((A - 2 * side - 1) / 2), ca = A - 2 * side - 2 * B; blocks = [[side + B - 1, B, -1], [side + B + ca, B, 1]]; }
+    else if (A >= 3) blocks = [[1, A - 1, 1]]; else return;
+    const step = desks ? 2 : 1;
+    for (let v = g0; v <= D - 1 - g1; v += step) for (const [s0, B, dir] of blocks) { let u = s0;
+      for (const l of fill(B)) { const a = pieceOf(l); const u0 = dir > 0 ? u : u - l + 1, u1 = u0 + l - 1; put1(a, u0, u1, v, v, kF); u += dir * l; } }
+  };
   for (const e of list) {
+    const rowPcs = e.ids.map(id => byId.get(id)).filter(a => a && (a.rows || a.stalls));
+    if (rowPcs.length) { layRows(rowPcs, e.hi); continue; }
     // Bigger rooms get a little more of the small things.
     const small = e.ids.every(id => { const a = byId.get(id); return a && a.w * a.h <= 2 && !a.seats; }), hi = e.hi + (small && e.hi > e.lo ? Math.floor(Math.max(0, area - 20) / 22) : 0);
     let n = e.lo + Math.floor(r() * (hi - e.lo + 1)); if (e.p < 1 && r() > e.p) n = Math.min(n, e.lo);
@@ -14682,7 +14884,8 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
             const to = [...L.doors].map(dk => { const [d, x, y] = dk.split(",").map((v, j) => j ? Number(v) : v); const [c1, c2] = d === "h" ? [[x, y - 1], [x, y]] : [[x - 1, y], [x, y]]; const mine = inRoom(...c1) ? c1 : inRoom(...c2) ? c2 : null, other = mine === c1 ? c2 : c1; return mine && L.own(...other) >= 0 && L.rooms[L.own(...other)].k === "sanctum" ? mine : null; }).find(Boolean);
             if (to) { const dx = to[0] + 0.5 - center.x, dy = to[1] + 0.5 - center.y; k = GENF_FRONT.map(([fx, fy], i) => [fx * dx + fy * dy, i]).sort((p, q) => q[0] - p[0])[0][1]; } }
           faceAltar = { k }; }
-        for (const s of spots(a).slice(0, 60)) { const p = tryAt(a, s); if (!p) continue;
+        const cands = a.line ? spots(a).sort((p, q) => ((q.k % 2 ? rm.h : rm.w) - (p.k % 2 ? rm.h : rm.w)) || p.k - q.k || (p.k % 2 ? p.y - q.y : p.x - q.x)) : spots(a).slice(0, 60); // in a line: along the long walls, side by side
+        for (const s of cands) { const p = tryAt(a, s); if (!p) continue;
           if (a.seats) { const seats = seatRound(p, a); if (seats.length < (a.seats.min || 0)) { seats.reverse().forEach(([, sp, pp]) => unput(sp, pp)); unput(s, p); continue; } }
           if (a.foot && r() < 0.6) { const f = byId.get(a.foot), fv = GENF_FRONT[s.k]; if (f) { const fx = s.k === 1 ? s.x - 1 : s.k === 3 ? s.x + s.W : s.x + (s.W > 1 ? Math.floor(r() * s.W) : 0), fy = s.k === 0 ? s.y + s.H : s.k === 2 ? s.y - 1 : s.y + (s.H > 1 ? Math.floor(r() * s.H) : 0); void fv; const sp = besides(f, fx, fy, s.k); if (sp) tryAt(f, sp); } }
           if (a.behind) { const f = byId.get(a.behind); if (f) { const A = around(s.x, s.y, s.W, s.H, s.k), opts = A.back.slice().sort(() => r() - 0.5); for (const [fx, fy] of opts) { const sp = besides(f, fx, fy, s.k); if (sp && tryAt(f, sp)) break; } } }
