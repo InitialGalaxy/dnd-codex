@@ -13490,6 +13490,55 @@ const GEN_CITY = [
 const GEN_SAINTS = ["St Michael", "St Anne", "St Catherine", "St Nicholas", "All Saints", "the Holy Cross", "St Thomas", "St John", "St Mary", "St Andrew", "St Margaret", "St George"];
 const GEN_SHOPS = ["Mercer's shop", "Draper's shop", "Goldsmith's shop", "Cook-shop", "Chandler's shop", "Haberdasher's shop", "Spicer's shop", "Cordwainer's shop", "Bookseller's shop", "Glover's shop", "Shop"];
 GEN_BUILDINGS.push(...GEN_CITY);
+// ===== Magic in the towns (Dryrones) =====
+// Mana comes from thought, and what a body can't hold seeps out as natural mana; a crowded place builds it up, and too much
+// brings a mana disaster. So the larger towns keep a bleed tower: it draws the excess off, stores it, and feeds the wards on
+// the walls and the lamps along the main streets. Transponders (thought-speaking crystals) reach across a town; a relay post
+// links the town to the next city's relay tower. The Guild (defence, transport, most magical matters) keeps a branch in the
+// large towns, its familiar post in a wing (licensed familiars carrying parcels and magical items, roosting upstairs). Shops
+// sell and attune transponders, and adaptors (for those with little mana of their own) and the small cores that run them.
+const GEN_MAGIC = [
+  { id: "relaypost", name: "Relay post", icon: "📡", group: "magic", mirror: 1, blurb: "Links the town's transponders to the nearest city's relay tower: a public counter, the receiving room where letters arrive and rebuild themselves, the sorting room and the address registry, and a stair tower with the relay crystal at the top, an operator always on watch below it.",
+    cellar: 0.3, porch: 0.3, floorsMax: 3, doorBonus: 0.5, under: [{ n: "Core store", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", D = sm ? 5 : genInt(r, 6, 7), tower = fl === 1 ? 1 : fl === 2 ? 2 : 3;
+      const units = [genU(genInt(r, 4, 5), genShuf(r, [genR("Public counter", "office", { w: 1.2 }), genR("Receiving room", "relay")]), Object.assign({ entry: 1 }, tower > 1 && !sm ? { up: [genR("Operator's chamber", "bed"), genR("Registry", "library")] } : {})),
+        genU(genInt(r, 3, 4), sm ? genR("Sorting room", "work") : genShuf(r, [genR("Sorting room", "work"), genR(big ? "Registry hall" : "Operators' room", big ? "library" : "living")]), tower > 1 && !sm ? { upJoin: 1 } : {})];
+      const tw = genU(4, genR("Tower room", "store"), Object.assign({ back: 2, inset: [0, 2] }, tower > 1 ? { up: [genR(tower > 2 ? "Watch room" : "Relay crystal chamber", tower > 2 ? "office" : "relay")] } : {}, tower > 2 ? { up2: [genR("Relay crystal chamber", "relay")] } : {}));
+      if (r() < 0.5) units.push(tw); else units.unshift(tw);
+      return { D, name: sm ? "Relay office" : "Relay post", units }; } },
+  { id: "bleedtower", name: "Bleed tower", icon: "🗼", group: "magic", mirror: 1, blurb: "Draws the excess natural mana off the town before it can build into a disaster: the collector chamber at the top, the venting room for surges, the store of charged cores, and at the foot the control room with its gauges and the ward-feed room that powers the wards on the walls and the lamps in the streets.",
+    cellar: 0.5, porch: 0, floorsMax: 4, doorBonus: 1.5, under: [{ n: "Deep core store", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", nf = fl || (sm ? 3 : 4), T = 6, D = 6;
+      const lv = [[genR("Core store", "vault")], [genR("Venting room", "mana")], [genR("Collector chamber", "mana")]].slice(0, nf - 1); lv[lv.length - 1] = [genR("Collector chamber", "mana")];
+      const tower = genU(T, genR("Control room", "office"), Object.assign({ entry: 1, doorW: 2 }, nf > 1 ? { up: lv[0] } : {}, nf > 2 ? { up2: lv[1] } : {}, nf > 3 ? { up3: lv[2] } : {}));
+      const annex = genU(genInt(r, 4, 5), genShuf(r, [genR("Ward-feed room", "mana"), genR("Keepers' workshop", "work")]), nf > 1 && !sm ? { up: [genR("Keepers' room", "bed"), genR("Linesman's store", "store")] } : {});
+      const units = [tower, annex]; if (!sm && r() < 0.5) units.push(genU(3, genR("Keepers' lodge", "living"), { inset: [1, 0] }));
+      return { D, name: sm ? "Bleed post" : "Bleed tower", units }; } },
+  { id: "guildbranch", name: "Guild branch", icon: "🛡", group: "magic", mirror: 1, blurb: "The Guild's house in town: the guild hall with its quest boards and counters, the clerks and the records, the licensing and wardens' offices, the branch master and the masters' meeting room upstairs; and the familiar post in its own wing, the parcel counter, store and sealed vault below, the familiars roosting above.",
+    cellar: 0.5, porch: 0.5, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.5 }],
+    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? 6 : genInt(r, 7, 8), wb = sm ? 0 : genInt(r, 4, 6);
+      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Records room", "library"), genR("Clerks' office", "office")]), up ? { up: [genR("Branch master's office", "office", { w: 1.2 }), genR("Masters' meeting room", "meet", { w: 1.2 })].concat(big ? [genR("Guild strong room", "vault", { w: 0.6 })] : []) } : {});
+      const hall = genU(sm ? genInt(r, 6, 7) : big ? genInt(r, 10, 12) : genInt(r, 8, 9), genR("Guild hall", "hall"), { entry: 1, doorW: 2, porch: r() < 0.5 ? [3, 2] : null });
+      const post = genU(genInt(r, 5, 6), (wb ? [genR("Parcel counter", "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1, w: 0.6 }), genR("Handlers' room", "work")] : [genR("Parcel counter", "office"), genR("Parcel store", "store")]), Object.assign({ back: wb, endDoor: "right" }, up ? { up: wb ? [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")] : [genR("Familiar roost", "roost")], landName: "Roost stair" } : {}));
+      const units = [offices, hall]; if (!sm) units.push(genU(genInt(r, 3, 4), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]))); units.push(post);
+      return { D, name: sm ? "Guild office" : "Guild branch", units }; } },
+  { id: "transponder", name: "Transponder shop", icon: "🔮", group: "magic", mirror: 1, blurb: "Sells, attunes and mends transponders: the shop with its crystals on show, a little attunement booth where a new transponder learns its owner's mind, the crystal workshop behind, the family above.",
+    cellar: 0.3, porch: 0, floorsMax: 3, doorBonus: 0,
+    plan(r, size, up, fl) { const sm = size === "small", nf = up ? (fl || genInt(r, 2, 3)) : 1, D = genInt(r, 6, sm ? 7 : 9);
+      const u = genU(sm ? 5 : genInt(r, 5, 6), [genR("Transponder shop", "shop", { w: 1.2 }), genR("Attunement booth", "office", { w: 0.6 }), genR("Crystal workshop", "work")], { entry: 1 });
+      if (nf > 1) u.up = genOne(r, [[genR("Hall", "living"), genR("Kitchen", "kitchen")], [genR("Kitchen", "kitchen"), genR("Hall", "living")]]); if (nf > 2) u.up2 = [genR("Chamber", "bed"), genR("Chamber", "bed")];
+      const units = [u]; if (!sm && r() < 0.5) units.push(genU(2, genR("Side passage", "passage"), Object.assign({ pass: 1 }, nf > 1 ? { upJoin: 1 } : {})));
+      return { D, name: "Transponder shop", units }; } },
+  { id: "coreshop", name: "Adaptor & core shop", icon: "🔋", group: "magic", mirror: 1, blurb: "Adaptors for those with little mana of their own, and the small battery cores that run household things: the shop, a fitting room for adaptors, the charging room where spent cores are topped up, a locked core store.",
+    cellar: 0.4, porch: 0, floorsMax: 3, doorBonus: 0, under: [{ n: "Core cellar", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", nf = up ? (fl || genInt(r, 2, 3)) : 1, D = genInt(r, 6, sm ? 7 : 9);
+      const rooms = [genR("Core & adaptor shop", "shop", { w: 1.2 }), genR("Fitting room", "office", { w: 0.7 }), genR("Charging room", "mana")].concat(big ? [genR("Core store", "vault", { w: 0.6, dark: 1 })] : []);
+      const u = genU(sm ? 5 : genInt(r, 5, 6), rooms, { entry: 1 });
+      if (nf > 1) u.up = [genR("Hall", "living"), genR("Kitchen", "kitchen")]; if (nf > 2) u.up2 = [genR("Chamber", "bed"), genR("Chamber", "bed")];
+      return { D, name: sm ? "Core seller's" : "Adaptor & core shop", units: [u] }; } },
+];
+GEN_BUILDINGS.push(...GEN_MAGIC);
+Object.assign(GEN_KIND, { relay: "tile", mana: "stone", roost: "straw" });
 Object.assign(GEN_KIND, { ward: "wood", cell: "stone", furnace: "stone", tower: "stone" });
 Object.assign(GEN_FIRE, { furnace: 1, ward: 0.4 });
 Object.assign(GEN_KIND, { market: "stone", slaughter: "stone", lab: "stone", loft: "wood" });
@@ -14067,7 +14116,7 @@ function viewGen(camp, kind, type) {
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
     return `<section class="page">${back}<h1>Buildings</h1><p class="muted">Pick a kind of building.</p>
       <div class="gencards"><a class="gencard gencustom" href="#gen-${esc(camp)}/building/custom" data-act="gednew"><span class="genicon">✏️</span><strong>Custom building</strong><span class="muted small">Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.</span></a></div>
-      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
+      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
       <h2 class="sect">Your buildings <span>${saved.length}</span></h2>
       ${tagSet.size ? `<div class="gentags">${["", ...[...tagSet].sort()].map(t => `<button class="chip${tf === t ? " on" : ""}" data-act="gentagf" data-v="${esc(t)}">${t ? esc(t) : "All"}</button>`).join("")}</div>` : ""}
       ${shown.length ? `<div class="gensaved">${shown.map(([pid, p]) => { const g = p.gen, T = genType(g.type), plan = (p.objs || []).find(x => x.layer === "map" && (x.level || 0) === 0 && x.x > 0);
@@ -14684,6 +14733,64 @@ const GEN_FURN_ROOMS = (() => {
 const GEN_FURN_CITY_KIND = { living: "city:Parlour", bed: "city:Chamber", kitchen: "city:Kitchen", store: "city:Storage", cellar: "Cellar", office: "Office", hall: "city:Feast hall", library: "city:Study",
   temple: "city:Chapel", sanctum: "city:Chantry chapel", ward: "city:Infirmary hall", cell: "city:Cell", work: "city:Workshop", vault: "Vault", bath: "city:Bath hall", furnace: "city:Furnace room",
   forge: "city:Melting house", lab: "city:Assay room", loft: "city:Hoist loft", market: "city:Trade hall", meet: "city:Chapter house", shop: "city:Shop", tower: "city:Tower base" };
+// Magical fittings (Dryrones): crystals glow cyan (relay and transponder), violet (stored mana) or gold (wards).
+const gfGlow = (x, y, r, c) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${c}" opacity=".22"/>`;
+const gfGem = (x, y, s, c) => `<path d="M${x} ${y - s}L${x + s * 0.62} ${y}L${x} ${y + s}L${x - s * 0.62} ${y}Z" fill="${c}" stroke="${GENF_INK}" stroke-width="1.5"/><path d="M${x} ${y - s}L${x + s * 0.22} ${y}L${x} ${y + s}" fill="rgba(255,255,255,.35)"/>`;
+const GFC = { cyan: "#7fd8e8", violet: "#a58be0", gold: "#e8c66a", core: "#c0503a" };
+const gfCore = (x, y, s, c) => gfC(x, y, s, c || GFC.core) + `<circle cx="${(x - s * 0.3).toFixed(1)}" cy="${(y - s * 0.3).toFixed(1)}" r="${(s * 0.3).toFixed(1)}" fill="rgba(255,255,255,.4)"/>`;
+GEN_FURN.push(
+  { id: "relaycrystal", name: "Relay crystal", cat: "Magic", w: 2, h: 2, place: "centre", access: "any", draw: P => gfGlow(P, P, P * 0.95, GFC.cyan) + `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P + Math.cos(a) * P * 0.7).toFixed(1)},${(P + Math.sin(a) * P * 0.7).toFixed(1)}`; }).join(" ")}" fill="#8a8478" stroke="${GENF_INK}" stroke-width="2"/>` + `<circle cx="${P}" cy="${P}" r="${P * 0.55}" fill="none" stroke="${GFC.cyan}" stroke-width="2" stroke-dasharray="4 3"/>` + gfGem(P, P, P * 0.42, GFC.cyan) },
+  { id: "receivingtable", name: "Receiving slate", cat: "Magic", w: 2, h: 1, place: "free", access: "any", draw: P => gfTable(4, P * 0.12, 2 * P - 8, P * 0.76, genfWood[0], 2) + gfR(P * 0.3, P * 0.2, P * 1.4, P * 0.6, "#3a3f44") + `<circle cx="${P}" cy="${P / 2}" r="${P * 0.24}" fill="none" stroke="${GFC.cyan}" stroke-width="2"/>` + gfGlow(P, P / 2, P * 0.3, GFC.cyan) + gfR(P * 0.88, P * 0.38, P * 0.24, P * 0.24, "#efe6cf") },
+  { id: "sortingrack", name: "Sorting pigeonholes", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.5) + gfR(3, 3, 2 * P - 6, P * 0.5, genfWood[1]) + Array.from({ length: 8 }, (_, i) => gfR(6 + i * (2 * P - 12) / 8, 6, (2 * P - 12) / 8 - 2, P * 0.42, "#3a2e22") + (i % 3 ? gfR(8 + i * (2 * P - 12) / 8, P * 0.16, (2 * P - 12) / 8 - 6, P * 0.2, "#efe6cf") : "")).join("") },
+  { id: "registry", name: "Address registry", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", tall: 1, group: "store", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.55) + gfR(3, 3, 2 * P - 6, P * 0.55, genfWood[0]) + [0, 1, 2, 3].map(c => [0, 1].map(rw => gfR(6 + c * (2 * P - 12) / 4, 6 + rw * P * 0.25, (2 * P - 12) / 4 - 3, P * 0.22, genfWood[2]) + gfC(6 + c * (2 * P - 12) / 4 + ((2 * P - 12) / 4 - 3) / 2, 6 + rw * P * 0.25 + P * 0.11, 1.8, "#c9a45e")).join("")).join("") },
+  { id: "gaugepanel", name: "Mana gauges", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.45) + gfR(3, 3, 2 * P - 6, P * 0.45, "#4a4d52") + [0.4, 1, 1.6].map((x, i) => gfC(x * P, P * 0.25, P * 0.15, "#e9e2cf") + gfL(x * P, P * 0.25, x * P + Math.cos(-0.6 - i * 0.8) * P * 0.12, P * 0.25 + Math.sin(-0.6 - i * 0.8) * P * 0.12, "#a32", 1.6)).join("") + gfGlow(P, P * 0.25, P * 0.5, GFC.violet) },
+  { id: "transponderdisplay", name: "Transponder case", cat: "Magic", w: 2, h: 1, place: "free", access: "any", draw: P => gfTable(4, P * 0.15, 2 * P - 8, P * 0.7, genfWood[1], 2) + gfR(P * 0.15, P * 0.24, P * 1.7, P * 0.52, "rgba(200,230,240,.45)") + [0.4, 0.75, 1.1, 1.45].map((x, i) => gfGem(x * P, P / 2, P * 0.14, i % 2 ? GFC.cyan : GFC.violet)).join("") },
+  { id: "attunechair", name: "Attunement chair", cat: "Magic", w: 1, h: 1, place: "free", access: "any", draw: P => gfGlow(P / 2, P / 2, P * 0.48, GFC.cyan) + gfSeatChair(P, genfWood[0], "#3f5f7a") + gfGem(P * 0.17, P * 0.2, P * 0.1, GFC.cyan) + gfGem(P * 0.83, P * 0.2, P * 0.1, GFC.cyan) },
+  { id: "crystalbench", name: "Crystal workbench", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", front: "stool", draw: P => gfTable(4, 4, 2 * P - 8, P * 0.66, genfWood[2], 2) + gfGem(P * 0.45, P * 0.33, P * 0.13, GFC.cyan) + gfGem(P * 0.8, P * 0.36, P * 0.1, GFC.violet) + gfC(P * 1.3, P * 0.34, P * 0.12, "#d8d8dc") + gfL(P * 1.5, P * 0.18, P * 1.75, P * 0.5, "#4a4d52", 2.5) + gfR(P * 1.1, P * 0.5, P * 0.35, P * 0.08, "#4a4d52") },
+  { id: "manacollector", name: "Mana collector", cat: "Magic", w: 2, h: 2, place: "centre", access: "any", draw: P => gfGlow(P, P, P, GFC.violet) + gfC(P, P, P * 0.78, "#5a5560") + [0, 1, 2, 3, 4, 5].map(i => { const a = i * Math.PI / 3; return gfGem(P + Math.cos(a) * P * 0.55, P + Math.sin(a) * P * 0.55, P * 0.16, GFC.violet); }).join("") + gfGem(P, P, P * 0.32, GFC.violet) + `<circle cx="${P}" cy="${P}" r="${P * 0.78}" fill="none" stroke="${GFC.violet}" stroke-width="1.5" stroke-dasharray="3 4"/>` },
+  { id: "storagecore", name: "Storage core", cat: "Magic", w: 1, h: 1, place: "free", access: "any", group: "store", draw: P => gfShadow(P * 0.15, P * 0.15, P * 0.7, P * 0.7, 4) + gfR(P * 0.15, P * 0.15, P * 0.7, P * 0.7, "#4a4d52", ` rx="4"`) + gfGlow(P / 2, P / 2, P * 0.34, GFC.violet) + gfGem(P / 2, P / 2, P * 0.28, GFC.violet) },
+  { id: "vent", name: "Venting grate", cat: "Magic", w: 2, h: 2, place: "centre", access: "any", draw: P => gfC(P, P, P * 0.8, "#3a3530") + Array.from({ length: 7 }, (_, i) => gfL(P * 0.35, P * (0.4 + i * 0.2), P * 1.65, P * (0.4 + i * 0.2), "#6a6560", 3)).join("") + `<path d="M${P * 0.6} ${P * 0.6}q${P * 0.4} ${P * 0.3} ${P * 0.8} 0" fill="none" stroke="${GFC.violet}" stroke-width="2" opacity=".7"/><path d="M${P * 0.6} ${P * 1.2}q${P * 0.4} ${P * 0.3} ${P * 0.8} 0" fill="none" stroke="${GFC.violet}" stroke-width="2" opacity=".7"/>` + gfGlow(P, P, P * 0.7, GFC.violet) },
+  { id: "regulator", name: "Regulator crystal", cat: "Magic", w: 1, h: 1, place: "wall", access: "front", draw: P => gfR(P * 0.2, 3, P * 0.6, P * 0.5, "#4a4d52") + gfGem(P / 2, P * 0.3, P * 0.16, GFC.violet) + gfL(P * 0.3, P * 0.62, P * 0.7, P * 0.62, GFC.violet, 2) + gfGlow(P / 2, P * 0.3, P * 0.3, GFC.violet) },
+  { id: "wardcrystal", name: "Ward crystal", cat: "Magic", w: 2, h: 2, place: "centre", access: "any", draw: P => gfGlow(P, P, P * 0.95, GFC.gold) + `<rect x="${P * 0.35}" y="${P * 0.35}" width="${P * 1.3}" height="${P * 1.3}" fill="#8a8478" stroke="${GENF_INK}" stroke-width="2" transform="rotate(45 ${P} ${P})"/>` + `<circle cx="${P}" cy="${P}" r="${P * 0.62}" fill="none" stroke="${GFC.gold}" stroke-width="2"/>` + gfGem(P, P, P * 0.4, GFC.gold) },
+  { id: "corelamp", name: "Core lamp", cat: "Magic", w: 1, h: 1, place: "free", access: "any", corner: 1, draw: P => gfGlow(P / 2, P / 2, P * 0.48, GFC.gold) + gfC(P / 2, P / 2, P * 0.16, "#3a3530") + gfCore(P / 2, P / 2, P * 0.1, GFC.gold) },
+  { id: "corerack", name: "Core rack", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", tall: 1, group: "store", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.45) + gfR(3, 3, 2 * P - 6, P * 0.45, genfWood[1]) + [0.3, 0.55, 0.8, 1.05, 1.3, 1.55, 1.75].map((x, i) => gfCore(x * P, P * 0.24, P * 0.08, [GFC.core, GFC.violet, "#6fa05a", GFC.gold][i % 4])).join("") },
+  { id: "adaptordisplay", name: "Adaptor display", cat: "Magic", w: 2, h: 1, place: "free", access: "any", draw: P => gfTable(4, P * 0.15, 2 * P - 8, P * 0.7, genfWood[1], 2) + [0.5, 1, 1.5].map(x => `<ellipse cx="${x * P}" cy="${P / 2}" rx="${P * 0.16}" ry="${P * 0.22}" fill="none" stroke="#b89a5a" stroke-width="4"/>` + gfGem(x * P, P * 0.3, P * 0.07, GFC.cyan)).join("") },
+  { id: "chargingbench", name: "Charging bench", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", draw: P => gfTable(4, 4, 2 * P - 8, P * 0.62, "#5a5560", 2) + gfGlow(P, P * 0.32, P * 0.6, GFC.violet) + [0.4, 0.8, 1.2, 1.6].map(x => gfC(x * P, P * 0.32, P * 0.13, "#3a3530") + gfCore(x * P, P * 0.32, P * 0.08, GFC.violet)).join("") },
+  { id: "perches", name: "Familiar perches", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", draw: P => gfR(3, 3, 2 * P - 6, P * 0.12, genfWood[0]) + gfR(3, P * 0.38, 2 * P - 6, P * 0.12, genfWood[0]) + [[0.4, 0.14, "#8a6a44"], [1.1, 0.14, "#d8cfc0"], [1.6, 0.14, "#5a4a3a"], [0.75, 0.48, "#a8875a"], [1.4, 0.48, "#6f6a62"]].map(([x, y, c]) => gfE(x * P, y * P + P * 0.08, P * 0.11, P * 0.13, c) + gfC(x * P, y * P - P * 0.02, P * 0.07, c)).join("") },
+  { id: "perchpole", name: "Perch post", cat: "Magic", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.1) + gfL(P * 0.15, P / 2, P * 0.85, P / 2, genfWood[0], 4) + gfC(P / 2, P / 2, P * 0.08, genfWood[0]) + gfE(P * 0.3, P * 0.45, P * 0.1, P * 0.12, "#8a6a44") + gfC(P * 0.3, P * 0.35, P * 0.06, "#8a6a44") },
+  { id: "nestbox", name: "Nest box", cat: "Magic", w: 1, h: 1, place: "wall", access: "front", draw: P => gfShadow(P * 0.15, 3, P * 0.7, P * 0.55) + gfR(P * 0.15, 3, P * 0.7, P * 0.55, genfWood[2]) + gfE(P / 2, P * 0.32, P * 0.24, P * 0.16, "#c9b062") + gfE(P / 2, P * 0.3, P * 0.1, P * 0.08, "#d8cfc0") },
+  { id: "parcelscale", name: "Parcel scale", cat: "Magic", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.3) + gfR(P * 0.2, P * 0.2, P * 0.6, P * 0.6, "#6a6560", ` rx="3"`) + gfR(P * 0.28, P * 0.28, P * 0.44, P * 0.3, "#b8925a") + gfL(P * 0.28, P * 0.43, P * 0.72, P * 0.43, "#7a5a33", 1.5) + gfC(P / 2, P * 0.7, P * 0.06, "#e9e2cf") },
+  { id: "parcelshelves", name: "Parcel shelves", cat: "Magic", w: 2, h: 1, place: "wall", access: "front", tall: 1, group: "store", draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.5) + gfR(3, 3, 2 * P - 6, P * 0.5, genfWood[2]) + [[0.15, 0.4], [0.62, 0.3], [1.0, 0.36], [1.42, 0.42]].map(([x, w]) => gfR(x * P, P * 0.1, w * P, P * 0.36, "#b8925a") + gfL(x * P, P * 0.28, (x + w) * P, P * 0.28, "#7a5a33", 1.2)).join("") },
+);
+(() => { const R = {
+    // The relay post
+    "relaypost:Public counter": [["counter", 1, 1], ["bench", 0, 2], ["corelamp", 0, 1, 0.6], ["parcelscale", 0, 1, 0.5]],
+    "relaypost:Receiving room": [["receivingtable", 1, 2], ["sortingrack", 1, 1], ["stool", 0, 2]], "relaypost:Sorting room": [["sortingrack", 1, 3], ["worktable", 0, 1, 0.6], ["parcelshelves", 0, 1, 0.6]],
+    "relaypost:Registry": [["registry", 1, 3], ["desk", 0, 1, 0.6]], "relaypost:Registry hall": [["registry", 2, 4], ["desk", 1, 1], ["lectern", 0, 1, 0.4]],
+    "relaypost:Operators' room": [["trestle|table2", 1, 1], ["chest", 0, 1], ["corelamp", 0, 1, 0.6]], "relaypost:Operator's chamber": [["bed", 1, 1], ["chest", 1, 1], ["washstand", 0, 1, 0.5]],
+    "relaypost:Tower room": [["storagecore", 1, 2], ["chest", 0, 1, 0.6]], "relaypost:Watch room": [["desk", 1, 1], ["gaugepanel", 1, 1], ["pallet", 0, 1, 0.6], ["corelamp", 0, 1]],
+    "relaypost:Relay crystal chamber": [["relaycrystal", 1, 1], ["gaugepanel", 0, 1, 0.7], ["stool", 0, 1, 0.5]], "relaypost:Core store": [["storagecore", 2, 4], ["chest", 0, 1]],
+    // The bleed tower
+    "bleedtower:Control room": [["gaugepanel", 1, 3], ["desk", 1, 1], ["regulator", 0, 1, 0.6], ["corelamp", 0, 1, 0.6]],
+    "bleedtower:Core store": [["storagecore", 3, 10]], "bleedtower:Deep core store": [["storagecore", 3, 8]], "bleedtower:Venting room": [["vent", 1, 1], ["regulator", 1, 2]],
+    "bleedtower:Collector chamber": [["manacollector", 1, 1], ["regulator", 0, 2]], "bleedtower:Ward-feed room": [["wardcrystal", 1, 1], ["regulator", 1, 2], ["gaugepanel", 0, 1, 0.6]],
+    "bleedtower:Keepers' workshop": [["crystalbench", 1, 1], ["toolrack", 0, 1, 0.7], ["storagecore", 0, 2], ["stool", 0, 1]], "bleedtower:Keepers' room": [["bed", 1, 2], ["chest", 1, 2], ["stool", 0, 1]],
+    "bleedtower:Linesman's store": [["storagecore", 1, 2], ["toolrack", 0, 1], ["crate", 1, 2]], "bleedtower:Keepers' lodge": [["trestle|table2", 1, 1], ["chest", 1, 1], ["cupboard", 0, 1, 0.5], ["stool", 0, 2]],
+    // The Guild branch and its familiar post
+    "guildbranch:Guild hall": [["counter", 1, 2], ["questboard", 1, 2], ["bench", 1, 4], ["corelamp", 0, 2, 0.6], ["chest", 0, 1, 0.4]],
+    "guildbranch:Records room": [["registry", 1, 2], ["bookshelf", 1, 2], ["desk", 0, 1, 0.6]], "guildbranch:Clerks' office": [["desk", 1, 2], ["chest", 1, 1], ["shelves", 0, 1, 0.5]],
+    "guildbranch:Licensing office": [["desk", 1, 1], ["registry", 1, 1], ["bench", 0, 1, 0.5]], "guildbranch:Wardens' office": [["maptable|table2", 1, 1], ["weaponrack", 1, 1], ["gaugepanel", 0, 1, 0.6], ["chest", 0, 1]],
+    "guildbranch:Branch master's office": [["desk", 1, 1], ["carvedchair", 0, 1, 0.7], ["bookshelf", 1, 1], ["strongbox", 0, 1, 0.6]], "guildbranch:Masters' meeting room": [["longtable|table2", 1, 1], ["chest", 0, 1, 0.5], ["corelamp", 0, 1, 0.5]],
+    "guildbranch:Guild strong room": [["strongbox", 1, 2], ["chest", 1, 2]], "guildbranch:Guild vault": [["strongbox", 1, 2], ["chest", 2, 3], ["coins", 0, 1, 0.5]], "guildbranch:Archive": [["bookshelf", 2, 4], ["registry", 0, 2], ["chest", 0, 1]],
+    "guildbranch:Parcel counter": [["counter", 1, 1], ["parcelscale", 1, 1], ["parcelshelves", 0, 1, 0.7]], "guildbranch:Parcel store": [["parcelshelves", 1, 3], ["crate", 0, 2]],
+    "guildbranch:Sealed vault": [["strongbox", 1, 2], ["chest", 0, 1]], "guildbranch:Handlers' room": [["perchpole", 1, 2], ["worktable", 0, 1, 0.6], ["sacks", 0, 1], ["chest", 0, 1]],
+    "guildbranch:Familiar roost": [["perches", 2, 6], ["perchpole", 0, 3], ["sacks", 0, 1, 0.5]], "guildbranch:Familiar infirmary": [["nestbox", 1, 4], ["worktable", 0, 1, 0.6], ["jars", 0, 1, 0.5]],
+    // The shops
+    "transponder:Transponder shop": [["counter", 1, 1], ["transponderdisplay", 1, 2], ["shelves", 0, 1, 0.5], ["corelamp", 0, 1, 0.5]], "transponder:Attunement booth": [["attunechair", 1, 1], ["regulator", 0, 1, 0.5]],
+    "transponder:Crystal workshop": [["crystalbench", 1, 2], ["toolrack", 0, 1, 0.6], ["chest", 0, 1, 0.5]],
+    "coreshop:Core & adaptor shop": [["counter", 1, 1], ["corerack", 1, 2], ["adaptordisplay", 1, 1], ["corelamp", 0, 1, 0.5]], "coreshop:Fitting room": [["chair", 1, 1], ["adaptordisplay", 0, 1, 0.6], ["washstand", 0, 1, 0.3]],
+    "coreshop:Charging room": [["chargingbench", 1, 2], ["corerack", 0, 1, 0.6], ["storagecore", 0, 1, 0.5]], "coreshop:Core store": [["storagecore", 1, 3], ["strongbox", 1, 1]], "coreshop:Core cellar": [["storagecore", 1, 4], ["crate", 0, 2]],
+  }; Object.assign(GEN_FURN_ROOMS, R); })();
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
   hall: "Great hall", office: "Office", meet: "Meeting room", library: "Library", temple: "Nave", sanctum: "Sanctum", bath: "Bathhouse", pit: "Fighting pit", vault: "Vault", porch: "Porch", privy: "Privy" };
 const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
@@ -16104,7 +16211,7 @@ const TN_SIZES = {
   small: { Wi: 120, Hi: 90, band: 24, gates: 2, mk: [22, 14], D: [13, 17], name: "Small town" },
   medium: { Wi: 180, Hi: 140, band: 28, gates: 3, mk: [30, 18], D: [15, 20], name: "Town" },
   large: { Wi: 250, Hi: 200, band: 32, gates: 4, mk: [38, 24], D: [16, 22], name: "Large town" } };
-const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", roads: "edges", names: true, furn: true });
+const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", roads: "edges", magic: "yes", names: true, furn: true });
 const tnH = (...a) => { let h = 2166136261 >>> 0; a.forEach(v => { const s = String(v); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h ^= 0x9e; h = Math.imul(h, 16777619) >>> 0; }); return (h % 999999937) + 1; };
 const TN_DIR = { E: [1, 0], W: [-1, 0], N: [0, -1], S: [0, 1] }, TN_K = { S: 0, W: 1, N: 2, E: 3 }; // k turns a building so its front faces that way
 const TN_BC = new Map();
@@ -16259,6 +16366,13 @@ function genTown(o) {
   const gateNear = (x, y) => gates.some(g => Math.hypot(g.x + g.w / 2 - x, g.y + g.h / 2 - y) < 28);
   const streetOf = (x, y) => streets.find(st => { for (let t = 0; t < st.tEnd; t += 1) { const [sx, sy] = st.cellAt(t, st.cAt(t)); if (Math.abs(sx - x) + Math.abs(sy - y) < 5) return true; } return false; });
   let slot = 0;
+  // Magic (Dryrones): every town a relay post and a transponder shop; bigger towns an adaptor and core shop; the large ones a
+  // Guild branch (with its familiar post) on the market and a bleed tower by the wall. Each tried first on the first plot of
+  // its kind of street it will fit.
+  const want = o.magic === "no" ? [] : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]]
+    .concat(o.size !== "small" ? [["coreshop", ["main", "lane", "gate", "ring"], ["medium", "small"]]] : [])
+    .concat(o.size === "large" ? [["guildbranch", ["market", "main"], ["large", "medium", "small"]], ["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : [])
+    .map(([type, zones, sizes]) => ({ type, zones, sizes, done: false }));
   const place = (wayTypes, zoneOf, opts) => {
     for (const f of ["S", "N", "E", "W"]) { const [fx, fy] = TN_DIR[f]; // the building's front faces f: the way is on that side
       const lines = fx ? W : H, len = fx ? H : W;
@@ -16270,10 +16384,11 @@ function genTown(o) {
           // The way runs on from here: how far?
           let end = i; while (end < len && wayOK(end)) { const [a, b2] = cellOf(end); if (!(opts.outside ? (at(a, b2) === TNT.GRASS && !isIn(a, b2)) : free(a, b2))) break; end++; }
           const zone = zoneOf(x, y, f); let placed = null;
-          for (let tries = 0; tries < 4 && !placed; tries++) { slot++; const rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
+          const mw = want.find(m => !m.done && m.zones.includes(zone)); // a magic building still to place, that goes on this street
+          for (let tries = mw ? -mw.sizes.length : 0; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const mt = tries < 0 ? mw : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
             if (!genType(type) || genType(type).id !== type) continue;
-            const size = tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
-            const seed = tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
+            const size = mt ? mt.sizes[tries + mt.sizes.length] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
+            const seed = mt ? tnH(o.seed, "m", type) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
             if (fd > opts.maxD || i + fw > end) continue;
             // The rectangle behind the front row, all free.
             const bx = fx > 0 ? ln - fd + 1 : fx < 0 ? ln : i, by = fy > 0 ? ln - fd + 1 : fy < 0 ? ln : i;
@@ -16281,7 +16396,7 @@ function genTown(o) {
             if (!fits) continue;
             placed = { id: "b" + buildings.length, type, o: tnBo(type, seed, size, o.furn), x: bx, y: by, k: T.k, w: T.w, h: T.h, front: f, zone };
             for (let yy = by; yy < by + T.h; yy++) for (let xx = bx; xx < bx + T.w; xx++) put(xx, yy, TNT.YARD); tnCells(B, T.k, bx, by).forEach(([xx, yy]) => put(xx, yy, TNT.BUILD));
-            buildings.push(placed); i += fw; run++;
+            buildings.push(placed); if (mt) { mt.done = true; placed.magic = 1; } i += fw; run++;
             // The gap to the next: none (a terrace) mostly on the streets, 2 squares (a ginnel) every few houses; houses apart elsewhere.
             const gap = opts.terrace ? (run >= genInt(rr, 3, 6) || rr() < 0.15 ? 2 : 0) : genInt(rr, 2, 4); if (gap) run = 0; i += gap; }
           if (!placed) i++; } } } };
@@ -16327,7 +16442,13 @@ function genTown(o) {
       towers.push({ x: tx, y: ty, cx: tcx, cy: tcy }); last = [x, y]; }); }
   // The rest of the town's ground is yards and gardens.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === TNT.GRASS && isIn(x, y)) put(x, y, TNT.YARD);
-  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, roadEnds: streets.flatMap(st => st.ends || []), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
+  // Core lamps along the main streets and round the market, fed from the bleed tower: on the edge of the way, a little apart.
+  const lamps = []; if (buildings.some(b => b.type === "bleedtower")) { const cand = [];
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const v = at(x, y); if (!(v === TNT.STREET || v === TNT.MARKET) || !isIn(x, y)) continue;
+      const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].find(([dx, dy]) => { const u = at(x + dx, y + dy); return u === TNT.BUILD || u === TNT.YARD; }); if (edge) cand.push([x, y, edge]); }
+    const rl = genRng(tnH(o.seed, "lamps")); cand.sort(() => rl() - 0.5);
+    for (const [x, y, e] of cand) if (!lamps.some(l => Math.max(Math.abs(l.x - x), Math.abs(l.y - y)) < 9)) lamps.push({ x, y, side: e }); }
+  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, lamps, roadEnds: streets.flatMap(st => st.ends || []), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
   tnAccess(T); return T;
 }
 // Can a 2×2 creature get to every door and every yard, and a 3×6 wagon from every road in to the market? Where a yard is
@@ -16498,6 +16619,9 @@ function tnTerrainSvg(T, s, vb) {
       (B.F.wings && B.F.wings.length ? B.F.wings : [{ x: 0, y: 0, w: B.W, h: B.H }]).forEach(g => { const R = tnRectTurn(tf, g); sh += `<rect x="${(b.x + R.x + 0.15) * s}" y="${(b.y + R.y + 0.25) * s}" width="${R.w * s}" height="${R.h * s}"/>`; }); });
     if (sh) out.push(`<filter id="tnsh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(s * 0.4).toFixed(1)}"/></filter><g filter="url(#tnsh)" fill="rgba(20,25,10,.5)">${sh}</g>`); }
   const vbx = box[0] * s, vby = box[1] * s;
+  // Core lamps: a post at the edge of the way with a glowing core on top.
+  (T.lamps || []).forEach(l => { if (!inBox(l.x, l.y, 1, 1, 2)) return; const px = (l.x + 0.5 + l.side[0] * 0.3) * s, py = (l.y + 0.5 + l.side[1] * 0.3) * s;
+    out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 1.6).toFixed(1)}" fill="#ffe3a0" opacity=".13"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 0.22).toFixed(1)}" fill="#3a3530"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 0.12).toFixed(1)}" fill="#f5d36a"/>`); });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbx} ${vby} ${box[2] * s} ${box[3] * s}" width="${box[2] * s}" height="${box[3] * s}">${out.join("")}</svg>`;
 }
 // Roofs for the preview: each wing a hipped roof in the building's colour (the real roofs are drawn for the tabletop).
@@ -16651,6 +16775,7 @@ function viewTownGen(camp) {
     <div class="genlayout"><div class="genopts">
       <label><span>Size</span>${seg("size", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</label>
       <label><span>Walls</span>${seg("walls", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
+      <label><span>Magic <small class="muted">relay post, transponder and core shops; big towns a Guild branch, a bleed tower and lit streets</small></span>${seg("magic", [["yes", "Yes"], ["no", "No"]])}</label>
       <label><span>Gates <small class="muted">main roads in</small></span>${seg("gates", [["auto", "Any"], [2, "2"], [3, "3"], [4, "4"]])}</label>
       <label><span>Roads in <small class="muted">to the gates</small></span>${seg("roads", [["centre", "From the centre"], ["edges", "From the map edges"]])}</label>
       <div class="tvents"><button class="btn small ${TNV.pick ? "" : "ghost"}" data-act="tvpick" aria-pressed="${!!TNV.pick}">📍 ${TNV.pick ? "Done picking" : "Pick road entrances"}</button>${(o.entries || []).length ? `<span class="small muted">${o.entries.length} entrance${o.entries.length === 1 ? "" : "s"} · <button class="linkbtn" data-act="tventclear">let it choose</button></span>` : ""}</div>

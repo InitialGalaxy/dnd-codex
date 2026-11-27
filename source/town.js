@@ -18,7 +18,7 @@ const TN_SIZES = {
   small: { Wi: 120, Hi: 90, band: 24, gates: 2, mk: [22, 14], D: [13, 17], name: "Small town" },
   medium: { Wi: 180, Hi: 140, band: 28, gates: 3, mk: [30, 18], D: [15, 20], name: "Town" },
   large: { Wi: 250, Hi: 200, band: 32, gates: 4, mk: [38, 24], D: [16, 22], name: "Large town" } };
-const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", roads: "edges", names: true, furn: true });
+const tnDefaults = () => ({ seed: genSeed(), size: "medium", walls: "auto", streets: "mixed", gates: "auto", roads: "edges", magic: "yes", names: true, furn: true });
 const tnH = (...a) => { let h = 2166136261 >>> 0; a.forEach(v => { const s = String(v); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h ^= 0x9e; h = Math.imul(h, 16777619) >>> 0; }); return (h % 999999937) + 1; };
 const TN_DIR = { E: [1, 0], W: [-1, 0], N: [0, -1], S: [0, 1] }, TN_K = { S: 0, W: 1, N: 2, E: 3 }; // k turns a building so its front faces that way
 const TN_BC = new Map();
@@ -173,6 +173,13 @@ function genTown(o) {
   const gateNear = (x, y) => gates.some(g => Math.hypot(g.x + g.w / 2 - x, g.y + g.h / 2 - y) < 28);
   const streetOf = (x, y) => streets.find(st => { for (let t = 0; t < st.tEnd; t += 1) { const [sx, sy] = st.cellAt(t, st.cAt(t)); if (Math.abs(sx - x) + Math.abs(sy - y) < 5) return true; } return false; });
   let slot = 0;
+  // Magic (Dryrones): every town a relay post and a transponder shop; bigger towns an adaptor and core shop; the large ones a
+  // Guild branch (with its familiar post) on the market and a bleed tower by the wall. Each tried first on the first plot of
+  // its kind of street it will fit.
+  const want = o.magic === "no" ? [] : [["relaypost", ["main", "market"], ["medium", "small"]], ["transponder", ["main", "market"], ["medium", "small"]]]
+    .concat(o.size !== "small" ? [["coreshop", ["main", "lane", "gate", "ring"], ["medium", "small"]]] : [])
+    .concat(o.size === "large" ? [["guildbranch", ["market", "main"], ["large", "medium", "small"]], ["bleedtower", walled ? ["ring", "lane"] : ["lane", "main"], ["medium", "small"]]] : [])
+    .map(([type, zones, sizes]) => ({ type, zones, sizes, done: false }));
   const place = (wayTypes, zoneOf, opts) => {
     for (const f of ["S", "N", "E", "W"]) { const [fx, fy] = TN_DIR[f]; // the building's front faces f: the way is on that side
       const lines = fx ? W : H, len = fx ? H : W;
@@ -184,10 +191,11 @@ function genTown(o) {
           // The way runs on from here: how far?
           let end = i; while (end < len && wayOK(end)) { const [a, b2] = cellOf(end); if (!(opts.outside ? (at(a, b2) === TNT.GRASS && !isIn(a, b2)) : free(a, b2))) break; end++; }
           const zone = zoneOf(x, y, f); let placed = null;
-          for (let tries = 0; tries < 4 && !placed; tries++) { slot++; const rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
+          const mw = want.find(m => !m.done && m.zones.includes(zone)); // a magic building still to place, that goes on this street
+          for (let tries = mw ? -mw.sizes.length : 0; tries < 4 && !placed; tries++) { if (tries >= 0) slot++; const mt = tries < 0 ? mw : null, rr = genRng(tnH(o.seed, "plot", f, ln, i, tries)), type = mt ? mt.type : tnPickW(rr, TN_ZONES[zone] || TN_ZONES.main);
             if (!genType(type) || genType(type).id !== type) continue;
-            const size = tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
-            const seed = tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
+            const size = mt ? mt.sizes[tries + mt.sizes.length] : tnPickW(rr, zone === "market" ? [["medium", 3], ["large", 2]] : zone === "suburb" || zone === "ring" ? [["small", 3], ["medium", 1]] : [["small", 2], ["medium", 3], ["large", 1]]);
+            const seed = mt ? tnH(o.seed, "m", type) : tnH(o.seed, "b", f, ln, i, tries), B = tnB({ type, seed, size }), T = tnTurn(B, f), fw = fx ? T.h : T.w, fd = fx ? T.w : T.h;
             if (fd > opts.maxD || i + fw > end) continue;
             // The rectangle behind the front row, all free.
             const bx = fx > 0 ? ln - fd + 1 : fx < 0 ? ln : i, by = fy > 0 ? ln - fd + 1 : fy < 0 ? ln : i;
@@ -195,7 +203,7 @@ function genTown(o) {
             if (!fits) continue;
             placed = { id: "b" + buildings.length, type, o: tnBo(type, seed, size, o.furn), x: bx, y: by, k: T.k, w: T.w, h: T.h, front: f, zone };
             for (let yy = by; yy < by + T.h; yy++) for (let xx = bx; xx < bx + T.w; xx++) put(xx, yy, TNT.YARD); tnCells(B, T.k, bx, by).forEach(([xx, yy]) => put(xx, yy, TNT.BUILD));
-            buildings.push(placed); i += fw; run++;
+            buildings.push(placed); if (mt) { mt.done = true; placed.magic = 1; } i += fw; run++;
             // The gap to the next: none (a terrace) mostly on the streets, 2 squares (a ginnel) every few houses; houses apart elsewhere.
             const gap = opts.terrace ? (run >= genInt(rr, 3, 6) || rr() < 0.15 ? 2 : 0) : genInt(rr, 2, 4); if (gap) run = 0; i += gap; }
           if (!placed) i++; } } } };
@@ -241,7 +249,13 @@ function genTown(o) {
       towers.push({ x: tx, y: ty, cx: tcx, cy: tcy }); last = [x, y]; }); }
   // The rest of the town's ground is yards and gardens.
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === TNT.GRASS && isIn(x, y)) put(x, y, TNT.YARD);
-  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, roadEnds: streets.flatMap(st => st.ends || []), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
+  // Core lamps along the main streets and round the market, fed from the bleed tower: on the edge of the way, a little apart.
+  const lamps = []; if (buildings.some(b => b.type === "bleedtower")) { const cand = [];
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const v = at(x, y); if (!(v === TNT.STREET || v === TNT.MARKET) || !isIn(x, y)) continue;
+      const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].find(([dx, dy]) => { const u = at(x + dx, y + dy); return u === TNT.BUILD || u === TNT.YARD; }); if (edge) cand.push([x, y, edge]); }
+    const rl = genRng(tnH(o.seed, "lamps")); cand.sort(() => rl() - 0.5);
+    for (const [x, y, e] of cand) if (!lamps.some(l => Math.max(Math.abs(l.x - x), Math.abs(l.y - y)) < 9)) lamps.push({ x, y, side: e }); }
+  const T = { o, W, H, G, IN, dist, cx, cy, M, walled, streets: streets.map(st => ({ d: st.d, horiz: st.horiz, ux: st.ux, uy: st.uy, x0: st.x0, y0: st.y0, tEnd: st.tEnd, tW: st.tW, cs: Array.from({ length: st.tEnd }, (_, t) => st.cAt(t)) })), buildings, lamps, roadEnds: streets.flatMap(st => st.ends || []), towers, towerWall: new Set(towerWall), gates, church, cross, fields, size: o.size, seed: o.seed };
   tnAccess(T); return T;
 }
 // Can a 2×2 creature get to every door and every yard, and a 3×6 wagon from every road in to the market? Where a yard is
@@ -412,6 +426,9 @@ function tnTerrainSvg(T, s, vb) {
       (B.F.wings && B.F.wings.length ? B.F.wings : [{ x: 0, y: 0, w: B.W, h: B.H }]).forEach(g => { const R = tnRectTurn(tf, g); sh += `<rect x="${(b.x + R.x + 0.15) * s}" y="${(b.y + R.y + 0.25) * s}" width="${R.w * s}" height="${R.h * s}"/>`; }); });
     if (sh) out.push(`<filter id="tnsh" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${(s * 0.4).toFixed(1)}"/></filter><g filter="url(#tnsh)" fill="rgba(20,25,10,.5)">${sh}</g>`); }
   const vbx = box[0] * s, vby = box[1] * s;
+  // Core lamps: a post at the edge of the way with a glowing core on top.
+  (T.lamps || []).forEach(l => { if (!inBox(l.x, l.y, 1, 1, 2)) return; const px = (l.x + 0.5 + l.side[0] * 0.3) * s, py = (l.y + 0.5 + l.side[1] * 0.3) * s;
+    out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 1.6).toFixed(1)}" fill="#ffe3a0" opacity=".13"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 0.22).toFixed(1)}" fill="#3a3530"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(s * 0.12).toFixed(1)}" fill="#f5d36a"/>`); });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbx} ${vby} ${box[2] * s} ${box[3] * s}" width="${box[2] * s}" height="${box[3] * s}">${out.join("")}</svg>`;
 }
 // Roofs for the preview: each wing a hipped roof in the building's colour (the real roofs are drawn for the tabletop).
@@ -565,6 +582,7 @@ function viewTownGen(camp) {
     <div class="genlayout"><div class="genopts">
       <label><span>Size</span>${seg("size", [["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</label>
       <label><span>Walls</span>${seg("walls", [["auto", "Maybe"], ["yes", "Yes"], ["no", "No"]])}</label>
+      <label><span>Magic <small class="muted">relay post, transponder and core shops; big towns a Guild branch, a bleed tower and lit streets</small></span>${seg("magic", [["yes", "Yes"], ["no", "No"]])}</label>
       <label><span>Gates <small class="muted">main roads in</small></span>${seg("gates", [["auto", "Any"], [2, "2"], [3, "3"], [4, "4"]])}</label>
       <label><span>Roads in <small class="muted">to the gates</small></span>${seg("roads", [["centre", "From the centre"], ["edges", "From the map edges"]])}</label>
       <div class="tvents"><button class="btn small ${TNV.pick ? "" : "ghost"}" data-act="tvpick" aria-pressed="${!!TNV.pick}">📍 ${TNV.pick ? "Done picking" : "Pick road entrances"}</button>${(o.entries || []).length ? `<span class="small muted">${o.entries.length} entrance${o.entries.length === 1 ? "" : "s"} · <button class="linkbtn" data-act="tventclear">let it choose</button></span>` : ""}</div>

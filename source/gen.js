@@ -635,6 +635,55 @@ const GEN_CITY = [
 const GEN_SAINTS = ["St Michael", "St Anne", "St Catherine", "St Nicholas", "All Saints", "the Holy Cross", "St Thomas", "St John", "St Mary", "St Andrew", "St Margaret", "St George"];
 const GEN_SHOPS = ["Mercer's shop", "Draper's shop", "Goldsmith's shop", "Cook-shop", "Chandler's shop", "Haberdasher's shop", "Spicer's shop", "Cordwainer's shop", "Bookseller's shop", "Glover's shop", "Shop"];
 GEN_BUILDINGS.push(...GEN_CITY);
+// ===== Magic in the towns (Dryrones) =====
+// Mana comes from thought, and what a body can't hold seeps out as natural mana; a crowded place builds it up, and too much
+// brings a mana disaster. So the larger towns keep a bleed tower: it draws the excess off, stores it, and feeds the wards on
+// the walls and the lamps along the main streets. Transponders (thought-speaking crystals) reach across a town; a relay post
+// links the town to the next city's relay tower. The Guild (defence, transport, most magical matters) keeps a branch in the
+// large towns, its familiar post in a wing (licensed familiars carrying parcels and magical items, roosting upstairs). Shops
+// sell and attune transponders, and adaptors (for those with little mana of their own) and the small cores that run them.
+const GEN_MAGIC = [
+  { id: "relaypost", name: "Relay post", icon: "📡", group: "magic", mirror: 1, blurb: "Links the town's transponders to the nearest city's relay tower: a public counter, the receiving room where letters arrive and rebuild themselves, the sorting room and the address registry, and a stair tower with the relay crystal at the top, an operator always on watch below it.",
+    cellar: 0.3, porch: 0.3, floorsMax: 3, doorBonus: 0.5, under: [{ n: "Core store", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", D = sm ? 5 : genInt(r, 6, 7), tower = fl === 1 ? 1 : fl === 2 ? 2 : 3;
+      const units = [genU(genInt(r, 4, 5), genShuf(r, [genR("Public counter", "office", { w: 1.2 }), genR("Receiving room", "relay")]), Object.assign({ entry: 1 }, tower > 1 && !sm ? { up: [genR("Operator's chamber", "bed"), genR("Registry", "library")] } : {})),
+        genU(genInt(r, 3, 4), sm ? genR("Sorting room", "work") : genShuf(r, [genR("Sorting room", "work"), genR(big ? "Registry hall" : "Operators' room", big ? "library" : "living")]), tower > 1 && !sm ? { upJoin: 1 } : {})];
+      const tw = genU(4, genR("Tower room", "store"), Object.assign({ back: 2, inset: [0, 2] }, tower > 1 ? { up: [genR(tower > 2 ? "Watch room" : "Relay crystal chamber", tower > 2 ? "office" : "relay")] } : {}, tower > 2 ? { up2: [genR("Relay crystal chamber", "relay")] } : {}));
+      if (r() < 0.5) units.push(tw); else units.unshift(tw);
+      return { D, name: sm ? "Relay office" : "Relay post", units }; } },
+  { id: "bleedtower", name: "Bleed tower", icon: "🗼", group: "magic", mirror: 1, blurb: "Draws the excess natural mana off the town before it can build into a disaster: the collector chamber at the top, the venting room for surges, the store of charged cores, and at the foot the control room with its gauges and the ward-feed room that powers the wards on the walls and the lamps in the streets.",
+    cellar: 0.5, porch: 0, floorsMax: 4, doorBonus: 1.5, under: [{ n: "Deep core store", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", nf = fl || (sm ? 3 : 4), T = 6, D = 6;
+      const lv = [[genR("Core store", "vault")], [genR("Venting room", "mana")], [genR("Collector chamber", "mana")]].slice(0, nf - 1); lv[lv.length - 1] = [genR("Collector chamber", "mana")];
+      const tower = genU(T, genR("Control room", "office"), Object.assign({ entry: 1, doorW: 2 }, nf > 1 ? { up: lv[0] } : {}, nf > 2 ? { up2: lv[1] } : {}, nf > 3 ? { up3: lv[2] } : {}));
+      const annex = genU(genInt(r, 4, 5), genShuf(r, [genR("Ward-feed room", "mana"), genR("Keepers' workshop", "work")]), nf > 1 && !sm ? { up: [genR("Keepers' room", "bed"), genR("Linesman's store", "store")] } : {});
+      const units = [tower, annex]; if (!sm && r() < 0.5) units.push(genU(3, genR("Keepers' lodge", "living"), { inset: [1, 0] }));
+      return { D, name: sm ? "Bleed post" : "Bleed tower", units }; } },
+  { id: "guildbranch", name: "Guild branch", icon: "🛡", group: "magic", mirror: 1, blurb: "The Guild's house in town: the guild hall with its quest boards and counters, the clerks and the records, the licensing and wardens' offices, the branch master and the masters' meeting room upstairs; and the familiar post in its own wing, the parcel counter, store and sealed vault below, the familiars roosting above.",
+    cellar: 0.5, porch: 0.5, floorsMax: 2, doorBonus: 2, under: [{ n: "Guild vault", k: "vault", w: 1.2 }, { n: "Archive", k: "library", w: 0.8, opt: 0.5 }],
+    plan(r, size, up) { const sm = size === "small", big = size === "large", D = sm ? 6 : genInt(r, 7, 8), wb = sm ? 0 : genInt(r, 4, 6);
+      const offices = genU(genInt(r, 4, 5), genShuf(r, [genR("Records room", "library"), genR("Clerks' office", "office")]), up ? { up: [genR("Branch master's office", "office", { w: 1.2 }), genR("Masters' meeting room", "meet", { w: 1.2 })].concat(big ? [genR("Guild strong room", "vault", { w: 0.6 })] : []) } : {});
+      const hall = genU(sm ? genInt(r, 6, 7) : big ? genInt(r, 10, 12) : genInt(r, 8, 9), genR("Guild hall", "hall"), { entry: 1, doorW: 2, porch: r() < 0.5 ? [3, 2] : null });
+      const post = genU(genInt(r, 5, 6), (wb ? [genR("Parcel counter", "office"), genR("Parcel store", "store"), genR("Sealed vault", "vault", { dark: 1, w: 0.6 }), genR("Handlers' room", "work")] : [genR("Parcel counter", "office"), genR("Parcel store", "store")]), Object.assign({ back: wb, endDoor: "right" }, up ? { up: wb ? [genR("Familiar roost", "roost", { w: 2 }), genR("Familiar infirmary", "roost")] : [genR("Familiar roost", "roost")], landName: "Roost stair" } : {}));
+      const units = [offices, hall]; if (!sm) units.push(genU(genInt(r, 3, 4), genShuf(r, [genR("Licensing office", "office"), genR("Wardens' office", "office")]))); units.push(post);
+      return { D, name: sm ? "Guild office" : "Guild branch", units }; } },
+  { id: "transponder", name: "Transponder shop", icon: "🔮", group: "magic", mirror: 1, blurb: "Sells, attunes and mends transponders: the shop with its crystals on show, a little attunement booth where a new transponder learns its owner's mind, the crystal workshop behind, the family above.",
+    cellar: 0.3, porch: 0, floorsMax: 3, doorBonus: 0,
+    plan(r, size, up, fl) { const sm = size === "small", nf = up ? (fl || genInt(r, 2, 3)) : 1, D = genInt(r, 6, sm ? 7 : 9);
+      const u = genU(sm ? 5 : genInt(r, 5, 6), [genR("Transponder shop", "shop", { w: 1.2 }), genR("Attunement booth", "office", { w: 0.6 }), genR("Crystal workshop", "work")], { entry: 1 });
+      if (nf > 1) u.up = genOne(r, [[genR("Hall", "living"), genR("Kitchen", "kitchen")], [genR("Kitchen", "kitchen"), genR("Hall", "living")]]); if (nf > 2) u.up2 = [genR("Chamber", "bed"), genR("Chamber", "bed")];
+      const units = [u]; if (!sm && r() < 0.5) units.push(genU(2, genR("Side passage", "passage"), Object.assign({ pass: 1 }, nf > 1 ? { upJoin: 1 } : {})));
+      return { D, name: "Transponder shop", units }; } },
+  { id: "coreshop", name: "Adaptor & core shop", icon: "🔋", group: "magic", mirror: 1, blurb: "Adaptors for those with little mana of their own, and the small battery cores that run household things: the shop, a fitting room for adaptors, the charging room where spent cores are topped up, a locked core store.",
+    cellar: 0.4, porch: 0, floorsMax: 3, doorBonus: 0, under: [{ n: "Core cellar", k: "vault", w: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", nf = up ? (fl || genInt(r, 2, 3)) : 1, D = genInt(r, 6, sm ? 7 : 9);
+      const rooms = [genR("Core & adaptor shop", "shop", { w: 1.2 }), genR("Fitting room", "office", { w: 0.7 }), genR("Charging room", "mana")].concat(big ? [genR("Core store", "vault", { w: 0.6, dark: 1 })] : []);
+      const u = genU(sm ? 5 : genInt(r, 5, 6), rooms, { entry: 1 });
+      if (nf > 1) u.up = [genR("Hall", "living"), genR("Kitchen", "kitchen")]; if (nf > 2) u.up2 = [genR("Chamber", "bed"), genR("Chamber", "bed")];
+      return { D, name: sm ? "Core seller's" : "Adaptor & core shop", units: [u] }; } },
+];
+GEN_BUILDINGS.push(...GEN_MAGIC);
+Object.assign(GEN_KIND, { relay: "tile", mana: "stone", roost: "straw" });
 Object.assign(GEN_KIND, { ward: "wood", cell: "stone", furnace: "stone", tower: "stone" });
 Object.assign(GEN_FIRE, { furnace: 1, ward: 0.4 });
 Object.assign(GEN_KIND, { market: "stone", slaughter: "stone", lab: "stone", loft: "wood" });
@@ -1212,7 +1261,7 @@ function viewGen(camp, kind, type) {
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
     return `<section class="page">${back}<h1>Buildings</h1><p class="muted">Pick a kind of building.</p>
       <div class="gencards"><a class="gencard gencustom" href="#gen-${esc(camp)}/building/custom" data-act="gednew"><span class="genicon">✏️</span><strong>Custom building</strong><span class="muted small">Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.</span></a></div>
-      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
+      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
       <h2 class="sect">Your buildings <span>${saved.length}</span></h2>
       ${tagSet.size ? `<div class="gentags">${["", ...[...tagSet].sort()].map(t => `<button class="chip${tf === t ? " on" : ""}" data-act="gentagf" data-v="${esc(t)}">${t ? esc(t) : "All"}</button>`).join("")}</div>` : ""}
       ${shown.length ? `<div class="gensaved">${shown.map(([pid, p]) => { const g = p.gen, T = genType(g.type), plan = (p.objs || []).find(x => x.layer === "map" && (x.level || 0) === 0 && x.x > 0);
