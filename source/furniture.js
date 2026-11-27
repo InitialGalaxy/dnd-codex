@@ -569,7 +569,14 @@ GEN_FURN.push(
     "transponder:Crystal workshop": [["crystalbench", 1, 2], ["toolrack", 0, 1, 0.6], ["chest", 0, 1, 0.5]],
     "coreshop:Core & adaptor shop": [["counter", 1, 1], ["corerack", 1, 2], ["adaptordisplay", 1, 1], ["corelamp", 0, 1, 0.5]], "coreshop:Fitting room": [["chair", 1, 1], ["adaptordisplay", 0, 1, 0.6], ["washstand", 0, 1, 0.3]],
     "coreshop:Charging room": [["chargingbench", 1, 2], ["corerack", 0, 1, 0.6], ["storagecore", 0, 1, 0.5]], "coreshop:Core store": [["storagecore", 1, 3], ["strongbox", 1, 1]], "coreshop:Core cellar": [["storagecore", 1, 4], ["crate", 0, 2]],
-  }; Object.assign(GEN_FURN_ROOMS, R); })();
+    // The Guild's hall in a city: the branch's rooms, and a few of its own
+    "guildhall:Waiting room": [["bench", 1, 3], ["corelamp", 0, 1, 0.6]], "guildhall:Transport office": [["maptable|desk", 1, 1], ["registry", 0, 1, 0.6], ["chest", 0, 1]],
+    "guildhall:Records hall": [["registry", 2, 4], ["bookshelf", 1, 2], ["desk", 0, 1, 0.6]], "guildhall:Guild master's office": [["desk", 1, 1], ["carvedchair", 1, 1], ["bookshelf", 1, 2], ["strongbox", 0, 1, 0.7]],
+    "guildhall:Masters' council room": [["longtable", 1, 1], ["carvedchair", 0, 1, 0.6], ["chest", 0, 1, 0.5], ["corelamp", 0, 2, 0.5]],
+    "guildhall:Wardens' muster room": [["weaponrack", 1, 3], ["bench", 1, 3], ["maptable", 0, 1, 0.5], ["gaugepanel", 0, 1, 0.6]], "guildhall:Armoury": [["weaponrack", 2, 4], ["chest", 1, 2], ["dummy", 0, 1, 0.4]],
+    "guildhall:Wardens' quarters": [["bed", 2, 4], ["chest", 1, 3], ["weaponrack", 0, 1, 0.5]],
+  }; Object.keys(R).filter(k => k.startsWith("guildbranch:")).forEach(k => { const c = "guildhall:" + k.slice(12); if (!R[c]) R[c] = R[k]; }); // the same rooms as a branch
+  Object.assign(GEN_FURN_ROOMS, R); })();
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
   hall: "Great hall", office: "Office", meet: "Meeting room", library: "Library", temple: "Nave", sanctum: "Sanctum", bath: "Bathhouse", pit: "Fighting pit", vault: "Vault", porch: "Porch", privy: "Privy" };
 const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
