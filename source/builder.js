@@ -96,7 +96,7 @@ function gedCheck(B) {
 
 // ----- The editor -----
 const GED = { lv: 0, tool: "room", rt: "Hall", sel: null, hist: [], fut: [], sdir: "up", drag: null, hover: null };
-const GED_TOOLS = [["room", "▭ Rooms", "Drag on the grid to draw a room. Pick its kind first."], ["select", "↖ Select", "Click a room to rename it, change its kind or delete it. Drag it to move it, drag its edge to resize it. Click stairs to turn them round."],
+const GED_TOOLS = [["room", "▭ Rooms", "Drag on the grid to draw a room. Pick its kind first. Drag over a room of the same kind to make it bigger (or join two into one)."], ["select", "↖ Select", "Click a room to rename it, change its kind or delete it. Drag it to move it, drag its edge to resize it. Click stairs to turn them round."],
   ["door", "🚪 Door", "Click a wall for a door, or drag along it for a wide one."], ["window", "🪟 Window", "Click an outside wall for a window."], ["front", "⛩ Front door", "The main entrance, on a ground-floor wall with the street below it. Drag for double doors."],
   ["gate", "▥ Gate", "Drag along a wall: the whole run becomes one gate that opens at once, wide enough for a cart."], ["stairs", "▤ Stairs", "Drag out the stairs (2 or more squares long). They go up or down to the next floor, which must already have a room there."],
   ["clear", "▬ Wall", "Click or drag a door, window or gate to make it plain wall again."], ["erase", "✕ Erase", "Click a room or stairs to delete it."]];
@@ -174,6 +174,7 @@ function gedOverlay() {
   if (sel && sel.kind === "room" && L && L.rooms[sel.i]) { const rm = L.rooms[sel.i]; s += `<rect x="${rm.x}" y="${rm.y}" width="${rm.w}" height="${rm.h}" fill="rgba(232,194,122,.12)" stroke="#ffd23c" stroke-width="3" ${ns}/>`; }
   if (sel && sel.kind === "stairs" && C.stairs[sel.i]) { const t = C.stairs[sel.i]; s += `<rect x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}" fill="none" stroke="#ffd23c" stroke-width="3" ${ns}/>`; }
   const d = GED.drag;
+  if (d && d.rect && d.grow && d.grow.box) { const g = d.grow.box, bad = d.bad; s += `<rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" fill="none" stroke="${bad ? "#e05a4a" : "#7fe08a"}" stroke-width="3" ${ns}/>`; }
   if (d && d.rect) { const r = d.rect, bad = d.bad; s += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${bad ? "rgba(220,70,60,.3)" : "rgba(232,194,122,.3)"}" stroke="${bad ? "#e05a4a" : "#ffd23c"}" stroke-width="2.5" stroke-dasharray="6 4" ${ns}/>`; }
   const col = { door: "#c98b4a", window: "#7fd0ff", front: "#ffd23c", gate: "#d8a04a", clear: "#e05a4a" }[GED.tool] || "#fff";
   const edgeLine = k => { const [dd, x, y] = k.split(",").map((v, i) => i ? Number(v) : v); return dd === "h" ? `<line x1="${x}" y1="${y}" x2="${x + 1}" y2="${y}" stroke="${col}" stroke-width="7" stroke-linecap="round" ${ns}/>` : `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + 1}" stroke="${col}" stroke-width="7" stroke-linecap="round" ${ns}/>`; };
@@ -206,6 +207,15 @@ const gedHit = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r
 const gedOverlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const gedInside = r => { const C = GEN.o.custom; return r.x >= 0 && r.y >= 0 && r.x + r.w <= C.W && r.y + r.h <= C.H; };
 const gedLvStairs = lv => GEN.o.custom.stairs.map((t, i) => [t, i]).filter(([t]) => t.lo === lv || t.lo + 1 === lv);
+// Drawing over a room of the type you're drawing grows it: the rooms you drew over and the new squares must make one
+// rectangle, clear of every other room. (Rooms are rectangles, so an L shape can't be one room.) null: not a grow.
+function gedGrow(L, r) { const over = L.rooms.map((q, j) => j).filter(j => gedOverlaps(L.rooms[j], r)); if (!over.length) return null;
+  const fl = gedRoomFrom(GED.rt, {}).fl, same = q => (q.fl || q.n) === fl;
+  if (!over.every(j => same(L.rooms[j]))) return { bad: "different" };
+  const all = over.map(j => L.rooms[j]).concat([r]), x0 = Math.min(...all.map(q => q.x)), y0 = Math.min(...all.map(q => q.y)), box = { x: x0, y: y0, w: Math.max(...all.map(q => q.x + q.w)) - x0, h: Math.max(...all.map(q => q.y + q.h)) - y0 };
+  for (let x = box.x; x < box.x + box.w; x++) for (let y = box.y; y < box.y + box.h; y++) if (!all.some(q => gedHit(q, x, y))) return { bad: "shape", box };
+  if (!gedInside(box) || L.rooms.some((q, j) => !over.includes(j) && gedOverlaps(q, box))) return { bad: "other", box };
+  return { over, box }; }
 function gedRoomFits(L, r, skip) { return gedInside(r) && r.w >= 1 && r.h >= 1 && !L.rooms.some((q, j) => j !== skip && gedOverlaps(q, r)); }
 function gedStairFits(t, skip) { const C = GEN.o.custom; if (!(Math.max(t.w, t.h) >= 2 && Math.min(t.w, t.h) <= 2 && t.w !== t.h)) return "Stairs are a run 2 or more squares long and 1 or 2 wide.";
   for (const lv of [t.lo, t.lo + 1]) { const l = gedLevel(lv); if (!l) return `There's no ${gedLevelName(lv).toLowerCase()} for them to reach. Add it first.`;
@@ -251,7 +261,7 @@ document.addEventListener("pointermove", ev => {
   if (!d) { if (!ev.target.closest || !ev.target.closest(".gedsvg")) { if (GED.hover) { GED.hover = null; gedOv(); } return; }
     const h = ["door", "window", "front", "gate", "clear"].includes(GED.tool) ? gedEdgeAt(gedPt(ev, svg)) : null; if (h !== GED.hover) { GED.hover = h; gedOv(); } return; }
   const p = gedPt(ev, svg), L = gedLevel(GED.lv);
-  if (d.kind === "room" || d.kind === "stairs") { d.rect = gedCellRect(d.a, gedCell(p)); d.bad = d.kind === "room" ? !gedRoomFits(L, d.rect) : false; }
+  if (d.kind === "room" || d.kind === "stairs") { d.rect = gedCellRect(d.a, gedCell(p)); d.grow = d.kind === "room" ? gedGrow(L, d.rect) : null; d.bad = d.kind === "room" ? (d.grow ? !!d.grow.bad : !gedRoomFits(L, d.rect)) : false; }
   else if (d.kind === "edge") d.edges = gedRun(d.a, gedEdgeAlong(d.a, p));
   else if (d.kind === "move" || d.kind === "resize") { const dx = Math.round(p.x - d.p0.x), dy = Math.round(p.y - d.p0.y), o = d.orig; let r = Object.assign({}, o);
     if (d.kind === "move") { r.x += dx; r.y += dy; }
@@ -263,7 +273,12 @@ document.addEventListener("pointermove", ev => {
 });
 document.addEventListener("pointerup", ev => {
   const d = GED.drag; if (!d || !GEN.o || !GEN.o.custom) return; GED.drag = null; const C = GEN.o.custom, L = gedLevel(GED.lv);
-  if (d.kind === "room") { if (d.bad) { toast("Rooms can't overlap or go off the grid. Use Select to move or resize one."); gedOv(); return; }
+  if (d.kind === "room" && d.grow && !d.grow.bad) { gedPush(); const g = d.grow, keep = Math.min(...g.over), rm = L.rooms[keep];
+    // The walls now inside the bigger room go, with their doors and windows.
+    const inner = k => gedKeyCells(k).every(([x, y]) => gedHit(g.box, x, y)); ["doors", "wins", "front", "gates", "secret"].forEach(f => { if (L[f]) L[f] = L[f].filter(k => !inner(k)); });
+    Object.assign(rm, g.box); const drop = g.over.filter(j => j !== keep).sort((a, b) => b - a); drop.forEach(j => L.rooms.splice(j, 1));
+    GED.sel = { kind: "room", i: L.rooms.indexOf(rm) }; gedChanged(); toast(drop.length ? `Joined into one ${g.box.w} × ${g.box.h} room.` : `Now ${g.box.w} × ${g.box.h}.`); return; }
+  if (d.kind === "room") { if (d.bad) { toast(d.grow && d.grow.bad === "different" ? "That overlaps a different kind of room. Draw over a room of the same kind to make it bigger." : d.grow && d.grow.bad === "shape" ? "That would make an L shape. Rooms are rectangles, so draw so the room and the new squares make a rectangle." : d.grow && d.grow.bad === "other" ? "Making it that big would run into another room." : "Rooms can't overlap or go off the grid. Use Select to move or resize one."); gedOv(); return; }
     gedPush(); L.rooms.push(gedRoomFrom(GED.rt, d.rect)); gedAutoDoor(L, L.rooms.length - 1); GED.sel = { kind: "room", i: L.rooms.length - 1 }; gedChanged(); return; }
   if (d.kind === "stairs") { const lo = GED.sdir === "up" ? GED.lv : GED.lv - 1, t = Object.assign({ lo }, d.rect), why = gedStairFits(t); if (why) { toast(why); gedOv(); return; }
     gedPush(); t.toward = gedStairToward(t); C.stairs.push(t); GED.sel = { kind: "stairs", i: C.stairs.length - 1 }; gedChanged(); return; }
