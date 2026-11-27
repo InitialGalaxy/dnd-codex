@@ -706,6 +706,44 @@ const GEN_MAGIC = [
       return { D, name: sm ? "Core seller's" : "Adaptor & core shop", units: [u] }; } },
 ];
 GEN_BUILDINGS.push(...GEN_MAGIC);
+
+// ===== Castles (Dryrones) =====
+// A lord's keep: the great hall range (kitchen, buttery and pantry, the screens passage in from the forebuilding, the hall),
+// then the keep proper, three or four storeys: the guard hall and the lord's officers below; the great chamber, the lord's
+// and lady's rooms and the council chamber; the study, the magical workshop, the library and the ward room (every noble has
+// been to the university); in the bigger keeps the court mage, the schoolroom, an observatory and the heirlooms. Below, the
+// undercroft with the mana station that feeds the castle's wards, and under that the prison, the crypt and the sally passage.
+// A richer keep is built round a lift well: a shaft up the middle, its platform lifted by a pattern in the stone and fed
+// straight from the mana station, the floors laid out round its gallery. A small keep hauls its goods up by a pulley hoist.
+// The richest keep a master smith at an imbuement station, and a waystone, a permanent circle to the capital, under guard.
+const GEN_CASTLE = [
+  { id: "keep", name: "Keep", icon: "🏰", group: "castle", mirror: 1, porchName: "Forebuilding", blurb: "A lord's keep: the great hall with its high table, kitchen, buttery and pantry; the keep three or four storeys high, with the guard hall, the great chamber, the lord's and lady's chambers, the council chamber, the study, magical workshop, library and ward room. A richer keep is built round a magic lift well; the richest have an imbuement workshop and a guarded waystone to the capital. Below: the undercroft and the mana station, and under that the prison, the family crypt and a sally passage.",
+    cellar: 1, porch: 0.9, floorsMax: 4, doorBonus: 3,
+    under: [{ n: "Undercroft", k: "cellar", w: 1.6 }, { n: "Wine cellar", k: "cellar", w: 0.9 }, { n: "Well chamber", k: "cellar", w: 0.6 }, { n: "Mana station", k: "mana", w: 1.2 }, { n: "Core vault", k: "vault", w: 0.7, priv: 1 }, { n: "Treasury", k: "vault", w: 0.7, priv: 1 }],
+    under2: [{ n: "Guardroom", k: "office", w: 1 }, { n: "Cells", k: "cell", w: 1.2 }, { n: "Cells", k: "cell", w: 1.2, opt: 0.6 }, { n: "Oubliette", k: "cell", w: 0.35, priv: 1 }, { n: "Family crypt", k: "vault", w: 1.4 }, { n: "Sally passage", k: "passage", w: 0.8, secret: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", lift = !sm;
+      const nf = !up ? 1 : fl ? Math.max(2, fl) : sm ? 3 : big ? 4 : genInt(r, 3, 4), D = sm ? genInt(r, 10, 11) : big ? genInt(r, 13, 14) : genInt(r, 12, 13);
+      const off = (n, k, e) => genR(n, k, Object.assign({ priv: 1 }, e || {}));
+      // The hall range: the kitchen block, the screens passage (the way in, from the forebuilding), the great hall.
+      const service = genU(genInt(r, 5, 6), [genR("Buttery", "store", { w: 0.8 }), genR("Pantry", "store", { w: 0.8 }), genR("Kitchen", "kitchen", { w: 1.6, fl: sm ? "keep:Kitchen (hoist)" : undefined })]);
+      const screens = genU(2, genR("Screens passage", "passage"), { entry: 1, pass: 1, doorW: 2 });
+      const hall = genU(sm ? genInt(r, 9, 10) : big ? genInt(r, 12, 14) : genInt(r, 10, 12), genR("Great hall", "hall"));
+      // The keep proper, its floors.
+      const L1 = [genR("Great chamber", "living", { w: 1.6 }), off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.3 })];
+      const L2 = [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), genR("Library", "library", { w: 1.3 }), off("Ward room", "office", { w: 1.1 })].concat(big ? [off("Imbuement workshop", "forge", { w: 1.3 })] : [genR("Guest chamber", "bed")]);
+      const L3 = (big ? [off("Court mage's study", "office"), off("Court mage's chamber", "bed"), genR("Observatory", "office", { w: 1.2 }), genR("Heirloom gallery", "hall", { w: 1.3 }), off("Spell vault", "vault", { w: 0.6 })]
+        : [off("Court mage's chamber", "bed"), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed"), genR("Guest chamber", "bed")]);
+      const floors = u => { if (nf > 1) u.up = L1; if (nf > 2) u.up2 = sm && nf === 3 ? L2.slice(0, 4) : L2; if (nf > 3) u.up3 = L3; u.landName = lift ? "Gallery" : "Landing"; return u; };
+      const units = [service, screens, hall];
+      if (lift) { // the keep round its lift well: the guard hall and the officers' rooms either side of the lift hall
+        const a = floors(genU(genInt(r, 6, 7), big ? [genR("Guard hall", "hall", { w: 1.4 }), off("Waystone room", "mana", { dark: 1 })] : [genR("Guard hall", "hall", { w: 1.4 }), off("Steward's room", "office")]));
+        const w = genU(7, genR("Lift hall", "hall", { w: 1 }), { liftWell: [3, 4], upJoin: 1 });
+        const b = genU(genInt(r, 6, 7), genShuf(r, [off("Muniment room", "office"), off(big ? "Steward's room" : "Chamberlain's room", "office")]).concat([genR("Chapel", "temple", { w: 1.4 })]), { upJoin: 1 });
+        units.push(a, w, b); }
+      else units.push(floors(genU(genInt(r, 9, 10), [genR("Guard hall", "hall", { w: 1.4, fl: "keep:Guard hall (hoist)" }), off("Steward's room", "office"), genR("Chapel", "temple", { w: 1.2 })])));
+      return { D, name: sm ? "Tower keep" : big ? "Great keep" : "Keep", units }; } },
+];
+GEN_BUILDINGS.push(...GEN_CASTLE);
 Object.assign(GEN_KIND, { relay: "tile", mana: "stone", roost: "straw" });
 Object.assign(GEN_KIND, { ward: "wood", cell: "stone", furnace: "stone", tower: "stone" });
 Object.assign(GEN_FIRE, { furnace: 1, ward: 0.4 });
@@ -750,7 +788,7 @@ function genPlanLayout(r, T, o) {
       pos += s; return out; }); };
   const gRooms = [], unitRooms = [];
   units.forEach((u, i) => { const rs = split(rects[i], u.rooms, u.split === "length", u.sizes); rs.forEach(rm => { rm.unit = i; if (u.entry && rm === rs[0]) rm.entry = 1; if (u.pass) rm.pass = 1; }); unitRooms.push(rs); gRooms.push(...rs); });
-  if (porch) gRooms.push(Object.assign({ n: "Porch", k: "porch", porch: 1 }, porch));
+  if (porch) gRooms.push(Object.assign({ n: T.porchName || "Porch", k: "porch", porch: 1 }, porch));
   // The parts with a floor above: a unit with up rooms, joined by the units after it marked upJoin.
   const regions = []; units.forEach((u, i) => { if (u.up) regions.push({ units: [i], rooms: u.up.map(x => Object.assign({}, x)), landName: u.landName, slice: u.upSlice, higher: [u.up2, u.up3, u.up4].filter(Boolean) }); else if (u.upJoin && regions.length && regions[regions.length - 1].units.includes(i - 1)) regions[regions.length - 1].units.push(i); });
   regions.forEach(g => { const rs = g.units.map(i => rects[i]); const y0 = Math.max(...rs.map(q => q.y)), y1 = Math.min(...rs.map(q => q.y + q.h)); g.rect = { x: rs[0].x, y: y0, w: rs.reduce((a, q) => a + q.w, 0), h: y1 - y0 }; g.below = g.units.flatMap(i => unitRooms[i]); });
@@ -767,7 +805,15 @@ function genPlanTry(o, attempt) {
   levels.push({ level: 0, rooms: gRooms, name: "Ground floor" });
   // Stairs (or a ladder) up to each part with a floor above, from a room under it, not a passage or the aisle.
   const upRooms = [];
+  // A castle's lift well: the shaft fixed in the middle of its unit, the same on every floor, with stairs beside it on
+  // alternate sides going up (stairs two floors apart can stand in the same place); each floor laid out round the shaft
+  // and its stairs, so the rooms open off the gallery.
+  Lay.regions.forEach(g => { const li = g.units.find(i => Lay.units[i].liftWell); if (li === undefined) return; const [sw, sh] = Lay.units[li].liftWell, rc = Lay.rects[li];
+    const sx = rc.x + Math.floor((rc.w - sw) / 2), sy = rc.y + Math.floor((rc.h - sh) / 2);
+    g.shaft = { x: sx, y: sy, w: sw, h: sh }; g.U = { x: sx - 1, y: sy, w: sw + 2, h: sh };
+    g.liftStair = lo => { const busy = new Set(stairs.filter(t => Math.abs(t.lo - lo) <= 1).flatMap(cellsOf)); return genStairSpot(r, { x: lo % 2 === 0 ? sx - 1 : sx + sw, y: sy, w: 1, h: sh }, { longX: false, within: g.rect, avoid: busy }); }; });
   Lay.regions.forEach(g => { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
+    if (g.shaft) { const s = g.liftStair(0); if (!s) return; s.lo = 0; stairs.push(s); g.made = genUpper(r, g.rect, g.U, g.rooms, minD, 1, g.landName || "Gallery"); upRooms.push(...g.made); return; }
     const shopLast = rm => rm.k === "shop" ? 1 : 0; // the stairs out of the shop, if anywhere else will do: it needs its floor for the counter
     const cands = g.below.filter(rm => !rm.pass && !rm.hub && !rm.priv && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass && !rm.priv)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -778,6 +824,7 @@ function genPlanTry(o, attempt) {
   let higher = 0;
   for (let k = 2; k <= 4; k++) { const lv = [];
     Lay.regions.forEach(g => { const want = g.higher[k - 2]; if (!want || !g.made) { g.made = null; return; } higher++;
+      if (g.shaft) { const s = g.liftStair(k - 1); if (!s) { g.made = null; return; } s.lo = k - 1; stairs.push(s); g.made = genUpper(r, g.rect, g.U, want.map(x => Object.assign({}, x)), minD, 1, g.landName || "Gallery"); lv.push(...g.made); return; }
       const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), below = g.made;
       const cands = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.pass && !x.priv)); let s = null;
       for (const rm of cands) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -790,7 +837,16 @@ function genPlanTry(o, attempt) {
     const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && !x.priv && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : a.k === "shop" ? 2 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : b.k === "shop" ? 2 : 1));
     for (const rm of order) { down = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: M, frontY, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: M, frontY, avoid: busy, near: nb }); if (down) break; }
     if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); const rooms = genPick(r, T.under || [{ n: "Cellar", k: "cellar", w: 1 }]);
-      levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: "Cellar" }); } }
+      levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: T.under2 ? "Undercroft" : "Cellar" }); } }
+  // A second level down (a castle's vaults, prison and crypt): stairs on from the cellar's landing or one of its rooms.
+  let deep = null;
+  // (Only under the keep proper, the tower part with floors above it, not under the whole hall range.)
+  const KR = (Lay.regions.find(g => g.shaft) || Lay.regions[0] || {}).rect || M;
+  if (down && T.under2) { const C = levels[0], busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
+    const cands = C.rooms.filter(x => x.circ).concat(C.rooms.filter(x => !x.circ && !x.priv && x.k !== "water"));
+    for (const rm of cands) { deep = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: KR, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: KR, avoid: busy, near: nb }); if (deep) break; }
+    if (deep) { deep.lo = -2; deep.placedUpper = 1; stairs.push(deep); const rooms = genPick(r, T.under2);
+      levels.unshift({ level: -2, rooms: rooms.length > 1 ? genUpper(r, KR, deep, rooms, minD, 1, "Stair foot") : [Object.assign({}, rooms[0], KR)], name: "Lower vaults" }); } }
   const setLevelStairs = () => levels.forEach(L => { L.stairs = stairs.filter(t => t.lo === L.level || t.lo + 1 === L.level).map(t => { const onPlaced = t.placedUpper ? L.level === t.lo + 1 : L.level === t.lo;
     return Object.assign({}, t, { dir: L.level === t.lo ? "up" : "down", toward: onPlaced ? t.toward : (t.toward === "a" ? "b" : "a") }); }); });
   setLevelStairs();
@@ -805,7 +861,8 @@ function genPlanTry(o, attempt) {
   if (F.porch) fx0 = genDoorInPorch(fx0, fw, entry, F.porchSpan || [F.main.x, F.main.x + F.main.w], stairX);
   const front = { x: fx0, w: fw, y: frontY };
   genPorchOnDoor(F, levels, front, F.porchSpan || [F.main.x, F.main.x + F.main.w]);
-  levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
+  const shaft = (Lay.regions.find(g => g.shaft) || {}).shaft; // (no door opens into the lift shaft: it counts as stairs here)
+  levels.forEach(L => genOpenings(r, L, F, shaft && L.level >= 0 && L.rooms.some(q => shaft.x >= q.x && shaft.x < q.x + q.w && shaft.y >= q.y && shaft.y < q.y + q.h) ? (L.stairs || []).concat([Object.assign({ lift: 1 }, shaft)]) : L.stairs, L.level === 0 ? front : null));
   // Through doors: a cross-passage or threshing floor has its back door straight opposite; a byre its muck door at the end.
   const G = levels.find(L => L.level === 0);
   G.rooms.forEach(rm => { if (!rm.pass) return; const u = Lay.units[rm.unit], w = Math.min(rm.w, u.doorW || 1), at = rm.x <= front.x && front.x + front.w <= rm.x + rm.w ? front.x : rm.x + Math.floor((rm.w - w) / 2);
@@ -818,9 +875,10 @@ function genPlanTry(o, attempt) {
   const overlap = levels.some(L => { const seen = new Set(); return (L.stairs || []).some(t => cellsOf(t).some(k => { if (seen.has(k)) return true; seen.add(k); return false; })); });
   // (A private room with more than one door means the plan didn't work out: try again.)
   const privOk = levels.every(L => L.rooms.every((rm, i) => !rm.priv || [...L.doors].filter(k => gedKeyCellsG(k).some(([x, y]) => L.own(x, y) === i)).length <= 1));
-  const ok = !overlap && privOk && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
+  const ok = !overlap && privOk && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) + (T.under2 && down ? 1 : 0) && (!(T.under2 && down) || !!deep) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
+  const lg = Lay.regions.find(g => g.shaft), lift = lg ? Object.assign({}, lg.shaft) : null;
   const doorScore = ({ small: 0, medium: 1, large: 2 })[o.size] ?? 1, ds = doorScore + (T.doorBonus || 0);
-  return { type: T.id, W: F.W, H: F.H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: ds >= 2 ? "grand" : ds >= 1 ? "framed" : "plain", ok, attempt, plan: 1 };
+  return { type: T.id, W: F.W, H: F.H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: ds >= 2 ? "grand" : ds >= 1 ? "framed" : "plain", ok, attempt, plan: 1, lift };
 }
 function genHearths(o, B) {
   const r = genRng((Number(o.seed) || 1) * 13 + 9), stacks = [];
@@ -1311,7 +1369,7 @@ function viewGen(camp, kind, type) {
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
     return `<section class="page">${back}<h1>Buildings</h1><p class="muted">Pick a kind of building.</p>
       <div class="gencards"><a class="gencard gencustom" href="#gen-${esc(camp)}/building/custom" data-act="gednew"><span class="genicon">✏️</span><strong>Custom building</strong><span class="muted small">Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.</span></a></div>
-      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
+      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"], ["castle", "Castles"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
       <h2 class="sect">Your buildings <span>${saved.length}</span></h2>
       ${tagSet.size ? `<div class="gentags">${["", ...[...tagSet].sort()].map(t => `<button class="chip${tf === t ? " on" : ""}" data-act="gentagf" data-v="${esc(t)}">${t ? esc(t) : "All"}</button>`).join("")}</div>` : ""}
       ${shown.length ? `<div class="gensaved">${shown.map(([pid, p]) => { const g = p.gen, T = genType(g.type), plan = (p.objs || []).find(x => x.layer === "map" && (x.level || 0) === 0 && x.x > 0);

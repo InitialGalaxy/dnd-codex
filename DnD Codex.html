@@ -13570,6 +13570,44 @@ const GEN_MAGIC = [
       return { D, name: sm ? "Core seller's" : "Adaptor & core shop", units: [u] }; } },
 ];
 GEN_BUILDINGS.push(...GEN_MAGIC);
+
+// ===== Castles (Dryrones) =====
+// A lord's keep: the great hall range (kitchen, buttery and pantry, the screens passage in from the forebuilding, the hall),
+// then the keep proper, three or four storeys: the guard hall and the lord's officers below; the great chamber, the lord's
+// and lady's rooms and the council chamber; the study, the magical workshop, the library and the ward room (every noble has
+// been to the university); in the bigger keeps the court mage, the schoolroom, an observatory and the heirlooms. Below, the
+// undercroft with the mana station that feeds the castle's wards, and under that the prison, the crypt and the sally passage.
+// A richer keep is built round a lift well: a shaft up the middle, its platform lifted by a pattern in the stone and fed
+// straight from the mana station, the floors laid out round its gallery. A small keep hauls its goods up by a pulley hoist.
+// The richest keep a master smith at an imbuement station, and a waystone, a permanent circle to the capital, under guard.
+const GEN_CASTLE = [
+  { id: "keep", name: "Keep", icon: "🏰", group: "castle", mirror: 1, porchName: "Forebuilding", blurb: "A lord's keep: the great hall with its high table, kitchen, buttery and pantry; the keep three or four storeys high, with the guard hall, the great chamber, the lord's and lady's chambers, the council chamber, the study, magical workshop, library and ward room. A richer keep is built round a magic lift well; the richest have an imbuement workshop and a guarded waystone to the capital. Below: the undercroft and the mana station, and under that the prison, the family crypt and a sally passage.",
+    cellar: 1, porch: 0.9, floorsMax: 4, doorBonus: 3,
+    under: [{ n: "Undercroft", k: "cellar", w: 1.6 }, { n: "Wine cellar", k: "cellar", w: 0.9 }, { n: "Well chamber", k: "cellar", w: 0.6 }, { n: "Mana station", k: "mana", w: 1.2 }, { n: "Core vault", k: "vault", w: 0.7, priv: 1 }, { n: "Treasury", k: "vault", w: 0.7, priv: 1 }],
+    under2: [{ n: "Guardroom", k: "office", w: 1 }, { n: "Cells", k: "cell", w: 1.2 }, { n: "Cells", k: "cell", w: 1.2, opt: 0.6 }, { n: "Oubliette", k: "cell", w: 0.35, priv: 1 }, { n: "Family crypt", k: "vault", w: 1.4 }, { n: "Sally passage", k: "passage", w: 0.8, secret: 1 }],
+    plan(r, size, up, fl) { const sm = size === "small", big = size === "large", lift = !sm;
+      const nf = !up ? 1 : fl ? Math.max(2, fl) : sm ? 3 : big ? 4 : genInt(r, 3, 4), D = sm ? genInt(r, 10, 11) : big ? genInt(r, 13, 14) : genInt(r, 12, 13);
+      const off = (n, k, e) => genR(n, k, Object.assign({ priv: 1 }, e || {}));
+      // The hall range: the kitchen block, the screens passage (the way in, from the forebuilding), the great hall.
+      const service = genU(genInt(r, 5, 6), [genR("Buttery", "store", { w: 0.8 }), genR("Pantry", "store", { w: 0.8 }), genR("Kitchen", "kitchen", { w: 1.6, fl: sm ? "keep:Kitchen (hoist)" : undefined })]);
+      const screens = genU(2, genR("Screens passage", "passage"), { entry: 1, pass: 1, doorW: 2 });
+      const hall = genU(sm ? genInt(r, 9, 10) : big ? genInt(r, 12, 14) : genInt(r, 10, 12), genR("Great hall", "hall"));
+      // The keep proper, its floors.
+      const L1 = [genR("Great chamber", "living", { w: 1.6 }), off("Lord's bedchamber", "bed", { w: 1.3 }), off("Wardrobe", "store", { w: 0.6 }), off("Lady's bower", "bed", { w: 1.2 }), genR("Council chamber", "meet", { w: 1.3 })];
+      const L2 = [off("Study", "office"), off("Magical workshop", "work", { w: 1.3 }), genR("Library", "library", { w: 1.3 }), off("Ward room", "office", { w: 1.1 })].concat(big ? [off("Imbuement workshop", "forge", { w: 1.3 })] : [genR("Guest chamber", "bed")]);
+      const L3 = (big ? [off("Court mage's study", "office"), off("Court mage's chamber", "bed"), genR("Observatory", "office", { w: 1.2 }), genR("Heirloom gallery", "hall", { w: 1.3 }), off("Spell vault", "vault", { w: 0.6 })]
+        : [off("Court mage's chamber", "bed"), genR("Schoolroom", "meet"), off("Tutor's chamber", "bed"), genR("Guest chamber", "bed")]);
+      const floors = u => { if (nf > 1) u.up = L1; if (nf > 2) u.up2 = sm && nf === 3 ? L2.slice(0, 4) : L2; if (nf > 3) u.up3 = L3; u.landName = lift ? "Gallery" : "Landing"; return u; };
+      const units = [service, screens, hall];
+      if (lift) { // the keep round its lift well: the guard hall and the officers' rooms either side of the lift hall
+        const a = floors(genU(genInt(r, 6, 7), big ? [genR("Guard hall", "hall", { w: 1.4 }), off("Waystone room", "mana", { dark: 1 })] : [genR("Guard hall", "hall", { w: 1.4 }), off("Steward's room", "office")]));
+        const w = genU(7, genR("Lift hall", "hall", { w: 1 }), { liftWell: [3, 4], upJoin: 1 });
+        const b = genU(genInt(r, 6, 7), genShuf(r, [off("Muniment room", "office"), off(big ? "Steward's room" : "Chamberlain's room", "office")]).concat([genR("Chapel", "temple", { w: 1.4 })]), { upJoin: 1 });
+        units.push(a, w, b); }
+      else units.push(floors(genU(genInt(r, 9, 10), [genR("Guard hall", "hall", { w: 1.4, fl: "keep:Guard hall (hoist)" }), off("Steward's room", "office"), genR("Chapel", "temple", { w: 1.2 })])));
+      return { D, name: sm ? "Tower keep" : big ? "Great keep" : "Keep", units }; } },
+];
+GEN_BUILDINGS.push(...GEN_CASTLE);
 Object.assign(GEN_KIND, { relay: "tile", mana: "stone", roost: "straw" });
 Object.assign(GEN_KIND, { ward: "wood", cell: "stone", furnace: "stone", tower: "stone" });
 Object.assign(GEN_FIRE, { furnace: 1, ward: 0.4 });
@@ -13614,7 +13652,7 @@ function genPlanLayout(r, T, o) {
       pos += s; return out; }); };
   const gRooms = [], unitRooms = [];
   units.forEach((u, i) => { const rs = split(rects[i], u.rooms, u.split === "length", u.sizes); rs.forEach(rm => { rm.unit = i; if (u.entry && rm === rs[0]) rm.entry = 1; if (u.pass) rm.pass = 1; }); unitRooms.push(rs); gRooms.push(...rs); });
-  if (porch) gRooms.push(Object.assign({ n: "Porch", k: "porch", porch: 1 }, porch));
+  if (porch) gRooms.push(Object.assign({ n: T.porchName || "Porch", k: "porch", porch: 1 }, porch));
   // The parts with a floor above: a unit with up rooms, joined by the units after it marked upJoin.
   const regions = []; units.forEach((u, i) => { if (u.up) regions.push({ units: [i], rooms: u.up.map(x => Object.assign({}, x)), landName: u.landName, slice: u.upSlice, higher: [u.up2, u.up3, u.up4].filter(Boolean) }); else if (u.upJoin && regions.length && regions[regions.length - 1].units.includes(i - 1)) regions[regions.length - 1].units.push(i); });
   regions.forEach(g => { const rs = g.units.map(i => rects[i]); const y0 = Math.max(...rs.map(q => q.y)), y1 = Math.min(...rs.map(q => q.y + q.h)); g.rect = { x: rs[0].x, y: y0, w: rs.reduce((a, q) => a + q.w, 0), h: y1 - y0 }; g.below = g.units.flatMap(i => unitRooms[i]); });
@@ -13631,7 +13669,15 @@ function genPlanTry(o, attempt) {
   levels.push({ level: 0, rooms: gRooms, name: "Ground floor" });
   // Stairs (or a ladder) up to each part with a floor above, from a room under it, not a passage or the aisle.
   const upRooms = [];
+  // A castle's lift well: the shaft fixed in the middle of its unit, the same on every floor, with stairs beside it on
+  // alternate sides going up (stairs two floors apart can stand in the same place); each floor laid out round the shaft
+  // and its stairs, so the rooms open off the gallery.
+  Lay.regions.forEach(g => { const li = g.units.find(i => Lay.units[i].liftWell); if (li === undefined) return; const [sw, sh] = Lay.units[li].liftWell, rc = Lay.rects[li];
+    const sx = rc.x + Math.floor((rc.w - sw) / 2), sy = rc.y + Math.floor((rc.h - sh) / 2);
+    g.shaft = { x: sx, y: sy, w: sw, h: sh }; g.U = { x: sx - 1, y: sy, w: sw + 2, h: sh };
+    g.liftStair = lo => { const busy = new Set(stairs.filter(t => Math.abs(t.lo - lo) <= 1).flatMap(cellsOf)); return genStairSpot(r, { x: lo % 2 === 0 ? sx - 1 : sx + sw, y: sy, w: 1, h: sh }, { longX: false, within: g.rect, avoid: busy }); }; });
   Lay.regions.forEach(g => { const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
+    if (g.shaft) { const s = g.liftStair(0); if (!s) return; s.lo = 0; stairs.push(s); g.made = genUpper(r, g.rect, g.U, g.rooms, minD, 1, g.landName || "Gallery"); upRooms.push(...g.made); return; }
     const shopLast = rm => rm.k === "shop" ? 1 : 0; // the stairs out of the shop, if anywhere else will do: it needs its floor for the counter
     const cands = g.below.filter(rm => !rm.pass && !rm.hub && !rm.priv && rm.k !== "water").sort((a, b) => shopLast(a) - shopLast(b)).concat(g.below.filter(rm => rm.hub && !rm.pass && !rm.priv)); let s = null;
     for (const rm of cands) { for (const lx of [g.rect.w >= g.rect.h, g.rect.w < g.rect.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, frontY, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -13642,6 +13688,7 @@ function genPlanTry(o, attempt) {
   let higher = 0;
   for (let k = 2; k <= 4; k++) { const lv = [];
     Lay.regions.forEach(g => { const want = g.higher[k - 2]; if (!want || !g.made) { g.made = null; return; } higher++;
+      if (g.shaft) { const s = g.liftStair(k - 1); if (!s) { g.made = null; return; } s.lo = k - 1; stairs.push(s); g.made = genUpper(r, g.rect, g.U, want.map(x => Object.assign({}, x)), minD, 1, g.landName || "Gallery"); lv.push(...g.made); return; }
       const busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)])), below = g.made;
       const cands = below.filter(x => x.circ).concat(below.filter(x => !x.circ && !x.pass && !x.priv)); let s = null;
       for (const rm of cands) { for (const lx of [rm.w >= rm.h, rm.w < rm.h]) { s = genStairSpot(r, rm, { longX: lx, within: g.rect, avoid: busy, near: nb }); if (s) break; } if (s) break; }
@@ -13654,7 +13701,16 @@ function genPlanTry(o, attempt) {
     const order = gRooms.filter(x => inM(x) && !x.porch && !x.pass && !x.hub && !x.priv && x.k !== "water").sort((a, b) => (["kitchen", "store"].includes(a.k) ? 0 : a.k === "shop" ? 2 : 1) - (["kitchen", "store"].includes(b.k) ? 0 : b.k === "shop" ? 2 : 1));
     for (const rm of order) { down = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: M, frontY, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: M, frontY, avoid: busy, near: nb }); if (down) break; }
     if (down) { down.lo = -1; down.placedUpper = 1; stairs.push(down); const rooms = genPick(r, T.under || [{ n: "Cellar", k: "cellar", w: 1 }]);
-      levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: "Cellar" }); } }
+      levels.unshift({ level: -1, rooms: rooms.length > 1 ? genUpper(r, M, down, rooms, minD, 1, "Cellar stairs") : [Object.assign({}, rooms[0], M)], name: T.under2 ? "Undercroft" : "Cellar" }); } }
+  // A second level down (a castle's vaults, prison and crypt): stairs on from the cellar's landing or one of its rooms.
+  let deep = null;
+  // (Only under the keep proper, the tower part with floors above it, not under the whole hall range.)
+  const KR = (Lay.regions.find(g => g.shaft) || Lay.regions[0] || {}).rect || M;
+  if (down && T.under2) { const C = levels[0], busy = new Set(stairs.flatMap(cellsOf)), nb = new Set(stairs.flatMap(t => [...near(t)]));
+    const cands = C.rooms.filter(x => x.circ).concat(C.rooms.filter(x => !x.circ && !x.priv && x.k !== "water"));
+    for (const rm of cands) { deep = genStairSpot(r, rm, { longX: rm.w >= rm.h, within: KR, avoid: busy, near: nb }) || genStairSpot(r, rm, { longX: rm.w < rm.h, within: KR, avoid: busy, near: nb }); if (deep) break; }
+    if (deep) { deep.lo = -2; deep.placedUpper = 1; stairs.push(deep); const rooms = genPick(r, T.under2);
+      levels.unshift({ level: -2, rooms: rooms.length > 1 ? genUpper(r, KR, deep, rooms, minD, 1, "Stair foot") : [Object.assign({}, rooms[0], KR)], name: "Lower vaults" }); } }
   const setLevelStairs = () => levels.forEach(L => { L.stairs = stairs.filter(t => t.lo === L.level || t.lo + 1 === L.level).map(t => { const onPlaced = t.placedUpper ? L.level === t.lo + 1 : L.level === t.lo;
     return Object.assign({}, t, { dir: L.level === t.lo ? "up" : "down", toward: onPlaced ? t.toward : (t.toward === "a" ? "b" : "a") }); }); });
   setLevelStairs();
@@ -13669,7 +13725,8 @@ function genPlanTry(o, attempt) {
   if (F.porch) fx0 = genDoorInPorch(fx0, fw, entry, F.porchSpan || [F.main.x, F.main.x + F.main.w], stairX);
   const front = { x: fx0, w: fw, y: frontY };
   genPorchOnDoor(F, levels, front, F.porchSpan || [F.main.x, F.main.x + F.main.w]);
-  levels.forEach(L => genOpenings(r, L, F, L.stairs, L.level === 0 ? front : null));
+  const shaft = (Lay.regions.find(g => g.shaft) || {}).shaft; // (no door opens into the lift shaft: it counts as stairs here)
+  levels.forEach(L => genOpenings(r, L, F, shaft && L.level >= 0 && L.rooms.some(q => shaft.x >= q.x && shaft.x < q.x + q.w && shaft.y >= q.y && shaft.y < q.y + q.h) ? (L.stairs || []).concat([Object.assign({ lift: 1 }, shaft)]) : L.stairs, L.level === 0 ? front : null));
   // Through doors: a cross-passage or threshing floor has its back door straight opposite; a byre its muck door at the end.
   const G = levels.find(L => L.level === 0);
   G.rooms.forEach(rm => { if (!rm.pass) return; const u = Lay.units[rm.unit], w = Math.min(rm.w, u.doorW || 1), at = rm.x <= front.x && front.x + front.w <= rm.x + rm.w ? front.x : rm.x + Math.floor((rm.w - w) / 2);
@@ -13682,9 +13739,10 @@ function genPlanTry(o, attempt) {
   const overlap = levels.some(L => { const seen = new Set(); return (L.stairs || []).some(t => cellsOf(t).some(k => { if (seen.has(k)) return true; seen.add(k); return false; })); });
   // (A private room with more than one door means the plan didn't work out: try again.)
   const privOk = levels.every(L => L.rooms.every((rm, i) => !rm.priv || [...L.doors].filter(k => gedKeyCellsG(k).some(([x, y]) => L.own(x, y) === i)).length <= 1));
-  const ok = !overlap && privOk && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
+  const ok = !overlap && privOk && stairs.length === Lay.regions.length + higher + (cellar ? 1 : 0) + (T.under2 && down ? 1 : 0) && (!(T.under2 && down) || !!deep) && levels.every(L => genReachable(L, F, L.level === 0 ? front : null));
+  const lg = Lay.regions.find(g => g.shaft), lift = lg ? Object.assign({}, lg.shaft) : null;
   const doorScore = ({ small: 0, medium: 1, large: 2 })[o.size] ?? 1, ds = doorScore + (T.doorBonus || 0);
-  return { type: T.id, W: F.W, H: F.H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: ds >= 2 ? "grand" : ds >= 1 ? "framed" : "plain", ok, attempt, plan: 1 };
+  return { type: T.id, W: F.W, H: F.H, F, floors, cellar: !!down, stairs, levels, rare: [], doorTier: ds >= 2 ? "grand" : ds >= 1 ? "framed" : "plain", ok, attempt, plan: 1, lift };
 }
 function genHearths(o, B) {
   const r = genRng((Number(o.seed) || 1) * 13 + 9), stacks = [];
@@ -14175,7 +14233,7 @@ function viewGen(camp, kind, type) {
     const shown = saved.filter(([, p]) => !tf || (p.gen.tags || []).includes(tf));
     return `<section class="page">${back}<h1>Buildings</h1><p class="muted">Pick a kind of building.</p>
       <div class="gencards"><a class="gencard gencustom" href="#gen-${esc(camp)}/building/custom" data-act="gednew"><span class="genicon">✏️</span><strong>Custom building</strong><span class="muted small">Draw your own: rooms, doors, windows, stairs and floors. The furniture fills itself in.</span></a></div>
-      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
+      ${[["village", "Village buildings"], ["", "Town buildings"], ["city", "City buildings"], ["magic", "Magic buildings"], ["castle", "Castles"]].map(([g, title]) => `<h2 class="sect">${title}</h2><div class="gencards">${GEN_BUILDINGS.filter(b => (b.group || "") === g).map(b => `<a class="gencard" href="#gen-${esc(camp)}/building/${b.id}"><span class="genicon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.blurb)}</span></a>`).join("")}</div>`).join("")}
       <h2 class="sect">Your buildings <span>${saved.length}</span></h2>
       ${tagSet.size ? `<div class="gentags">${["", ...[...tagSet].sort()].map(t => `<button class="chip${tf === t ? " on" : ""}" data-act="gentagf" data-v="${esc(t)}">${t ? esc(t) : "All"}</button>`).join("")}</div>` : ""}
       ${shown.length ? `<div class="gensaved">${shown.map(([pid, p]) => { const g = p.gen, T = genType(g.type), plan = (p.objs || []).find(x => x.layer === "map" && (x.level || 0) === 0 && x.x > 0);
@@ -14868,9 +14926,96 @@ GEN_FURN.push(
     "guildhall:Wardens' quarters": [["bed", 2, 4], ["chest", 1, 3], ["weaponrack", 0, 1, 0.5]],
   }; Object.keys(R).filter(k => k.startsWith("guildbranch:")).forEach(k => { const c = "guildhall:" + k.slice(12); if (!R[c]) R[c] = R[k]; }); // the same rooms as a branch
   Object.assign(GEN_FURN_ROOMS, R); })();
+// ----- Castle (Dryrones): a learned noble's household. Lift, waystone, imbuement, wards, and the comforts built into the stone.
+// A sequence of polygons nested in one another (a ward, a spell's pattern), in a colour.
+const gfSeq = (cx, cy, R, rot, from, to, col, op) => { let d = "", r = R; for (let k = from; k <= to; k++) { const pts = Array.from({ length: k }, (_, i) => { const a = rot + i * 2 * Math.PI / k - Math.PI / 2; return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`; }).join(" ");
+  d += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="${col}" stroke-width=".7" opacity="${op}"/><polygon points="${pts}" fill="none" stroke="${col}" stroke-width="1" stroke-linejoin="round" opacity="${op}"/>`; r *= Math.cos(Math.PI / k); } return d; };
+const gfFloorGlyph = (P, n, col, op) => { const c = n * P / 2; return `<circle cx="${c}" cy="${c}" r="${c * 0.92}" fill="${col}" opacity="${op * 0.18}"/>` + gfSeq(c, c, c * 0.88, 0, 3, 6, col, op) + gfSeq(c, c, c * 0.42, Math.PI / 6, 4, 6, col, op * 0.8); };
+GEN_FURN.push(
+  { id: "liftplatform", name: "Lift platform", cat: "Castle", w: 3, h: 4, place: "fixed", access: "any", draw: P => { const cx = 1.5 * P, cy = 2 * P, R = 1.32 * P;
+      return `<rect x="0" y="0" width="${3 * P}" height="${4 * P}" fill="#15130f" stroke="${GENF_INK}" stroke-width="2.5"/>` + [[6, 6], [3 * P - 6, 6], [6, 4 * P - 6], [3 * P - 6, 4 * P - 6]].map(([x, y]) => gfC(x, y, 4.5, "#b8925a")).join("")
+        + gfGlow(cx, cy, R * 1.08, GFC.cyan) + `<circle cx="${cx + 3}" cy="${cy + 5}" r="${R}" fill="rgba(0,0,0,.35)"/>` + gfC(cx, cy, R, "#8a8478") + `<circle cx="${cx}" cy="${cy}" r="${R * 0.9}" fill="none" stroke="#6a655c" stroke-width="2"/>`
+        + gfSeq(cx, cy, R * 0.82, 0, 3, 6, GFC.cyan, 0.9) + gfSeq(cx, cy, R * 0.4, Math.PI / 4, 4, 6, GFC.cyan, 0.9)
+        + gfR(cx - P * 0.16, cy + R * 0.5, P * 0.32, P * 0.32, "#5a5448", ` rx="3"`) + [0, 1, 2, 3].map(i => `<circle cx="${(cx - P * 0.08 + (i % 2) * P * 0.16).toFixed(1)}" cy="${(cy + R * 0.5 + P * 0.09 + Math.floor(i / 2) * P * 0.14).toFixed(1)}" r="2" fill="${[GFC.cyan, GFC.gold, GFC.violet, GFC.cyan][i]}"/>`).join(""); } },
+  { id: "liftshaft", name: "Lift shaft", cat: "Castle", w: 3, h: 4, place: "fixed", access: "any", draw: P => `<rect x="2" y="2" width="${3 * P - 4}" height="${4 * P - 4}" fill="#0f0d0b"/>`
+      + `<rect x="${P * 0.35}" y="${P * 0.35}" width="${3 * P - P * 0.7}" height="${4 * P - P * 0.7}" fill="none" stroke="${GFC.cyan}" stroke-width="1" opacity=".25"/>` + gfGlow(1.5 * P, 2 * P, P * 1.1, GFC.cyan)
+      + `<rect x="3" y="3" width="${3 * P - 6}" height="${4 * P - 6}" fill="none" stroke="#7a5a33" stroke-width="5"/>` + `<rect x="3" y="3" width="${3 * P - 6}" height="${4 * P - 6}" fill="none" stroke="${GENF_INK}" stroke-width="1.5"/>`
+      + Array.from({ length: 4 }, (_, i) => [P * i, 0]).concat(Array.from({ length: 4 }, (_, i) => [P * i, 4 * P])).concat(Array.from({ length: 5 }, (_, i) => [0, P * i])).concat(Array.from({ length: 5 }, (_, i) => [3 * P, P * i])).map(([x, y]) => gfC(Math.min(3 * P - 4, Math.max(4, x)), Math.min(4 * P - 4, Math.max(4, y)), 3.2, "#b8925a")).join("") },
+  { id: "hoist", name: "Pulley hoist", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, P * 0.9, P * 0.8, genfWood[1]) + gfPlanks(4, 4, P * 0.9, P * 0.8, 3) + gfL(4, 4, 4 + P * 0.9, 4 + P * 0.8, genfWood[0], 3) + gfL(4 + P * 0.9, 4, 4, 4 + P * 0.8, genfWood[0], 3)
+      + gfC(P * 1.45, P * 0.42, P * 0.32, genfWood[2]) + [0, 1, 2, 3].map(i => gfL(P * 1.45, P * 0.42, P * 1.45 + Math.cos(i * Math.PI / 4) * P * 0.3, P * 0.42 + Math.sin(i * Math.PI / 4) * P * 0.3, GENF_INK, 1.2) + gfL(P * 1.45, P * 0.42, P * 1.45 - Math.cos(i * Math.PI / 4) * P * 0.3, P * 0.42 - Math.sin(i * Math.PI / 4) * P * 0.3, GENF_INK, 1.2)).join("")
+      + gfC(P * 1.45, P * 0.42, 3, "#3a3530") + gfL(P * 1.45, P * 0.74, P * 1.45, P * 0.95, "#c9b48a", 2.5) + gfL(P * 1.78, P * 0.42, P * 1.95, P * 0.7, "#3a3530", 2.5) },
+  { id: "waystone", name: "Waystone circle", cat: "Castle", w: 3, h: 3, place: "centre", access: "any", draw: P => { const c = 1.5 * P, R = 1.4 * P; // a spell of the 8th or 9th level: three shapes, each made of sequences, within the ring
+      return gfGlow(c, c, R * 1.05, GFC.violet) + `<circle cx="${c}" cy="${c}" r="${R}" fill="#6a655c" stroke="${GENF_INK}" stroke-width="2.5"/>` + `<circle cx="${c}" cy="${c}" r="${R * 0.88}" fill="#4a463e" stroke="${GFC.violet}" stroke-width="1.2"/>`
+        + Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return gfC(c + Math.cos(a) * R * 0.94, c + Math.sin(a) * R * 0.94, 3, i % 3 ? "#8a8478" : GFC.violet); }).join("")
+        + [0, 1, 2].map(i => { const a = -Math.PI / 2 + i * 2 * Math.PI / 3, x = c + Math.cos(a) * R * 0.44, y = c + Math.sin(a) * R * 0.44; return gfSeq(x, y, R * 0.36, i * 0.4, 3, 6, GFC.violet, 0.95); }).join("") + gfSeq(c, c, R * 0.2, 0, 3, 5, GFC.gold, 0.95) + `<circle cx="${c}" cy="${c}" r="3" fill="#f3eaff"/>`; } },
+  { id: "imbuestation", name: "Imbuement station", cat: "Castle", w: 2, h: 2, place: "wall", access: "front", draw: P => gfShadow(5, 5, 2 * P - 10, 2 * P - 14) + gfR(5, 5, 2 * P - 10, 2 * P - 14, "#6a655c", ` rx="4"`) + gfR(P * 0.25, P * 0.3, P * 1.5, P * 1.1, "#4a463e", ` rx="3"`)
+      + gfSeq(P, P * 0.85, P * 0.5, 0, 3, 6, GFC.gold, 0.95) + gfCore(P * 1.62, P * 1.55, P * 0.13, GFC.violet) + gfGlow(P * 1.62, P * 1.55, P * 0.25, GFC.violet) + gfR(P * 0.3, P * 1.48, P * 0.6, P * 0.14, "#8a8478") + gfL(P * 0.4, P * 1.75, P * 0.95, P * 1.6, "#3a3530", 3) },
+  { id: "wardtable", name: "Ward table", cat: "Castle", w: 3, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 3 * P - 8, 2 * P - 8, genfWood[0], 3) + gfR(P * 0.3, P * 0.3, 3 * P - P * 0.6, 2 * P - P * 0.6, "#3c3a34", ` rx="3"`)
+      + `<path d="M${P * 0.6} ${P * 0.6}H${P * 2.4}V${P * 1.4}H${P * 0.6}Z" fill="none" stroke="${GFC.gold}" stroke-width="1.4" opacity=".8"/>` + [[0.6, 0.6], [2.4, 0.6], [0.6, 1.4], [2.4, 1.4], [1.5, 1.4]].map(([x, y]) => gfGlow(x * P, y * P, P * 0.2, GFC.gold) + gfSeq(x * P, y * P, P * 0.15, 0, 3, 5, GFC.gold, 1)).join("") + gfSeq(1.5 * P, P, P * 0.28, 0, 4, 6, GFC.cyan, 0.9) },
+  { id: "warmglyph", name: "Warming glyph", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => gfFloorGlyph(P, 2, "#ff9a4a", 0.7) },
+  { id: "frostglyph", name: "Frost glyph", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => gfFloorGlyph(P, 2, "#9fdcff", 0.75) },
+  { id: "glyphmosaic", name: "Glyph mosaic", cat: "Castle", w: 3, h: 3, place: "centre", floor: 1, access: "any", draw: P => `<circle cx="${1.5 * P}" cy="${1.5 * P}" r="${1.4 * P}" fill="#8a7a5a" opacity=".35"/>` + gfFloorGlyph(P, 3, GFC.gold, 0.9) },
+  { id: "testcircle", name: "Casting circle", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => `<circle cx="${P}" cy="${P}" r="${P * 0.92}" fill="none" stroke="#efe6cf" stroke-width="2" stroke-dasharray="6 3"/>` + gfSeq(P, P, P * 0.8, 0.3, 3, 5, "#efe6cf", 0.85) },
+  { id: "cleansebasin", name: "Cleansing basin", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfCShadow(P / 2, P / 2, P * 0.36) + gfC(P / 2, P / 2, P * 0.36, "#8a8478") + gfC(P / 2, P / 2, P * 0.25, "#7fb6c8") + gfSeq(P / 2, P / 2, P * 0.2, 0, 3, 4, "#ffffff", 0.8) },
+  { id: "heatplate", name: "Heat plate", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, 2 * P - 8, P * 0.8, "#3a3835", ` rx="3"`) + [0.5, 1.5].map(x => gfGlow(x * P, P * 0.45, P * 0.3, "#ff7a3a") + gfSeq(x * P, P * 0.45, P * 0.26, 0, 3, 5, "#ff9a4a", 0.95)).join("") + gfC(P * 1.5, P * 0.45, P * 0.2, "#4a4540") },
+  { id: "speakcrystal", name: "Speaking crystal", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfCShadow(P / 2, P / 2, P * 0.22) + gfC(P / 2, P / 2, P * 0.22, genfWood[0]) + gfGlow(P / 2, P / 2, P * 0.3, GFC.cyan) + gfGem(P / 2, P / 2, P * 0.18, GFC.cyan) },
+  { id: "banner", name: "Heraldic banner", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfR(P * 0.1, 3, P * 0.8, 4, "#3a3530") + `<path d="M${P * 0.18} 6H${P * 0.82}V${P * 0.62}L${P * 0.5} ${P * 0.82}L${P * 0.18} ${P * 0.62}Z" fill="#8a2a2a" stroke="${GENF_INK}" stroke-width="1.5"/>` + `<path d="M${P * 0.5} ${P * 0.2}L${P * 0.66} ${P * 0.42}L${P * 0.5} ${P * 0.62}L${P * 0.34} ${P * 0.42}Z" fill="${GFC.gold}"/>` + gfL(P * 0.24, P * 0.7, P * 0.36, P * 0.6, "rgba(255,240,200,.5)", 1) },
+  { id: "lightfountain", name: "Light fountain", cat: "Castle", w: 2, h: 2, place: "centre", access: "any", draw: P => `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P + Math.cos(a) * P * 0.88).toFixed(1)},${(P + Math.sin(a) * P * 0.88).toFixed(1)}`; }).join(" ")}" fill="#8a8478" stroke="${GENF_INK}" stroke-width="2"/>`
+      + gfC(P, P, P * 0.66, "#5a8aa0") + gfGlow(P, P, P * 0.9, GFC.gold) + [0, 1, 2, 3, 4, 5].map(i => { const a = i * Math.PI / 3; return `<circle cx="${(P + Math.cos(a) * P * 0.4).toFixed(1)}" cy="${(P + Math.sin(a) * P * 0.4).toFixed(1)}" r="2.2" fill="#fff3c8"/>`; }).join("") + gfC(P, P, P * 0.14, "#efe6cf") + gfGlow(P, P, P * 0.3, "#fff3c8") },
+  { id: "heirloomcase", name: "Heirloom case", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, 2 * P - 8, P * 0.8, genfWood[0], ` rx="2"`) + gfR(8, 8, 2 * P - 16, P * 0.8 - 8, "rgba(170,210,230,.35)")
+      + gfL(P * 0.3, P * 0.45, P * 0.95, P * 0.45, "#c8ccd2", 3) + gfL(P * 0.36, P * 0.32, P * 0.36, P * 0.58, "#b8925a", 2.5) + gfC(P * 1.3, P * 0.45, P * 0.16, GFC.gold) + gfGem(P * 1.3, P * 0.4, 3, "#c0503a") + gfL(P * 1.65, P * 0.2, P * 1.65, P * 0.72, genfWood[2], 2.5) + gfGem(P * 1.65, P * 0.2, 4, GFC.cyan) + gfGlow(P, P * 0.45, P * 0.5, GFC.cyan) },
+  { id: "lordsmap", name: "Living map table", cat: "Castle", w: 3, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 3 * P - 8, 2 * P - 8, genfWood[0], 3) + gfR(P * 0.28, P * 0.28, 3 * P - P * 0.56, 2 * P - P * 0.56, "#d9c79a", ` rx="3"`)
+      + `<path d="M${P * 0.5} ${P * 1.3}C${P * 0.9} ${P * 0.6} ${P * 1.5} ${P * 1.5} ${P * 2.5} ${P * 0.7}" fill="none" stroke="#5a8aa0" stroke-width="2.5"/>` + [[0.8, 0.7], [1.6, 1.15], [2.2, 0.55], [1.2, 1.45]].map(([x, y], i) => gfGlow(x * P, y * P, 6, i ? GFC.cyan : "#c0503a") + `<circle cx="${x * P}" cy="${y * P}" r="2.6" fill="${i ? GFC.cyan : "#c0503a"}"/>`).join("") },
+  { id: "stargazer", name: "Star-glass", cat: "Castle", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.2) + [0, 1, 2].map(i => { const a = -Math.PI / 2 + i * 2 * Math.PI / 3; return gfL(P / 2, P / 2, P / 2 + Math.cos(a) * P * 0.36, P / 2 + Math.sin(a) * P * 0.36, genfWood[0], 2.5); }).join("") + gfL(P * 0.2, P * 0.78, P * 0.84, P * 0.18, "#b8925a", 6) + gfL(P * 0.2, P * 0.78, P * 0.84, P * 0.18, "#7a5a33", 1.2) + gfC(P * 0.84, P * 0.18, 3.5, "#9fdcff") },
+  { id: "starchart", name: "Star chart table", cat: "Castle", w: 2, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 2 * P - 8, 2 * P - 8, genfWood[0], 2) + gfC(P, P, P * 0.78, "#1c2a48") + gfSeq(P, P, P * 0.74, 0.2, 12, 12, "#9fb4e8", 0.5)
+      + [[0.6, 0.7], [0.9, 0.55], [1.2, 0.8], [1.35, 1.2], [0.8, 1.3], [1.05, 1.05]].map(([x, y]) => `<circle cx="${x * P}" cy="${y * P}" r="1.8" fill="#fff3c8"/>`).join("") + `<polyline points="${P * 0.6},${P * 0.7} ${P * 0.9},${P * 0.55} ${P * 1.2},${P * 0.8} ${P * 1.35},${P * 1.2}" fill="none" stroke="#fff3c8" stroke-width=".8" opacity=".7"/>` },
+  { id: "spellcase", name: "Warded bookcase", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.62) + gfR(3, 3, 2 * P - 6, P * 0.62, genfWood[0]) + ["#5a2e6b", "#2e4a6b", "#6b2e2e", "#2e6b4a", "#6b5a2e", "#4a2e6b"].map((c, i) => gfBook(8 + i * (2 * P - 16) / 6, 7, (2 * P - 16) / 6 - 2, P * 0.48, c)).join("") + gfGlow(P, P * 0.35, P * 0.5, GFC.violet) + gfSeq(P, P * 0.35, P * 0.2, 0, 3, 5, GFC.violet, 1) },
+  { id: "pitgrate", name: "Oubliette grate", cat: "Castle", w: 1, h: 1, place: "centre", floor: 1, access: "any", draw: P => `<rect x="${P * 0.15}" y="${P * 0.15}" width="${P * 0.7}" height="${P * 0.7}" fill="#0f0d0b" stroke="#4a4540" stroke-width="3"/>` + [0.33, 0.5, 0.67].map(f => gfL(P * f, P * 0.15, P * f, P * 0.85, "#4a4540", 2) + gfL(P * 0.15, P * f, P * 0.85, P * f, "#4a4540", 2)).join("") },
+);
+(() => { const R = {
+    "keep:Great hall": [["hightable", 1, 1], ["longtable|trestle", 2, 6], ["bench", 0, 4], ["carvedchair", 0, 1, 0.6], ["banner", 1, 4], ["corelamp", 0, 3, 0.7], ["buffet", 0, 1, 0.6], ["lightfountain", 0, 1, 0.25]],
+    "keep:Screens passage": [["banner", 0, 1, 0.5]],
+    "keep:Gallery": [["banner", 2, 5], ["statue", 0, 3, 0.7], ["bench", 0, 2, 0.6], ["corelamp", 1, 3], ["heirloomcase", 0, 1, 0.3]],
+    "keep:Guard hall": [["trestle|table2", 1, 2], ["bench", 1, 4], ["weaponrack", 1, 2], ["dummy", 0, 1, 0.4], ["chest", 0, 1], ["corelamp", 0, 1, 0.6]],
+    "keep:Guard hall (hoist)": [["hoist", 1, 1], ["trestle|table2", 1, 2], ["bench", 1, 3], ["weaponrack", 1, 2], ["chest", 0, 1]],
+    "keep:Lift hall": [["banner", 1, 3], ["bench", 0, 2], ["statue", 0, 2, 0.5], ["corelamp", 0, 2], ["glyphmosaic", 0, 1, 0.5]],
+    "keep:Waystone room": [["waystone", 1, 1], ["corelamp", 0, 2], ["weaponrack", 0, 1, 0.5], ["gaugepanel", 0, 1, 0.5]],
+    "keep:Kitchen": [["heatplate", 1, 2], ["worktable", 1, 2], ["shelves", 1, 2], ["barrel", 1, 3], ["cauldron", 0, 1, 0.6], ["sacks", 0, 2]],
+    "keep:Kitchen (hoist)": [["hoist", 1, 1], ["heatplate", 1, 1], ["worktable", 1, 1], ["shelves", 1, 2], ["barrel", 1, 2], ["sacks", 0, 1]],
+    "keep:Chapel": [["altar", 1, 1], ["pew", 2, 6], ["candles", 1, 2], ["priedieu", 0, 1, 0.5], ["banner", 0, 1, 0.4]],
+    "keep:Great chamber": [["carvedchair", 1, 1], ["longtable|table2", 1, 1], ["settle", 0, 1, 0.6], ["banner", 1, 2], ["warmglyph", 0, 1, 0.6], ["speakcrystal", 0, 1, 0.6], ["cupboard", 0, 1, 0.5]],
+    "keep:Lord's bedchamber": [["bigbed", 1, 1], ["chest", 1, 2], ["cleansebasin", 1, 1], ["warmglyph", 1, 1], ["washstand", 0, 1, 0.4], ["banner", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.5]],
+    "keep:Lady's bower": [["bigbed", 1, 1], ["chest", 1, 1], ["cleansebasin", 0, 1, 0.7], ["warmglyph", 0, 1, 0.7], ["chair", 0, 2], ["dressform", 0, 1, 0.5], ["spinning", 0, 1, 0.3]],
+    "keep:Wardrobe": [["press", 1, 2], ["chest", 1, 2], ["dressform", 0, 1, 0.6]],
+    "keep:Council chamber": [["longtable|table2", 1, 1], ["carvedchair", 0, 1, 0.6], ["lordsmap", 0, 1, 0.6], ["banner", 1, 2], ["speakcrystal", 0, 1, 0.5]],
+    "keep:Study": [["desk", 1, 1], ["bookshelf", 1, 2], ["spellcase", 0, 1, 0.7], ["lectern", 0, 1, 0.5], ["warmglyph", 0, 1, 0.5], ["corelamp", 0, 1]],
+    "keep:Magical workshop": [["testcircle", 1, 1], ["worktable", 1, 1], ["crystalbench", 0, 1, 0.7], ["jars", 0, 1], ["herbrack", 0, 1, 0.6], ["corerack", 0, 1, 0.6], ["bookshelf", 0, 1, 0.5]],
+    "keep:Library": [["bookdesk", 1, 6], ["bookshelf", 1, 3], ["spellcase", 0, 1, 0.6], ["lectern", 0, 1, 0.4], ["corelamp", 0, 2]],
+    "keep:Ward room": [["wardtable", 1, 1], ["gaugepanel", 1, 2], ["wardcrystal", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.7], ["corelamp", 0, 1]],
+    "keep:Guest chamber": [["bed|bigbed", 1, 1], ["chest", 1, 1], ["cleansebasin", 0, 1, 0.6], ["chair", 0, 1]],
+    "keep:Court mage's chamber": [["bed", 1, 1], ["chest", 1, 1], ["bookshelf", 0, 1, 0.6], ["cleansebasin", 0, 1, 0.6]],
+    "keep:Court mage's study": [["desk", 1, 1], ["spellcase", 1, 1], ["testcircle", 0, 1, 0.5], ["jars", 0, 1]],
+    "keep:Observatory": [["stargazer", 1, 2], ["starchart", 1, 1], ["desk", 0, 1, 0.5], ["bookshelf", 0, 1, 0.4]],
+    "keep:Schoolroom": [["desk", 1, 1], ["bookdesk", 1, 4], ["testcircle", 0, 1, 0.6], ["bookshelf", 0, 1]],
+    "keep:Tutor's chamber": [["bed", 1, 1], ["chest", 1, 1], ["desk", 0, 1, 0.6]],
+    "keep:Heirloom gallery": [["heirloomcase", 2, 6], ["banner", 1, 3], ["statue", 0, 2, 0.5], ["corelamp", 0, 2]],
+    "keep:Spell vault": [["spellcase", 1, 3], ["strongbox", 0, 1], ["wardcrystal", 0, 1, 0.5]],
+    "keep:Imbuement workshop": [["imbuestation", 1, 1], ["toolrack", 1, 1], ["anvil", 0, 1, 0.5], ["crystalbench", 0, 1, 0.6], ["corerack", 0, 1, 0.6], ["quench", 0, 1, 0.4]],
+    "keep:Steward's room": [["desk", 1, 1], ["countboard", 0, 1, 0.6], ["chest", 1, 1], ["shelves", 0, 1]],
+    "keep:Muniment room": [["press", 1, 2], ["chest", 1, 2], ["desk", 0, 1, 0.5]],
+    "keep:Undercroft": [["barrel", 2, 6], ["sacks", 1, 4], ["crate", 1, 3], ["frostglyph", 0, 1, 0.6]],
+    "keep:Well chamber": [["bucket", 1, 2], ["barrel", 0, 2]],
+    "keep:Mana station": [["storagecore", 2, 4], ["regulator", 1, 1], ["gaugepanel", 1, 2], ["vent", 0, 1, 0.6], ["manacollector", 0, 1, 0.4]],
+    "keep:Core vault": [["storagecore", 2, 5], ["corerack", 1, 2]],
+    "keep:Treasury": [["strongbox", 2, 4], ["coins", 1, 3], ["chest", 1, 2]],
+    "keep:Guardroom": [["table2", 1, 1], ["stool", 1, 3], ["keyrack", 1, 1], ["weaponrack", 0, 1, 0.6], ["corelamp", 0, 1, 0.6]],
+    "keep:Cells": [["pallet", 1, 2], ["bucket", 1, 1], ["shackles", 0, 2, 0.6]],
+    "keep:Oubliette": [["bones", 0, 1, 0.6], ["shackles", 0, 1, 0.4]],
+    "keep:Family crypt": [["tomb", 1, 4], ["coffin", 0, 2], ["candles", 1, 2], ["statue", 0, 1, 0.4]],
+  }; Object.assign(GEN_FURN_ROOMS, R); })();
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
   hall: "Great hall", office: "Office", meet: "Meeting room", library: "Library", temple: "Nave", sanctum: "Sanctum", bath: "Bathhouse", pit: "Fighting pit", vault: "Vault", porch: "Porch", privy: "Privy" };
-const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
+const GEN_FURN_PLACES = { fixed: "Built in", wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
 
 // The pieces in use: the built-in ones (less any you've removed, with your changes to which rooms they go in) and your own.
 // Kept on the hidden "Generated buildings" campaign as furniture: { hidden: [id], rooms: { id: { room: [min, max, chance] } }, custom: [piece] }.
@@ -14894,19 +15039,22 @@ function genFurnLib() {
 const GENF_FRONT = [[0, 1], [-1, 0], [0, -1], [1, 0]]; // turn k: which way the front faces (k = quarter turns clockwise)
 function genFurnish(o, B) {
   B.levels.forEach(L => { L.furn = []; });
+  // A castle's lift: the platform at the foot of its shaft, the open shaft on every floor above (built in, so always there).
+  if (B.lift) B.levels.forEach(L => { if (L.level < 0) return; const s = B.lift, i = L.own ? L.own(s.x, s.y) : -1; if (i < 0) return;
+    L.furn.push({ a: L.level === 0 ? "liftplatform" : "liftshaft", x: s.x, y: s.y, w: s.w, h: s.h, k: 0, room: i, fixed: 1 }); });
   if (o.furn === false) return;
   // Each room is furnished from its own seed (the building's, the floor, the room, and how many times you've rerolled it), so
   // rerolling one room changes only that room.
   const lib = genFurnLib(), re = o.furnRe || {}, seed = Number(o.seed) || 1;
   const rngFor = (lv, i) => genRng((((seed * 31 + 11) ^ ((lv + 3) * 7919) ^ (i * 104729) ^ ((re[lv + ":" + i] || 0) * 15485863)) >>> 0) || 1);
   B.levels.forEach(L => { const edges = new Set(genEdges(L, B.W, B.H).map(e => e.k));
-    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs") return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
+    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs" && !(B.lift && rm.n === "Gallery")) return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
 }
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (Village buildings are only furnished where a room's own name has a list, for now: their furniture comes later.)
   const tk = B.type + ":" + rm.n, has = n => GEN_FURN_ROOMS[n] || lib.some(a => a.rooms && a.rooms[n]);
   if (rm.fl === "-") return; // drawn as an empty room
-  const city = B.plan && genType(B.type).group === "city", cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
+  const city = B.plan && ["city", "castle"].includes(genType(B.type).group), cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
   const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : city && cf && has(cf) ? cf : city && has(cn) ? cn : has(rm.n) ? rm.n : city ? GEN_FURN_CITY_KIND[rm.k] || null : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
   const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
@@ -14935,6 +15083,7 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (The free square must meet a free square of the neighbour, as furnished so far.)
   const taken = new Set(); (L.furn || []).forEach(f => { for (let x = f.x; x < f.x + f.w; x++) for (let y = f.y; y < f.y + f.h; y++) taken.add(K(x, y)); });
   (L.stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) taken.add(K(x, y)); });
+  (L.furn || []).forEach(f => { for (let x = f.x; x < f.x + f.w; x++) for (let y = f.y; y < f.y + f.h; y++) if (inRoom(x, y)) solid.add(K(x, y)); }); // anything already here (a castle's lift) is in the way
   const throughs = [];
   L.rooms.forEach((ob, j) => { if (j === ri || !genOpen(rm, ob)) return; const side = [];
     for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (GENF_FRONT.some(([dx, dy]) => L.own(x + dx, y + dy) === j && !taken.has(K(x + dx, y + dy)))) side.push(K(x, y));
@@ -15058,7 +15207,9 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
     for (let v = g0; v <= D - 1 - g1; v += step) for (const [s0, B, dir] of blocks) { let u = s0;
       for (const l of fill(B)) { const a = pieceOf(l); const u0 = dir > 0 ? u : u - l + 1, u1 = u0 + l - 1; put1(a, u0, u1, v, v, kF); u += dir * l; } }
   };
+  const floorEntries = [];
   for (const e of list) {
+    if (e.ids.every(id => byId.get(id) && byId.get(id).floor)) { floorEntries.push(e); continue; } // patterns in the floor: last, under everything
     const rowPcs = e.ids.map(id => byId.get(id)).filter(a => a && (a.rows || a.stalls));
     if (rowPcs.length) { layRows(rowPcs, e.hi); continue; }
     // Bigger rooms get a little more of the small things.
@@ -15088,6 +15239,15 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // Nothing fitted at all (a cramped room the stairs and doors take most of): at least the smallest thing on its list that will.
   if (!placed.length) { const ids = [...new Set(list.flatMap(e => e.ids))].map(id => byId.get(id)).filter(a => a && !a.seats).sort((a, b) => a.w * a.h - b.w * b.h);
     for (const a of ids) { let ok2 = false; for (const s of spots(a).slice(0, 60)) if (tryAt(a, s)) { ok2 = true; break; } if (ok2) break; } }
+  // Glyphs and mosaics set into the floor: walked over, so they never block the way; on clear floor, towards the middle.
+  const under = [], usedF = new Set();
+  for (const e of floorEntries) { let n = e.lo + Math.floor(r() * (e.hi - e.lo + 1)); if (e.p < 1 && r() > e.p) n = Math.min(n, e.lo);
+    for (let c = 0; c < n; c++) { const a = byId.get(e.ids[Math.floor(r() * e.ids.length)]); if (!a) break; let best = null;
+      for (let y = rm.y; y <= rm.y + rm.h - a.h; y++) for (let x = rm.x; x <= rm.x + rm.w - a.w; x++) { let ok = true;
+        for (let dy = 0; dy < a.h && ok; dy++) for (let dx = 0; dx < a.w && ok; dx++) { const k = K(x + dx, y + dy); if (solid.has(k) || taken.has(k) || usedF.has(k)) ok = false; }
+        if (!ok) continue; const sc = -(Math.abs(x + a.w / 2 - center.x) + Math.abs(y + a.h / 2 - center.y)) + r() * 0.8; if (!best || sc > best.sc) best = { x, y, sc }; }
+      if (!best) break; for (let dy = 0; dy < a.h; dy++) for (let dx = 0; dx < a.w; dx++) usedF.add(K(best.x + dx, best.y + dy)); under.push({ a: a.id, x: best.x, y: best.y, w: a.w, h: a.h, k: 0, room: ri }); } }
+  under.forEach(p => L.furn.push(p));
   placed.forEach(p => L.furn.push({ a: p.a, x: p.x, y: p.y, w: p.w, h: p.h, k: p.k, room: ri }));
 }
 // The pieces as pictures: where each one's box goes when turned (its own w × h, centred on its footprint), for the map.
@@ -15189,6 +15349,51 @@ const GEN_ROOM_TYPE_INFO = {
   "bakehouse:Oven room": "The bread ovens, fired with wood before each bake.",
   "apothecary:Grinding room": "Herbs, roots and minerals are ground into powders here.",
   "apothecary:Still room": "Where cordials, medicines and sweet waters are distilled.",
+  // The keep (Dryrones castles)
+  "keep:Forebuilding": "The keep's entrance: a covered stair and guard post in front of the door, so the way in can be held.",
+  "keep:Screens passage": "The cross-passage at the low end of the great hall, behind its screen: the way in from the forebuilding, with the kitchen, buttery and pantry off it.",
+  "keep:Great hall": "The banquet hall: the lord's high table on the dais at the far end, long tables down the room for the household and guests, banners of the family's arms. Feasts, audiences and the lord's justice.",
+  "keep:Kitchen": "The castle kitchen: heat plates set with fire glyphs instead of open hearths, so no smoke, and work tables for the cooks feeding the whole household.",
+  "keep:Buttery": "The drink store off the screens passage: ale and wine casks, served out to the hall.",
+  "keep:Pantry": "The bread store off the screens passage, and the table linen and salt.",
+  "keep:Guard hall": "Where the household's soldiers eat, wait and keep their weapons. In a small keep the pulley hoist stands here, to haul stores up between the floors.",
+  "keep:Lift hall": "The foot of the lift well: the stone platform carved underneath with a levitation pattern, fed straight from the mana station below. Touch a floor's glyph on its control pillar and it rises. Only an attuned household sigil works it; in a siege the ward room locks it at the bottom.",
+  "keep:Gallery": "The gallery round the lift shaft on each floor: the rooms of the floor open off it. Banners, family statues and lamps line it, and the stairs climb beside the shaft.",
+  "keep:Waystone room": "A permanent circle linked to the capital, its pattern three shapes each made of sequences. Kept in its own warded room behind the guard hall, with no other way in: anyone who comes through arrives under the guards' eyes.",
+  "keep:Steward's room": "The steward runs the estate and the household: the rents, the stores, the servants.",
+  "keep:Chamberlain's room": "The chamberlain runs the lord's private rooms and who gets to see the lord.",
+  "keep:Muniment room": "The family's charters, deeds and tax rolls, locked away.",
+  "keep:Chapel": "The household's chapel, with its altar and pews.",
+  "keep:Great chamber": "Where the lord receives important guests and does business in private, warmed by a glyph set into the floor.",
+  "keep:Lord's bedchamber": "The lord's own room, warmed by a glyph in the floor, with a cleansing basin and a speaking crystal to the rest of the castle.",
+  "keep:Wardrobe": "The lord's clothes and valuables, beside the bedchamber.",
+  "keep:Lady's bower": "The lady's private rooms.",
+  "keep:Council chamber": "Where the lord meets the officers of the household and the nobles of the lands; a living map of the lord's lands on the table, fed by the relay.",
+  "keep:Study": "The lord's own study: spellbooks and treatises from the university, a warded case for the family's sealed books.",
+  "keep:Magical workshop": "Where the lord practises and experiments: a casting circle chalked on the floor, reagents, a crystal bench. Plain stone, because magic goes wrong.",
+  "keep:Library": "The castle library: university texts, the family's own spell records, maps.",
+  "keep:Ward room": "The heart of the castle's defences: the ward sequences for every tower and wall laid out on the table, gauges showing their strength. In a siege the lord or the court mage strengthens a ward from here, and can lock the lift.",
+  "keep:Guest chamber": "A bedchamber for a visiting noble.",
+  "keep:Imbuement workshop": "The richest lords keep a master smith: an imbuement station to weave the patterns that make magic items, to make and mend the family's heirlooms.",
+  "keep:Court mage's study": "The household mage's own study: adviser, warder and healer to the lord.",
+  "keep:Court mage's chamber": "The household mage's bedchamber.",
+  "keep:Observatory": "At the top of the keep: star-glasses and a chart table, for star charts and calculation.",
+  "keep:Heirloom gallery": "The family's magic items on show behind warded glass: weapons, regalia, the founder's implement.",
+  "keep:Spell vault": "Locked and warded: the family's sealed spellbooks and texts too dangerous to leave in the library.",
+  "keep:Schoolroom": "Noble children learn magic young: a tutor teaches them here before they go to the university.",
+  "keep:Tutor's chamber": "The children's tutor-mage lives here.",
+  "keep:Undercroft": "The vaulted stores under the hall: grain, salted meat, wine, arms. A frost glyph in the floor keeps the meat.",
+  "keep:Well chamber": "The castle's well, so it can hold out under siege.",
+  "keep:Mana station": "The castle's own bleed node: storage cores fill with the household's excess mana, and feed the wards on the walls, the lamps and the lift.",
+  "keep:Core vault": "Charged cores in store, locked away.",
+  "keep:Treasury": "The lord's coin and plate behind iron doors.",
+  "keep:Guardroom": "The gaolers' room at the foot of the stairs into the prison: the keys, a table, the watch.",
+  "keep:Cells": "Prison cells: a pallet, a bucket, shackles.",
+  "keep:Oubliette": "A pit cell reached only through a grate in the floor above, for prisoners to be forgotten.",
+  "keep:Family crypt": "The family's tombs.",
+  "keep:Sally passage": "A hidden tunnel out beyond the walls: for messengers, raids on besiegers, or escape.",
+  "keep:Stair foot": "The foot of the stairs into the lower vaults.",
+  "keep:Cellar stairs": "The passage at the foot of the stairs into the undercroft.",
   "temple:Nave": "Where the townsfolk stand or sit for worship, looking towards the altar at the far end.",
 };
 const GEN_ROOM_INFO = [
@@ -15338,7 +15543,7 @@ function genRoomPieces(ex) { const B = genRoomsBuilding(ex.o).B, L = B.levels.fi
   (L.furn || []).filter(f => f.room === ex.i).forEach(f => { const a = byId.get(f.a); const nm = a ? a.name : f.a; n.set(nm, (n.get(nm) || 0) + 1); });
   return [...n.entries()].map(([nm, c]) => c > 1 ? `${c} × ${nm.toLowerCase()}` : nm.toLowerCase()).join(", "); }
 const genRoomFloorName = lv => lv < 0 ? "cellar" : lv === 0 ? "ground floor" : lv === 1 ? "upper floor" : `floor ${lv + 1}`;
-const GENR_GROUPS = [["village", "Village"], ["", "Town"], ["magic", "Magic"], ["city", "City"]];
+const GENR_GROUPS = [["village", "Village"], ["", "Town"], ["magic", "Magic"], ["city", "City"], ["castle", "Castle"]];
 function genRoomsView(camp, back) {
   const types = GEN_BUILDINGS.filter(t => t.id !== "custom" && (t.plan || t.ground)), T = genType(GENR.type);
   let rooms = []; try { rooms = genRoomsOf(T.id); } catch (e) { console.warn(e); }

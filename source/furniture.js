@@ -583,9 +583,96 @@ GEN_FURN.push(
     "guildhall:Wardens' quarters": [["bed", 2, 4], ["chest", 1, 3], ["weaponrack", 0, 1, 0.5]],
   }; Object.keys(R).filter(k => k.startsWith("guildbranch:")).forEach(k => { const c = "guildhall:" + k.slice(12); if (!R[c]) R[c] = R[k]; }); // the same rooms as a branch
   Object.assign(GEN_FURN_ROOMS, R); })();
+// ----- Castle (Dryrones): a learned noble's household. Lift, waystone, imbuement, wards, and the comforts built into the stone.
+// A sequence of polygons nested in one another (a ward, a spell's pattern), in a colour.
+const gfSeq = (cx, cy, R, rot, from, to, col, op) => { let d = "", r = R; for (let k = from; k <= to; k++) { const pts = Array.from({ length: k }, (_, i) => { const a = rot + i * 2 * Math.PI / k - Math.PI / 2; return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`; }).join(" ");
+  d += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="${col}" stroke-width=".7" opacity="${op}"/><polygon points="${pts}" fill="none" stroke="${col}" stroke-width="1" stroke-linejoin="round" opacity="${op}"/>`; r *= Math.cos(Math.PI / k); } return d; };
+const gfFloorGlyph = (P, n, col, op) => { const c = n * P / 2; return `<circle cx="${c}" cy="${c}" r="${c * 0.92}" fill="${col}" opacity="${op * 0.18}"/>` + gfSeq(c, c, c * 0.88, 0, 3, 6, col, op) + gfSeq(c, c, c * 0.42, Math.PI / 6, 4, 6, col, op * 0.8); };
+GEN_FURN.push(
+  { id: "liftplatform", name: "Lift platform", cat: "Castle", w: 3, h: 4, place: "fixed", access: "any", draw: P => { const cx = 1.5 * P, cy = 2 * P, R = 1.32 * P;
+      return `<rect x="0" y="0" width="${3 * P}" height="${4 * P}" fill="#15130f" stroke="${GENF_INK}" stroke-width="2.5"/>` + [[6, 6], [3 * P - 6, 6], [6, 4 * P - 6], [3 * P - 6, 4 * P - 6]].map(([x, y]) => gfC(x, y, 4.5, "#b8925a")).join("")
+        + gfGlow(cx, cy, R * 1.08, GFC.cyan) + `<circle cx="${cx + 3}" cy="${cy + 5}" r="${R}" fill="rgba(0,0,0,.35)"/>` + gfC(cx, cy, R, "#8a8478") + `<circle cx="${cx}" cy="${cy}" r="${R * 0.9}" fill="none" stroke="#6a655c" stroke-width="2"/>`
+        + gfSeq(cx, cy, R * 0.82, 0, 3, 6, GFC.cyan, 0.9) + gfSeq(cx, cy, R * 0.4, Math.PI / 4, 4, 6, GFC.cyan, 0.9)
+        + gfR(cx - P * 0.16, cy + R * 0.5, P * 0.32, P * 0.32, "#5a5448", ` rx="3"`) + [0, 1, 2, 3].map(i => `<circle cx="${(cx - P * 0.08 + (i % 2) * P * 0.16).toFixed(1)}" cy="${(cy + R * 0.5 + P * 0.09 + Math.floor(i / 2) * P * 0.14).toFixed(1)}" r="2" fill="${[GFC.cyan, GFC.gold, GFC.violet, GFC.cyan][i]}"/>`).join(""); } },
+  { id: "liftshaft", name: "Lift shaft", cat: "Castle", w: 3, h: 4, place: "fixed", access: "any", draw: P => `<rect x="2" y="2" width="${3 * P - 4}" height="${4 * P - 4}" fill="#0f0d0b"/>`
+      + `<rect x="${P * 0.35}" y="${P * 0.35}" width="${3 * P - P * 0.7}" height="${4 * P - P * 0.7}" fill="none" stroke="${GFC.cyan}" stroke-width="1" opacity=".25"/>` + gfGlow(1.5 * P, 2 * P, P * 1.1, GFC.cyan)
+      + `<rect x="3" y="3" width="${3 * P - 6}" height="${4 * P - 6}" fill="none" stroke="#7a5a33" stroke-width="5"/>` + `<rect x="3" y="3" width="${3 * P - 6}" height="${4 * P - 6}" fill="none" stroke="${GENF_INK}" stroke-width="1.5"/>`
+      + Array.from({ length: 4 }, (_, i) => [P * i, 0]).concat(Array.from({ length: 4 }, (_, i) => [P * i, 4 * P])).concat(Array.from({ length: 5 }, (_, i) => [0, P * i])).concat(Array.from({ length: 5 }, (_, i) => [3 * P, P * i])).map(([x, y]) => gfC(Math.min(3 * P - 4, Math.max(4, x)), Math.min(4 * P - 4, Math.max(4, y)), 3.2, "#b8925a")).join("") },
+  { id: "hoist", name: "Pulley hoist", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, P * 0.9, P * 0.8, genfWood[1]) + gfPlanks(4, 4, P * 0.9, P * 0.8, 3) + gfL(4, 4, 4 + P * 0.9, 4 + P * 0.8, genfWood[0], 3) + gfL(4 + P * 0.9, 4, 4, 4 + P * 0.8, genfWood[0], 3)
+      + gfC(P * 1.45, P * 0.42, P * 0.32, genfWood[2]) + [0, 1, 2, 3].map(i => gfL(P * 1.45, P * 0.42, P * 1.45 + Math.cos(i * Math.PI / 4) * P * 0.3, P * 0.42 + Math.sin(i * Math.PI / 4) * P * 0.3, GENF_INK, 1.2) + gfL(P * 1.45, P * 0.42, P * 1.45 - Math.cos(i * Math.PI / 4) * P * 0.3, P * 0.42 - Math.sin(i * Math.PI / 4) * P * 0.3, GENF_INK, 1.2)).join("")
+      + gfC(P * 1.45, P * 0.42, 3, "#3a3530") + gfL(P * 1.45, P * 0.74, P * 1.45, P * 0.95, "#c9b48a", 2.5) + gfL(P * 1.78, P * 0.42, P * 1.95, P * 0.7, "#3a3530", 2.5) },
+  { id: "waystone", name: "Waystone circle", cat: "Castle", w: 3, h: 3, place: "centre", access: "any", draw: P => { const c = 1.5 * P, R = 1.4 * P; // a spell of the 8th or 9th level: three shapes, each made of sequences, within the ring
+      return gfGlow(c, c, R * 1.05, GFC.violet) + `<circle cx="${c}" cy="${c}" r="${R}" fill="#6a655c" stroke="${GENF_INK}" stroke-width="2.5"/>` + `<circle cx="${c}" cy="${c}" r="${R * 0.88}" fill="#4a463e" stroke="${GFC.violet}" stroke-width="1.2"/>`
+        + Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return gfC(c + Math.cos(a) * R * 0.94, c + Math.sin(a) * R * 0.94, 3, i % 3 ? "#8a8478" : GFC.violet); }).join("")
+        + [0, 1, 2].map(i => { const a = -Math.PI / 2 + i * 2 * Math.PI / 3, x = c + Math.cos(a) * R * 0.44, y = c + Math.sin(a) * R * 0.44; return gfSeq(x, y, R * 0.36, i * 0.4, 3, 6, GFC.violet, 0.95); }).join("") + gfSeq(c, c, R * 0.2, 0, 3, 5, GFC.gold, 0.95) + `<circle cx="${c}" cy="${c}" r="3" fill="#f3eaff"/>`; } },
+  { id: "imbuestation", name: "Imbuement station", cat: "Castle", w: 2, h: 2, place: "wall", access: "front", draw: P => gfShadow(5, 5, 2 * P - 10, 2 * P - 14) + gfR(5, 5, 2 * P - 10, 2 * P - 14, "#6a655c", ` rx="4"`) + gfR(P * 0.25, P * 0.3, P * 1.5, P * 1.1, "#4a463e", ` rx="3"`)
+      + gfSeq(P, P * 0.85, P * 0.5, 0, 3, 6, GFC.gold, 0.95) + gfCore(P * 1.62, P * 1.55, P * 0.13, GFC.violet) + gfGlow(P * 1.62, P * 1.55, P * 0.25, GFC.violet) + gfR(P * 0.3, P * 1.48, P * 0.6, P * 0.14, "#8a8478") + gfL(P * 0.4, P * 1.75, P * 0.95, P * 1.6, "#3a3530", 3) },
+  { id: "wardtable", name: "Ward table", cat: "Castle", w: 3, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 3 * P - 8, 2 * P - 8, genfWood[0], 3) + gfR(P * 0.3, P * 0.3, 3 * P - P * 0.6, 2 * P - P * 0.6, "#3c3a34", ` rx="3"`)
+      + `<path d="M${P * 0.6} ${P * 0.6}H${P * 2.4}V${P * 1.4}H${P * 0.6}Z" fill="none" stroke="${GFC.gold}" stroke-width="1.4" opacity=".8"/>` + [[0.6, 0.6], [2.4, 0.6], [0.6, 1.4], [2.4, 1.4], [1.5, 1.4]].map(([x, y]) => gfGlow(x * P, y * P, P * 0.2, GFC.gold) + gfSeq(x * P, y * P, P * 0.15, 0, 3, 5, GFC.gold, 1)).join("") + gfSeq(1.5 * P, P, P * 0.28, 0, 4, 6, GFC.cyan, 0.9) },
+  { id: "warmglyph", name: "Warming glyph", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => gfFloorGlyph(P, 2, "#ff9a4a", 0.7) },
+  { id: "frostglyph", name: "Frost glyph", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => gfFloorGlyph(P, 2, "#9fdcff", 0.75) },
+  { id: "glyphmosaic", name: "Glyph mosaic", cat: "Castle", w: 3, h: 3, place: "centre", floor: 1, access: "any", draw: P => `<circle cx="${1.5 * P}" cy="${1.5 * P}" r="${1.4 * P}" fill="#8a7a5a" opacity=".35"/>` + gfFloorGlyph(P, 3, GFC.gold, 0.9) },
+  { id: "testcircle", name: "Casting circle", cat: "Castle", w: 2, h: 2, place: "centre", floor: 1, access: "any", draw: P => `<circle cx="${P}" cy="${P}" r="${P * 0.92}" fill="none" stroke="#efe6cf" stroke-width="2" stroke-dasharray="6 3"/>` + gfSeq(P, P, P * 0.8, 0.3, 3, 5, "#efe6cf", 0.85) },
+  { id: "cleansebasin", name: "Cleansing basin", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfCShadow(P / 2, P / 2, P * 0.36) + gfC(P / 2, P / 2, P * 0.36, "#8a8478") + gfC(P / 2, P / 2, P * 0.25, "#7fb6c8") + gfSeq(P / 2, P / 2, P * 0.2, 0, 3, 4, "#ffffff", 0.8) },
+  { id: "heatplate", name: "Heat plate", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, 2 * P - 8, P * 0.8, "#3a3835", ` rx="3"`) + [0.5, 1.5].map(x => gfGlow(x * P, P * 0.45, P * 0.3, "#ff7a3a") + gfSeq(x * P, P * 0.45, P * 0.26, 0, 3, 5, "#ff9a4a", 0.95)).join("") + gfC(P * 1.5, P * 0.45, P * 0.2, "#4a4540") },
+  { id: "speakcrystal", name: "Speaking crystal", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfCShadow(P / 2, P / 2, P * 0.22) + gfC(P / 2, P / 2, P * 0.22, genfWood[0]) + gfGlow(P / 2, P / 2, P * 0.3, GFC.cyan) + gfGem(P / 2, P / 2, P * 0.18, GFC.cyan) },
+  { id: "banner", name: "Heraldic banner", cat: "Castle", w: 1, h: 1, place: "wall", access: "front", draw: P => gfR(P * 0.1, 3, P * 0.8, 4, "#3a3530") + `<path d="M${P * 0.18} 6H${P * 0.82}V${P * 0.62}L${P * 0.5} ${P * 0.82}L${P * 0.18} ${P * 0.62}Z" fill="#8a2a2a" stroke="${GENF_INK}" stroke-width="1.5"/>` + `<path d="M${P * 0.5} ${P * 0.2}L${P * 0.66} ${P * 0.42}L${P * 0.5} ${P * 0.62}L${P * 0.34} ${P * 0.42}Z" fill="${GFC.gold}"/>` + gfL(P * 0.24, P * 0.7, P * 0.36, P * 0.6, "rgba(255,240,200,.5)", 1) },
+  { id: "lightfountain", name: "Light fountain", cat: "Castle", w: 2, h: 2, place: "centre", access: "any", draw: P => `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = Math.PI / 8 + i * Math.PI / 4; return `${(P + Math.cos(a) * P * 0.88).toFixed(1)},${(P + Math.sin(a) * P * 0.88).toFixed(1)}`; }).join(" ")}" fill="#8a8478" stroke="${GENF_INK}" stroke-width="2"/>`
+      + gfC(P, P, P * 0.66, "#5a8aa0") + gfGlow(P, P, P * 0.9, GFC.gold) + [0, 1, 2, 3, 4, 5].map(i => { const a = i * Math.PI / 3; return `<circle cx="${(P + Math.cos(a) * P * 0.4).toFixed(1)}" cy="${(P + Math.sin(a) * P * 0.4).toFixed(1)}" r="2.2" fill="#fff3c8"/>`; }).join("") + gfC(P, P, P * 0.14, "#efe6cf") + gfGlow(P, P, P * 0.3, "#fff3c8") },
+  { id: "heirloomcase", name: "Heirloom case", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", draw: P => gfShadow(4, 4, 2 * P - 8, P * 0.8) + gfR(4, 4, 2 * P - 8, P * 0.8, genfWood[0], ` rx="2"`) + gfR(8, 8, 2 * P - 16, P * 0.8 - 8, "rgba(170,210,230,.35)")
+      + gfL(P * 0.3, P * 0.45, P * 0.95, P * 0.45, "#c8ccd2", 3) + gfL(P * 0.36, P * 0.32, P * 0.36, P * 0.58, "#b8925a", 2.5) + gfC(P * 1.3, P * 0.45, P * 0.16, GFC.gold) + gfGem(P * 1.3, P * 0.4, 3, "#c0503a") + gfL(P * 1.65, P * 0.2, P * 1.65, P * 0.72, genfWood[2], 2.5) + gfGem(P * 1.65, P * 0.2, 4, GFC.cyan) + gfGlow(P, P * 0.45, P * 0.5, GFC.cyan) },
+  { id: "lordsmap", name: "Living map table", cat: "Castle", w: 3, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 3 * P - 8, 2 * P - 8, genfWood[0], 3) + gfR(P * 0.28, P * 0.28, 3 * P - P * 0.56, 2 * P - P * 0.56, "#d9c79a", ` rx="3"`)
+      + `<path d="M${P * 0.5} ${P * 1.3}C${P * 0.9} ${P * 0.6} ${P * 1.5} ${P * 1.5} ${P * 2.5} ${P * 0.7}" fill="none" stroke="#5a8aa0" stroke-width="2.5"/>` + [[0.8, 0.7], [1.6, 1.15], [2.2, 0.55], [1.2, 1.45]].map(([x, y], i) => gfGlow(x * P, y * P, 6, i ? GFC.cyan : "#c0503a") + `<circle cx="${x * P}" cy="${y * P}" r="2.6" fill="${i ? GFC.cyan : "#c0503a"}"/>`).join("") },
+  { id: "stargazer", name: "Star-glass", cat: "Castle", w: 1, h: 1, place: "free", access: "any", draw: P => gfCShadow(P / 2, P / 2, P * 0.2) + [0, 1, 2].map(i => { const a = -Math.PI / 2 + i * 2 * Math.PI / 3; return gfL(P / 2, P / 2, P / 2 + Math.cos(a) * P * 0.36, P / 2 + Math.sin(a) * P * 0.36, genfWood[0], 2.5); }).join("") + gfL(P * 0.2, P * 0.78, P * 0.84, P * 0.18, "#b8925a", 6) + gfL(P * 0.2, P * 0.78, P * 0.84, P * 0.18, "#7a5a33", 1.2) + gfC(P * 0.84, P * 0.18, 3.5, "#9fdcff") },
+  { id: "starchart", name: "Star chart table", cat: "Castle", w: 2, h: 2, place: "centre", access: "any", draw: P => gfTable(4, 4, 2 * P - 8, 2 * P - 8, genfWood[0], 2) + gfC(P, P, P * 0.78, "#1c2a48") + gfSeq(P, P, P * 0.74, 0.2, 12, 12, "#9fb4e8", 0.5)
+      + [[0.6, 0.7], [0.9, 0.55], [1.2, 0.8], [1.35, 1.2], [0.8, 1.3], [1.05, 1.05]].map(([x, y]) => `<circle cx="${x * P}" cy="${y * P}" r="1.8" fill="#fff3c8"/>`).join("") + `<polyline points="${P * 0.6},${P * 0.7} ${P * 0.9},${P * 0.55} ${P * 1.2},${P * 0.8} ${P * 1.35},${P * 1.2}" fill="none" stroke="#fff3c8" stroke-width=".8" opacity=".7"/>` },
+  { id: "spellcase", name: "Warded bookcase", cat: "Castle", w: 2, h: 1, place: "wall", access: "front", tall: 1, draw: P => gfShadow(3, 3, 2 * P - 6, P * 0.62) + gfR(3, 3, 2 * P - 6, P * 0.62, genfWood[0]) + ["#5a2e6b", "#2e4a6b", "#6b2e2e", "#2e6b4a", "#6b5a2e", "#4a2e6b"].map((c, i) => gfBook(8 + i * (2 * P - 16) / 6, 7, (2 * P - 16) / 6 - 2, P * 0.48, c)).join("") + gfGlow(P, P * 0.35, P * 0.5, GFC.violet) + gfSeq(P, P * 0.35, P * 0.2, 0, 3, 5, GFC.violet, 1) },
+  { id: "pitgrate", name: "Oubliette grate", cat: "Castle", w: 1, h: 1, place: "centre", floor: 1, access: "any", draw: P => `<rect x="${P * 0.15}" y="${P * 0.15}" width="${P * 0.7}" height="${P * 0.7}" fill="#0f0d0b" stroke="#4a4540" stroke-width="3"/>` + [0.33, 0.5, 0.67].map(f => gfL(P * f, P * 0.15, P * f, P * 0.85, "#4a4540", 2) + gfL(P * 0.15, P * f, P * 0.85, P * f, "#4a4540", 2)).join("") },
+);
+(() => { const R = {
+    "keep:Great hall": [["hightable", 1, 1], ["longtable|trestle", 2, 6], ["bench", 0, 4], ["carvedchair", 0, 1, 0.6], ["banner", 1, 4], ["corelamp", 0, 3, 0.7], ["buffet", 0, 1, 0.6], ["lightfountain", 0, 1, 0.25]],
+    "keep:Screens passage": [["banner", 0, 1, 0.5]],
+    "keep:Gallery": [["banner", 2, 5], ["statue", 0, 3, 0.7], ["bench", 0, 2, 0.6], ["corelamp", 1, 3], ["heirloomcase", 0, 1, 0.3]],
+    "keep:Guard hall": [["trestle|table2", 1, 2], ["bench", 1, 4], ["weaponrack", 1, 2], ["dummy", 0, 1, 0.4], ["chest", 0, 1], ["corelamp", 0, 1, 0.6]],
+    "keep:Guard hall (hoist)": [["hoist", 1, 1], ["trestle|table2", 1, 2], ["bench", 1, 3], ["weaponrack", 1, 2], ["chest", 0, 1]],
+    "keep:Lift hall": [["banner", 1, 3], ["bench", 0, 2], ["statue", 0, 2, 0.5], ["corelamp", 0, 2], ["glyphmosaic", 0, 1, 0.5]],
+    "keep:Waystone room": [["waystone", 1, 1], ["corelamp", 0, 2], ["weaponrack", 0, 1, 0.5], ["gaugepanel", 0, 1, 0.5]],
+    "keep:Kitchen": [["heatplate", 1, 2], ["worktable", 1, 2], ["shelves", 1, 2], ["barrel", 1, 3], ["cauldron", 0, 1, 0.6], ["sacks", 0, 2]],
+    "keep:Kitchen (hoist)": [["hoist", 1, 1], ["heatplate", 1, 1], ["worktable", 1, 1], ["shelves", 1, 2], ["barrel", 1, 2], ["sacks", 0, 1]],
+    "keep:Chapel": [["altar", 1, 1], ["pew", 2, 6], ["candles", 1, 2], ["priedieu", 0, 1, 0.5], ["banner", 0, 1, 0.4]],
+    "keep:Great chamber": [["carvedchair", 1, 1], ["longtable|table2", 1, 1], ["settle", 0, 1, 0.6], ["banner", 1, 2], ["warmglyph", 0, 1, 0.6], ["speakcrystal", 0, 1, 0.6], ["cupboard", 0, 1, 0.5]],
+    "keep:Lord's bedchamber": [["bigbed", 1, 1], ["chest", 1, 2], ["cleansebasin", 1, 1], ["warmglyph", 1, 1], ["washstand", 0, 1, 0.4], ["banner", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.5]],
+    "keep:Lady's bower": [["bigbed", 1, 1], ["chest", 1, 1], ["cleansebasin", 0, 1, 0.7], ["warmglyph", 0, 1, 0.7], ["chair", 0, 2], ["dressform", 0, 1, 0.5], ["spinning", 0, 1, 0.3]],
+    "keep:Wardrobe": [["press", 1, 2], ["chest", 1, 2], ["dressform", 0, 1, 0.6]],
+    "keep:Council chamber": [["longtable|table2", 1, 1], ["carvedchair", 0, 1, 0.6], ["lordsmap", 0, 1, 0.6], ["banner", 1, 2], ["speakcrystal", 0, 1, 0.5]],
+    "keep:Study": [["desk", 1, 1], ["bookshelf", 1, 2], ["spellcase", 0, 1, 0.7], ["lectern", 0, 1, 0.5], ["warmglyph", 0, 1, 0.5], ["corelamp", 0, 1]],
+    "keep:Magical workshop": [["testcircle", 1, 1], ["worktable", 1, 1], ["crystalbench", 0, 1, 0.7], ["jars", 0, 1], ["herbrack", 0, 1, 0.6], ["corerack", 0, 1, 0.6], ["bookshelf", 0, 1, 0.5]],
+    "keep:Library": [["bookdesk", 1, 6], ["bookshelf", 1, 3], ["spellcase", 0, 1, 0.6], ["lectern", 0, 1, 0.4], ["corelamp", 0, 2]],
+    "keep:Ward room": [["wardtable", 1, 1], ["gaugepanel", 1, 2], ["wardcrystal", 0, 1, 0.5], ["speakcrystal", 0, 1, 0.7], ["corelamp", 0, 1]],
+    "keep:Guest chamber": [["bed|bigbed", 1, 1], ["chest", 1, 1], ["cleansebasin", 0, 1, 0.6], ["chair", 0, 1]],
+    "keep:Court mage's chamber": [["bed", 1, 1], ["chest", 1, 1], ["bookshelf", 0, 1, 0.6], ["cleansebasin", 0, 1, 0.6]],
+    "keep:Court mage's study": [["desk", 1, 1], ["spellcase", 1, 1], ["testcircle", 0, 1, 0.5], ["jars", 0, 1]],
+    "keep:Observatory": [["stargazer", 1, 2], ["starchart", 1, 1], ["desk", 0, 1, 0.5], ["bookshelf", 0, 1, 0.4]],
+    "keep:Schoolroom": [["desk", 1, 1], ["bookdesk", 1, 4], ["testcircle", 0, 1, 0.6], ["bookshelf", 0, 1]],
+    "keep:Tutor's chamber": [["bed", 1, 1], ["chest", 1, 1], ["desk", 0, 1, 0.6]],
+    "keep:Heirloom gallery": [["heirloomcase", 2, 6], ["banner", 1, 3], ["statue", 0, 2, 0.5], ["corelamp", 0, 2]],
+    "keep:Spell vault": [["spellcase", 1, 3], ["strongbox", 0, 1], ["wardcrystal", 0, 1, 0.5]],
+    "keep:Imbuement workshop": [["imbuestation", 1, 1], ["toolrack", 1, 1], ["anvil", 0, 1, 0.5], ["crystalbench", 0, 1, 0.6], ["corerack", 0, 1, 0.6], ["quench", 0, 1, 0.4]],
+    "keep:Steward's room": [["desk", 1, 1], ["countboard", 0, 1, 0.6], ["chest", 1, 1], ["shelves", 0, 1]],
+    "keep:Muniment room": [["press", 1, 2], ["chest", 1, 2], ["desk", 0, 1, 0.5]],
+    "keep:Undercroft": [["barrel", 2, 6], ["sacks", 1, 4], ["crate", 1, 3], ["frostglyph", 0, 1, 0.6]],
+    "keep:Well chamber": [["bucket", 1, 2], ["barrel", 0, 2]],
+    "keep:Mana station": [["storagecore", 2, 4], ["regulator", 1, 1], ["gaugepanel", 1, 2], ["vent", 0, 1, 0.6], ["manacollector", 0, 1, 0.4]],
+    "keep:Core vault": [["storagecore", 2, 5], ["corerack", 1, 2]],
+    "keep:Treasury": [["strongbox", 2, 4], ["coins", 1, 3], ["chest", 1, 2]],
+    "keep:Guardroom": [["table2", 1, 1], ["stool", 1, 3], ["keyrack", 1, 1], ["weaponrack", 0, 1, 0.6], ["corelamp", 0, 1, 0.6]],
+    "keep:Cells": [["pallet", 1, 2], ["bucket", 1, 1], ["shackles", 0, 2, 0.6]],
+    "keep:Oubliette": [["bones", 0, 1, 0.6], ["shackles", 0, 1, 0.4]],
+    "keep:Family crypt": [["tomb", 1, 4], ["coffin", 0, 2], ["candles", 1, 2], ["statue", 0, 1, 0.4]],
+  }; Object.assign(GEN_FURN_ROOMS, R); })();
 const GEN_FURN_KIND = { living: "Main room", bed: "Bedroom", kitchen: "Kitchen", store: "Storage", cellar: "Cellar", shop: "Shop floor", work: "Workshop", forge: "Forge", tavern: "Common room",
   hall: "Great hall", office: "Office", meet: "Meeting room", library: "Library", temple: "Nave", sanctum: "Sanctum", bath: "Bathhouse", pit: "Fighting pit", vault: "Vault", porch: "Porch", privy: "Privy" };
-const GEN_FURN_PLACES = { wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
+const GEN_FURN_PLACES = { fixed: "Built in", wall: "Against a wall", corner: "In a corner", free: "Anywhere", centre: "Middle of the room", hearth: "Beside a fireplace", gap: "A square out from a wall" };
 
 // The pieces in use: the built-in ones (less any you've removed, with your changes to which rooms they go in) and your own.
 // Kept on the hidden "Generated buildings" campaign as furniture: { hidden: [id], rooms: { id: { room: [min, max, chance] } }, custom: [piece] }.
@@ -609,19 +696,22 @@ function genFurnLib() {
 const GENF_FRONT = [[0, 1], [-1, 0], [0, -1], [1, 0]]; // turn k: which way the front faces (k = quarter turns clockwise)
 function genFurnish(o, B) {
   B.levels.forEach(L => { L.furn = []; });
+  // A castle's lift: the platform at the foot of its shaft, the open shaft on every floor above (built in, so always there).
+  if (B.lift) B.levels.forEach(L => { if (L.level < 0) return; const s = B.lift, i = L.own ? L.own(s.x, s.y) : -1; if (i < 0) return;
+    L.furn.push({ a: L.level === 0 ? "liftplatform" : "liftshaft", x: s.x, y: s.y, w: s.w, h: s.h, k: 0, room: i, fixed: 1 }); });
   if (o.furn === false) return;
   // Each room is furnished from its own seed (the building's, the floor, the room, and how many times you've rerolled it), so
   // rerolling one room changes only that room.
   const lib = genFurnLib(), re = o.furnRe || {}, seed = Number(o.seed) || 1;
   const rngFor = (lv, i) => genRng((((seed * 31 + 11) ^ ((lv + 3) * 7919) ^ (i * 104729) ^ ((re[lv + ":" + i] || 0) * 15485863)) >>> 0) || 1);
   B.levels.forEach(L => { const edges = new Set(genEdges(L, B.W, B.H).map(e => e.k));
-    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs") return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
+    L.rooms.forEach((rm, i) => { if (rm.circ && rm.n !== "Cellar stairs" && !(B.lift && rm.n === "Gallery")) return; genFurnRoom(rngFor(L.level, i), B, L, rm, i, lib, edges); }); });
 }
 function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (Village buildings are only furnished where a room's own name has a list, for now: their furniture comes later.)
   const tk = B.type + ":" + rm.n, has = n => GEN_FURN_ROOMS[n] || lib.some(a => a.rooms && a.rooms[n]);
   if (rm.fl === "-") return; // drawn as an empty room
-  const city = B.plan && genType(B.type).group === "city", cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
+  const city = B.plan && ["city", "castle"].includes(genType(B.type).group), cf = rm.fl && "city:" + rm.fl, cn = "city:" + rm.n; // a city room: its own type's list, the city's, then its kind's
   const name = rm.fl && has(rm.fl) ? rm.fl : has(tk) ? tk : city && cf && has(cf) ? cf : city && has(cn) ? cn : has(rm.n) ? rm.n : city ? GEN_FURN_CITY_KIND[rm.k] || null : B.plan ? null : GEN_FURN_KIND[rm.k] || rm.n; if (!name) return;
   // This room's list: every piece that goes in it, in order; "a|b" choices kept together.
   const entries = new Map(); lib.forEach(a => { const v = a.rooms && a.rooms[name]; if (!v || !(v[1] > 0)) return; const key = v[4] || a.id; if (!entries.has(key)) entries.set(key, { key, ids: [], lo: v[0], hi: v[1], p: v[2], ord: v[3] }); entries.get(key).ids.push(a.id); });
@@ -650,6 +740,7 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // (The free square must meet a free square of the neighbour, as furnished so far.)
   const taken = new Set(); (L.furn || []).forEach(f => { for (let x = f.x; x < f.x + f.w; x++) for (let y = f.y; y < f.y + f.h; y++) taken.add(K(x, y)); });
   (L.stairs || []).forEach(t => { for (let x = t.x; x < t.x + t.w; x++) for (let y = t.y; y < t.y + t.h; y++) taken.add(K(x, y)); });
+  (L.furn || []).forEach(f => { for (let x = f.x; x < f.x + f.w; x++) for (let y = f.y; y < f.y + f.h; y++) if (inRoom(x, y)) solid.add(K(x, y)); }); // anything already here (a castle's lift) is in the way
   const throughs = [];
   L.rooms.forEach((ob, j) => { if (j === ri || !genOpen(rm, ob)) return; const side = [];
     for (let x = rm.x; x < rm.x + rm.w; x++) for (let y = rm.y; y < rm.y + rm.h; y++) if (GENF_FRONT.some(([dx, dy]) => L.own(x + dx, y + dy) === j && !taken.has(K(x + dx, y + dy)))) side.push(K(x, y));
@@ -773,7 +864,9 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
     for (let v = g0; v <= D - 1 - g1; v += step) for (const [s0, B, dir] of blocks) { let u = s0;
       for (const l of fill(B)) { const a = pieceOf(l); const u0 = dir > 0 ? u : u - l + 1, u1 = u0 + l - 1; put1(a, u0, u1, v, v, kF); u += dir * l; } }
   };
+  const floorEntries = [];
   for (const e of list) {
+    if (e.ids.every(id => byId.get(id) && byId.get(id).floor)) { floorEntries.push(e); continue; } // patterns in the floor: last, under everything
     const rowPcs = e.ids.map(id => byId.get(id)).filter(a => a && (a.rows || a.stalls));
     if (rowPcs.length) { layRows(rowPcs, e.hi); continue; }
     // Bigger rooms get a little more of the small things.
@@ -803,6 +896,15 @@ function genFurnRoom(r, B, L, rm, ri, lib, edges) {
   // Nothing fitted at all (a cramped room the stairs and doors take most of): at least the smallest thing on its list that will.
   if (!placed.length) { const ids = [...new Set(list.flatMap(e => e.ids))].map(id => byId.get(id)).filter(a => a && !a.seats).sort((a, b) => a.w * a.h - b.w * b.h);
     for (const a of ids) { let ok2 = false; for (const s of spots(a).slice(0, 60)) if (tryAt(a, s)) { ok2 = true; break; } if (ok2) break; } }
+  // Glyphs and mosaics set into the floor: walked over, so they never block the way; on clear floor, towards the middle.
+  const under = [], usedF = new Set();
+  for (const e of floorEntries) { let n = e.lo + Math.floor(r() * (e.hi - e.lo + 1)); if (e.p < 1 && r() > e.p) n = Math.min(n, e.lo);
+    for (let c = 0; c < n; c++) { const a = byId.get(e.ids[Math.floor(r() * e.ids.length)]); if (!a) break; let best = null;
+      for (let y = rm.y; y <= rm.y + rm.h - a.h; y++) for (let x = rm.x; x <= rm.x + rm.w - a.w; x++) { let ok = true;
+        for (let dy = 0; dy < a.h && ok; dy++) for (let dx = 0; dx < a.w && ok; dx++) { const k = K(x + dx, y + dy); if (solid.has(k) || taken.has(k) || usedF.has(k)) ok = false; }
+        if (!ok) continue; const sc = -(Math.abs(x + a.w / 2 - center.x) + Math.abs(y + a.h / 2 - center.y)) + r() * 0.8; if (!best || sc > best.sc) best = { x, y, sc }; }
+      if (!best) break; for (let dy = 0; dy < a.h; dy++) for (let dx = 0; dx < a.w; dx++) usedF.add(K(best.x + dx, best.y + dy)); under.push({ a: a.id, x: best.x, y: best.y, w: a.w, h: a.h, k: 0, room: ri }); } }
+  under.forEach(p => L.furn.push(p));
   placed.forEach(p => L.furn.push({ a: p.a, x: p.x, y: p.y, w: p.w, h: p.h, k: p.k, room: ri }));
 }
 // The pieces as pictures: where each one's box goes when turned (its own w × h, centred on its footprint), for the map.

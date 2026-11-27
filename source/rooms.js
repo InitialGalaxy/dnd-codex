@@ -31,6 +31,51 @@ const GEN_ROOM_TYPE_INFO = {
   "bakehouse:Oven room": "The bread ovens, fired with wood before each bake.",
   "apothecary:Grinding room": "Herbs, roots and minerals are ground into powders here.",
   "apothecary:Still room": "Where cordials, medicines and sweet waters are distilled.",
+  // The keep (Dryrones castles)
+  "keep:Forebuilding": "The keep's entrance: a covered stair and guard post in front of the door, so the way in can be held.",
+  "keep:Screens passage": "The cross-passage at the low end of the great hall, behind its screen: the way in from the forebuilding, with the kitchen, buttery and pantry off it.",
+  "keep:Great hall": "The banquet hall: the lord's high table on the dais at the far end, long tables down the room for the household and guests, banners of the family's arms. Feasts, audiences and the lord's justice.",
+  "keep:Kitchen": "The castle kitchen: heat plates set with fire glyphs instead of open hearths, so no smoke, and work tables for the cooks feeding the whole household.",
+  "keep:Buttery": "The drink store off the screens passage: ale and wine casks, served out to the hall.",
+  "keep:Pantry": "The bread store off the screens passage, and the table linen and salt.",
+  "keep:Guard hall": "Where the household's soldiers eat, wait and keep their weapons. In a small keep the pulley hoist stands here, to haul stores up between the floors.",
+  "keep:Lift hall": "The foot of the lift well: the stone platform carved underneath with a levitation pattern, fed straight from the mana station below. Touch a floor's glyph on its control pillar and it rises. Only an attuned household sigil works it; in a siege the ward room locks it at the bottom.",
+  "keep:Gallery": "The gallery round the lift shaft on each floor: the rooms of the floor open off it. Banners, family statues and lamps line it, and the stairs climb beside the shaft.",
+  "keep:Waystone room": "A permanent circle linked to the capital, its pattern three shapes each made of sequences. Kept in its own warded room behind the guard hall, with no other way in: anyone who comes through arrives under the guards' eyes.",
+  "keep:Steward's room": "The steward runs the estate and the household: the rents, the stores, the servants.",
+  "keep:Chamberlain's room": "The chamberlain runs the lord's private rooms and who gets to see the lord.",
+  "keep:Muniment room": "The family's charters, deeds and tax rolls, locked away.",
+  "keep:Chapel": "The household's chapel, with its altar and pews.",
+  "keep:Great chamber": "Where the lord receives important guests and does business in private, warmed by a glyph set into the floor.",
+  "keep:Lord's bedchamber": "The lord's own room, warmed by a glyph in the floor, with a cleansing basin and a speaking crystal to the rest of the castle.",
+  "keep:Wardrobe": "The lord's clothes and valuables, beside the bedchamber.",
+  "keep:Lady's bower": "The lady's private rooms.",
+  "keep:Council chamber": "Where the lord meets the officers of the household and the nobles of the lands; a living map of the lord's lands on the table, fed by the relay.",
+  "keep:Study": "The lord's own study: spellbooks and treatises from the university, a warded case for the family's sealed books.",
+  "keep:Magical workshop": "Where the lord practises and experiments: a casting circle chalked on the floor, reagents, a crystal bench. Plain stone, because magic goes wrong.",
+  "keep:Library": "The castle library: university texts, the family's own spell records, maps.",
+  "keep:Ward room": "The heart of the castle's defences: the ward sequences for every tower and wall laid out on the table, gauges showing their strength. In a siege the lord or the court mage strengthens a ward from here, and can lock the lift.",
+  "keep:Guest chamber": "A bedchamber for a visiting noble.",
+  "keep:Imbuement workshop": "The richest lords keep a master smith: an imbuement station to weave the patterns that make magic items, to make and mend the family's heirlooms.",
+  "keep:Court mage's study": "The household mage's own study: adviser, warder and healer to the lord.",
+  "keep:Court mage's chamber": "The household mage's bedchamber.",
+  "keep:Observatory": "At the top of the keep: star-glasses and a chart table, for star charts and calculation.",
+  "keep:Heirloom gallery": "The family's magic items on show behind warded glass: weapons, regalia, the founder's implement.",
+  "keep:Spell vault": "Locked and warded: the family's sealed spellbooks and texts too dangerous to leave in the library.",
+  "keep:Schoolroom": "Noble children learn magic young: a tutor teaches them here before they go to the university.",
+  "keep:Tutor's chamber": "The children's tutor-mage lives here.",
+  "keep:Undercroft": "The vaulted stores under the hall: grain, salted meat, wine, arms. A frost glyph in the floor keeps the meat.",
+  "keep:Well chamber": "The castle's well, so it can hold out under siege.",
+  "keep:Mana station": "The castle's own bleed node: storage cores fill with the household's excess mana, and feed the wards on the walls, the lamps and the lift.",
+  "keep:Core vault": "Charged cores in store, locked away.",
+  "keep:Treasury": "The lord's coin and plate behind iron doors.",
+  "keep:Guardroom": "The gaolers' room at the foot of the stairs into the prison: the keys, a table, the watch.",
+  "keep:Cells": "Prison cells: a pallet, a bucket, shackles.",
+  "keep:Oubliette": "A pit cell reached only through a grate in the floor above, for prisoners to be forgotten.",
+  "keep:Family crypt": "The family's tombs.",
+  "keep:Sally passage": "A hidden tunnel out beyond the walls: for messengers, raids on besiegers, or escape.",
+  "keep:Stair foot": "The foot of the stairs into the lower vaults.",
+  "keep:Cellar stairs": "The passage at the foot of the stairs into the undercroft.",
   "temple:Nave": "Where the townsfolk stand or sit for worship, looking towards the altar at the far end.",
 };
 const GEN_ROOM_INFO = [
@@ -180,7 +225,7 @@ function genRoomPieces(ex) { const B = genRoomsBuilding(ex.o).B, L = B.levels.fi
   (L.furn || []).filter(f => f.room === ex.i).forEach(f => { const a = byId.get(f.a); const nm = a ? a.name : f.a; n.set(nm, (n.get(nm) || 0) + 1); });
   return [...n.entries()].map(([nm, c]) => c > 1 ? `${c} × ${nm.toLowerCase()}` : nm.toLowerCase()).join(", "); }
 const genRoomFloorName = lv => lv < 0 ? "cellar" : lv === 0 ? "ground floor" : lv === 1 ? "upper floor" : `floor ${lv + 1}`;
-const GENR_GROUPS = [["village", "Village"], ["", "Town"], ["magic", "Magic"], ["city", "City"]];
+const GENR_GROUPS = [["village", "Village"], ["", "Town"], ["magic", "Magic"], ["city", "City"], ["castle", "Castle"]];
 function genRoomsView(camp, back) {
   const types = GEN_BUILDINGS.filter(t => t.id !== "custom" && (t.plan || t.ground)), T = genType(GENR.type);
   let rooms = []; try { rooms = genRoomsOf(T.id); } catch (e) { console.warn(e); }
