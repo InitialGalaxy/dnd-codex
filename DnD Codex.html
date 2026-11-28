@@ -1994,7 +1994,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vac svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #2a3242; stroke: #c9d3e3; stroke-width: 1.6; }
 .vac b { position: relative; font: 800 .72rem/1 var(--ui); color: #fff; }
 .vac.pub svg { stroke: #e6c36a; }
-.vtok.vinvis { opacity: .42; filter: saturate(.35) brightness(1.15); }
+.vtok.vinvis { filter: grayscale(1) brightness(1.25) contrast(.8); animation: vinvis 3.2s ease-in-out infinite; }
+@keyframes vinvis { 0%, 100% { opacity: .38; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .vtok.vinvis { animation: none; opacity: .45; } }
 .vmeas .vboxsel { fill: rgba(127,208,255,.12); stroke: #7fd0ff; stroke-width: 2; stroke-dasharray: 6 4; }
 .vdrawl { pointer-events: none; overflow: visible; } .vdrawl path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .vpen { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -9385,7 +9387,7 @@ function vDraw() {
   const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${""/* (the areas are drawn on the canvas with the walls: vWallsPaint) */}
     </svg><canvas id="vwallcv" class="vwallcv" aria-hidden="true"></canvas><svg class="vwalls vwdraft${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
-  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t) && (vCanEdit() || !vInvisHidden(t))).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
+  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t)).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
   const prevPos = new Map(); stage.querySelectorAll(".vtok").forEach(e => { if (!e.classList.contains("dragging")) { const cs = getComputedStyle(e); prevPos.set(e.dataset.tid, [parseFloat(cs.left), parseFloat(cs.top), parseFloat(e.style.left), parseFloat(e.style.top), e.dataset.slideT]); } });
   const oldCv = vCvTake(stage);
@@ -10897,10 +10899,9 @@ const VCOND_DEFAULTS = [
 const VCOND_EMOJI = ["🔥", "🧊", "⚡", "🩸", "☠️", "🤢", "💤", "😵", "😱", "💘", "🙈", "👻", "🛡️", "✨", "🎯", "🌀", "🕸️", "🪨", "💧", "🌿", "🐾", "🗡️", "🧠", "💀", "🌑", "☀️", "❄️", "🌪️", "⛓️", "🍄"];
 function vConds() { const l = S.vttCondDoc && Array.isArray(S.vttCondDoc.list) ? S.vttCondDoc.list : VCOND_DEFAULTS; return l; }
 const vCond = id => vConds().find(c => c.id === id);
-// Invisible (the condition, or one of the GM's own conditions with "invisib" in its name): the GM and the party see the
-// token faded; players don't see anyone else's at all (the server doesn't send it to them, nor its place in the turn order).
+// Invisible (the condition, or one of the GM's own conditions with "invisib" in its name): everyone sees the token as a
+// faint grey ghost of itself, shimmering a little.
 const vInvisible = t => vTokConds(t).some(x => (Number(x.n) || 0) > 0 && (x.c === "invisible" || /invisib/i.test((vCond(x.c) || {}).name || "")));
-const vInvisHidden = t => vInvisible(t) && !vPlayerTok(t);
 const vTokConds = t => (Array.isArray(t.conds) ? t.conds : []).filter(x => x && vCond(x.c));
 function vCondBadges(t) {
   const list = vTokConds(t); if (!list.length) return "";

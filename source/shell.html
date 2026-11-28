@@ -1993,7 +1993,9 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vac svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #2a3242; stroke: #c9d3e3; stroke-width: 1.6; }
 .vac b { position: relative; font: 800 .72rem/1 var(--ui); color: #fff; }
 .vac.pub svg { stroke: #e6c36a; }
-.vtok.vinvis { opacity: .42; filter: saturate(.35) brightness(1.15); }
+.vtok.vinvis { filter: grayscale(1) brightness(1.25) contrast(.8); animation: vinvis 3.2s ease-in-out infinite; }
+@keyframes vinvis { 0%, 100% { opacity: .38; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .vtok.vinvis { animation: none; opacity: .45; } }
 .vmeas .vboxsel { fill: rgba(127,208,255,.12); stroke: #7fd0ff; stroke-width: 2; stroke-dasharray: 6 4; }
 .vdrawl { pointer-events: none; overflow: visible; } .vdrawl path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .vpen { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }

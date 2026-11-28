@@ -523,7 +523,7 @@ function vDraw() {
   const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${""/* (the areas are drawn on the canvas with the walls: vWallsPaint) */}
     </svg><canvas id="vwallcv" class="vwallcv" aria-hidden="true"></canvas><svg class="vwalls vwdraft${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
-  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t) && (vCanEdit() || !vInvisHidden(t))).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
+  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t)).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
   const prevPos = new Map(); stage.querySelectorAll(".vtok").forEach(e => { if (!e.classList.contains("dragging")) { const cs = getComputedStyle(e); prevPos.set(e.dataset.tid, [parseFloat(cs.left), parseFloat(cs.top), parseFloat(e.style.left), parseFloat(e.style.top), e.dataset.slideT]); } });
   const oldCv = vCvTake(stage);
@@ -2035,10 +2035,9 @@ const VCOND_DEFAULTS = [
 const VCOND_EMOJI = ["🔥", "🧊", "⚡", "🩸", "☠️", "🤢", "💤", "😵", "😱", "💘", "🙈", "👻", "🛡️", "✨", "🎯", "🌀", "🕸️", "🪨", "💧", "🌿", "🐾", "🗡️", "🧠", "💀", "🌑", "☀️", "❄️", "🌪️", "⛓️", "🍄"];
 function vConds() { const l = S.vttCondDoc && Array.isArray(S.vttCondDoc.list) ? S.vttCondDoc.list : VCOND_DEFAULTS; return l; }
 const vCond = id => vConds().find(c => c.id === id);
-// Invisible (the condition, or one of the GM's own conditions with "invisib" in its name): the GM and the party see the
-// token faded; players don't see anyone else's at all (the server doesn't send it to them, nor its place in the turn order).
+// Invisible (the condition, or one of the GM's own conditions with "invisib" in its name): everyone sees the token as a
+// faint grey ghost of itself, shimmering a little.
 const vInvisible = t => vTokConds(t).some(x => (Number(x.n) || 0) > 0 && (x.c === "invisible" || /invisib/i.test((vCond(x.c) || {}).name || "")));
-const vInvisHidden = t => vInvisible(t) && !vPlayerTok(t);
 const vTokConds = t => (Array.isArray(t.conds) ? t.conds : []).filter(x => x && vCond(x.c));
 function vCondBadges(t) {
   const list = vTokConds(t); if (!list.length) return "";
