@@ -563,7 +563,7 @@ let vCullRaf = 0; const vCullSoon = () => { if (!vCullRaf) vCullRaf = requestAni
 // (and the grid, and the GM's floor areas: each as a screen-sized canvas, only what's in view)
 function vScreenCanvas(cv, R, sw, sh, z, dpr) { cv.style.left = R[0] * VCELL + "px"; cv.style.top = R[1] * VCELL + "px"; cv.style.width = sw / z + "px"; cv.style.height = sh / z + "px";
   const W = Math.round(sw * dpr), H = Math.round(sh * dpr); if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; } const c = cv.getContext("2d"); c.clearRect(0, 0, W, H); return c; }
-function vAreaGeo(p) { if (VTT.areaGeoFor === p.areas) return VTT.areaGeo; VTT.areaGeoFor = p.areas;
+function vAreaGeo(p) { if (VTT.areaGeo && VTT.areaGeoFor === p.areas) return VTT.areaGeo; // (a map with no areas: areas undefined, as the cache starts) VTT.areaGeoFor = p.areas;
   VTT.areaGeo = (p.areas || []).map(a => { if (!Array.isArray(a.cells)) return a.pts ? { a, pts: a.pts, box: [Math.min(...a.pts.map(q => q[0])), Math.min(...a.pts.map(q => q[1])), Math.max(...a.pts.map(q => q[0])), Math.max(...a.pts.map(q => q[1]))] } : null; if (!a.cells.length) return null;
     const has = new Set(a.cells.map(c => c[0] + "," + c[1])), on = (x, y) => has.has(x + "," + y), edges = []; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     a.cells.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + 1); y1 = Math.max(y1, y + 1);
@@ -606,10 +606,10 @@ function vWallsPaint() {
     c.beginPath(); ws.forEach(w => { c.moveTo((w[0] - R[0]) * k, (w[1] - R[1]) * k); c.lineTo((w[2] - R[0]) * k, (w[3] - R[1]) * k); }); c.stroke(); });
   c.globalAlpha = 1; c.setLineDash([]);
 }
-function vObjIndex(p) { if (VTT.cullFor !== p.objs) { VTT.cullFor = p.objs; VTT.cullIdx = new Map((p.objs || []).map(o => [o.id, o])); } return VTT.cullIdx; }
+function vObjIndex(p) { if (!VTT.cullIdx || VTT.cullFor !== p.objs) { VTT.cullFor = p.objs; VTT.cullIdx = new Map((p.objs || []).map(o => [o.id, o])); } return VTT.cullIdx; }
 function vCull() {
   const cur = vPageNow(); if (!cur || !cur.p) return; const near = vViewRect(1), far = vViewRect(2); if (!near) return;
-  if (VTT.cullFor !== cur.p.objs) { VTT.cullFor = cur.p.objs; VTT.cullIdx = new Map((cur.p.objs || []).map(o => [o.id, o])); }
+  if (!VTT.cullIdx || VTT.cullFor !== cur.p.objs) { VTT.cullFor = cur.p.objs; VTT.cullIdx = new Map((cur.p.objs || []).map(o => [o.id, o])); }
   const farOn = vFarOn();
   document.querySelectorAll("#vstage img.vobj").forEach(el => { const o = VTT.cullIdx.get(el.dataset.oid); if (!o || o.far || (!o.lod && !(o.w * o.h > 64))) return;
     if (farOn && o.lod) return; // (the overview stands in for them)
