@@ -116,3 +116,29 @@ function fillAllClassFeatures(c, withSub) {
     const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title })) : [];
     return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => Object.assign({}, f, { cls: x.name })); });
 }
+// ---------- Features from the books, automatically ----------
+// What the classes (each up to its level, the chosen subclass's too) and the race give is worked out every time, not
+// saved on the sheet: Edit sheet lists only what was added by hand. A hand-added feature with the same name as one from
+// the books stands in for it (to rewrite its description, say). Copies saved by the old "Fill from the source books"
+// button (same name, no description or the books' own) are left out of Edit sheet.
+function autoFeatures(c) {
+  const out = [];
+  try {
+    const multi = charMulti(c);
+    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }));
+    const race = detectRaceChoice(c);
+    if (race) { const rd = !race.startsWith("hb:") && SRD_RACE_TRAITS[race], t = String(c.race || "").toLowerCase(), sub = rd ? Object.keys(rd.sub).find(s => t.includes(s.toLowerCase())) || "" : "";
+      const rn = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
+      fillRaceTraits(race, sub).forEach(f => out.push({ name: f.n, source: "Race", note: rn, desc: f.d || "", auto: 1 })); }
+  } catch (e) { console.warn(e); }
+  const seen = new Set(); return out.filter(f => { const k = featKey(f.name); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+}
+// Everything on the sheet: [feature, index in c.features or -1 for one from the books].
+function charFeatures(c) {
+  const man = (c.features || []).map((f, k) => [f, k]), byKey = new Map(); man.forEach(m => { const k = featKey(m[0].name); if (k && !byKey.has(k)) byKey.set(k, m); });
+  const used = new Set(), merged = autoFeatures(c).map(a => { const m = byKey.get(featKey(a.name)); if (!m) return [a, -1]; used.add(m[1]);
+    return [Object.assign({}, a, m[0], { desc: String(m[0].desc || "").trim() ? m[0].desc : a.desc, note: m[0].note || a.note, source: m[0].source || a.source }), m[1]]; });
+  return [...merged, ...man.filter(m => !used.has(m[1]))];
+}
+const charFeatList = c => charFeatures(c).map(x => x[0]);
+function featIsBookCopy(c, f, auto) { const a = (auto || autoFeatures(c)).find(x => featKey(x.name) === featKey(f.name)); return !!a && (!String(f.desc || "").trim() || String(f.desc).trim() === String(a.desc || "").trim()); }

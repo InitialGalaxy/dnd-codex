@@ -2517,7 +2517,7 @@ function vDvText(text) { const m = String(text || "").match(/darkvision[\s\S]{0,
 function vDarkvisionAuto(t) {
   const ref = t.ref || "";
   try {
-    if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); if (!c) return 0; const n = vDvText(JSON.stringify([c.features, c.senses, c.race, c.notes, c.traits])); if (n) return n; const r = VDV_RACES.find(([re]) => re.test(c.race || "")); return r ? r[1] : 0; }
+    if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); if (!c) return 0; const n = vDvText(JSON.stringify([typeof charFeatList === "function" ? charFeatList(c) : c.features, c.senses, c.race, c.notes, c.traits])); if (n) return n; const r = VDV_RACES.find(([re]) => re.test(c.race || "")); return r ? r[1] : 0; }
     if (ref.startsWith("s:")) { const sm = vSummonOf(ref); return sm ? vDvText(JSON.stringify(smView(sm).sb || {})) : 0; }
     if (ref.startsWith("e:")) { const e = S.entries.get(t.form || ref.slice(2)) || S.entries.get(ref.slice(2)); return e ? vDvText(JSON.stringify(e.statblock || {}) + " " + (e.body || "").slice(0, 3000)) : 0; }
   } catch (e) {}

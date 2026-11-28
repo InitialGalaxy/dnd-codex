@@ -155,9 +155,10 @@ function viewCharacter(id) {
       <span class="sk">${label} <small>${ab.toUpperCase()}</small></span><strong>${signed(cSkill(c, k))}</strong></li>`; }).join("")}</ul>
       ${E ? `<p class="muted small">Tap the circles to cycle: none, proficient, expertise.</p>` : ""}`);
 
-  const groups = FEATURE_SOURCES.map(src => ({ src, items: (c.features || []).map((f, k) => [f, k]).filter(([f]) => (f.source || "Other") === src) })).filter(g => g.items.length);
+  const allFeats = charFeatures(c), autoF = E ? autoFeatures(c) : [];
+  const groups = FEATURE_SOURCES.map(src => ({ src, items: allFeats.filter(([f]) => (f.source || "Other") === src) })).filter(g => g.items.length);
   groups.forEach(g => { if (g.src === "Class") g.items = classFeatOrder(c, g.items); });
-  const feats = sec("features", "cfeat", "Features &amp; traits", levelupHtml(c, id, E, P) + (E ? `${classBasicsHtml(c)}${srdFillHtml(c)}<div class="featedit">${(c.features || []).map((f, k) => `<div class="sbitem">
+  const feats = sec("features", "cfeat", "Features &amp; traits", levelupHtml(c, id, E, P) + (E ? `${classBasicsHtml(c)}<p class="muted small fauto">Class features (each class up to its level, and the subclass's) and racial traits from the books and your library show on the sheet by themselves${autoF.length ? ` (${autoF.length} right now)` : ""}. Add anything else here. To change one from the books, add a feature with the same name.</p><div class="featedit">${(c.features || []).map((f, k) => [f, k]).filter(([f]) => !featIsBookCopy(c, f, autoF)).map(([f, k]) => `<div class="sbitem">
         <div class="frow tight"><label class="grow"><span>Name</span>${cField(`features.${k}.name`, f.name)}</label>
           <label><span>From</span><select class="cf" data-cf="features.${k}.source">${FEATURE_SOURCES.map(s => `<option${(f.source || "Other") === s ? " selected" : ""}>${s}</option>`).join("")}</select></label>
           <label class="grow"><span>Short note</span>${cField(`features.${k}.note`, f.note, { ph: "e.g. 60 ft, 1 per short rest" })}</label><button class="iconbtn" data-act="clistdel" data-v="features" data-k="${k}" aria-label="Remove ${esc(f.name)}">✕</button></div>
@@ -330,7 +331,7 @@ document.addEventListener("change", ev => {
 // How many attacks the Attack action gives: from an "Extra Attack" style feature, plus the Fighter's 11th and 20th levels.
 function attacksPerAction(c) {
   let n = 1, label = "";
-  (c.features || []).forEach(f => {
+  charFeatList(c).forEach(f => {
     const t = String(f.name || "");
     let m, k = 0;
     if ((m = t.match(/extra attacks?\s*\((\d)\)/i))) k = 1 + Number(m[1]);

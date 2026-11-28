@@ -395,7 +395,7 @@ function weaponAttack(c, e) {
 // Draconic Resilience (13 + Dex), or any feature that says "13 + your Dexterity modifier" style AC.
 function acUnarmoured(c) {
   const dex = cMod(c, "dex"), opts = [{ v: 10 + dex, label: `10 + Dex ${signed(dex)}`, shield: true }];
-  for (const f of c.features || []) {
+  for (const f of (typeof charFeatList === "function" ? charFeatList(c) : c.features || [])) {
     const name = String(f.name || ""), txt = name + " " + (f.note || "") + " " + (f.desc || "");
     if (/unarmou?red defen[cs]e/i.test(name)) {
       const wis = /wisdom/i.test(txt) || (/monk/i.test(txt + " " + (c.classes || "")) && !/constitution/i.test(txt));
