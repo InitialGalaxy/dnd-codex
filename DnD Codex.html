@@ -8900,6 +8900,10 @@ function vTokSrc(t) {
 // A summon's picture for players (t.pimg): the GM's screen keeps it on the token, as players can't look up an NPC's
 // summons (the NPC's sheet is hidden from them) or a creature from a hidden bestiary entry.
 function vPimgSync(t, id) { if (!vCanEdit() || !(t.ref || "").startsWith("s:")) return; const src = vTokSrc(Object.assign({}, t, { pimg: "" }));
+  // An NPC's summon: its hit points too (t.php), for the HP bar players see.
+  const sm = vSummonOf(t.ref), c = S.chars.get(t.ref.split(":")[1]);
+  if (sm && c && c.hidden && smNowMax(sm)) { const php = { cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0 }, k = JSON.stringify(php);
+    VTT.phpSync = VTT.phpSync || {}; if (JSON.stringify(t.php || null) !== k && VTT.phpSync[id] !== k) { VTT.phpSync[id] = k; setTimeout(() => vPatch("vtttokens/" + id, { php }), 0); } }
   if (!src || src === t.pimg || /^data:/.test(src)) return; VTT.pimgSync = VTT.pimgSync || {}; if (VTT.pimgSync[id] === src) return; VTT.pimgSync[id] = src; setTimeout(() => vPatch("vtttokens/" + id, { pimg: src }), 0); }
 const vSizeOf = e => ({ Large: 2, Huge: 3, Gargantuan: 4 })[typeof creatureSize === "function" ? creatureSize(e) : ""] || 1;
 // Shapeshifting changes a token's size: a shifted token takes its form's size (Large 2, Huge 3...) unless the GM set
@@ -10455,7 +10459,7 @@ function vBars(t) {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
     if (sm && smNowMax(sm)) out.push({ cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0, hp: true, label: "HP" });
-    else if (!sm) { const h = t.npc && t.npc.hp; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); }
+    else if (!sm) { const h = (t.npc && t.npc.hp) || t.php; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); }
   } else {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
