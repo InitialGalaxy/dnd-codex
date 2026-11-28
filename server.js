@@ -87,7 +87,9 @@ function playerCopy(p, doc) {
     const f = sm && sm.form && docs["entries/" + sm.form], e = sm && sm.ref && docs["entries/" + sm.ref], src = f || (sm && sm.token ? null : e);
     if (!c || c.hidden || (src && src.hidden)) { const num = v => parseInt(String(v || "").match(/\d+/) || [0], 10) || 0;
       const max = f ? num((f.statblock || {}).hp) : num((sm && sm.sb || {}).hp), cur = f ? (sm.fhp == null ? max : Number(sm.fhp) || 0) : (sm && sm.hp != null ? Number(sm.hp) || 0 : max);
-      return Object.assign({}, doc, { npc: { img: f ? f.token || f.image || "" : (sm && sm.token) || (e ? e.token || e.image || "" : ""), hp: sm ? { cur, max, temp: Number(sm.temp) || 0 } : null, sb: { subtitle: String((sm && sm.sb && sm.sb.subtitle) || (e && e.statblock && e.statblock.subtitle) || "").split(/[,(]/)[0].trim() } } }); }
+      const img = f ? f.token || f.image || "" : (sm && sm.token) || (e ? e.token || e.image || "" : "");
+      // (The picture goes on the token itself too, so it shows even on a page loaded before this server was updated.)
+      return Object.assign({}, doc, doc.img ? {} : { img }, { npc: { img, hp: sm ? { cur, max, temp: Number(sm.temp) || 0 } : null, sb: { subtitle: String((sm && sm.sb && sm.sb.subtitle) || (e && e.statblock && e.statblock.subtitle) || "").split(/[,(]/)[0].trim() } } }); }
   }
   // A token for a hidden bestiary entry (a secret monster, or an NPC's own entry): just its picture, and the size and
   // Constitution its Exhaust Meter is worked out from.
