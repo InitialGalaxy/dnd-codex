@@ -1994,6 +1994,17 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vac svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #2a3242; stroke: #c9d3e3; stroke-width: 1.6; }
 .vac b { position: relative; font: 800 .72rem/1 var(--ui); color: #fff; }
 .vac.pub svg { stroke: #e6c36a; }
+.clpick { display: grid; gap: 6px; margin: 4px 0 10px; }
+.clrow { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.clrow select { flex: 1 1 180px; min-width: 0; }
+.cllv { display: flex; align-items: center; gap: 6px; } .cllv span { font-size: .8rem; color: var(--muted); } .cllv input { width: 64px; }
+.clpick .btn { justify-self: start; }
+.clwarn { color: #e6b45a; margin: 0; }
+.hplv { margin: 10px 0 4px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; display: grid; gap: 8px; }
+.hplvc { display: grid; gap: 4px; } .hplvn { font-weight: 600; font-size: .9rem; }
+.hplvr { display: flex; flex-wrap: wrap; gap: 6px; }
+.hplvr label { display: grid; justify-items: center; gap: 2px; } .hplvr label span { font-size: .7rem; color: var(--muted); }
+.hplvr input { width: 46px; text-align: center; padding: 4px 2px; }
 .vtok.vinvis { filter: grayscale(1) brightness(1.25) contrast(.8); animation: vinvis 3.2s ease-in-out infinite; }
 @keyframes vinvis { 0%, 100% { opacity: .38; } 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .vtok.vinvis { animation: none; opacity: .45; } }
@@ -3382,6 +3393,7 @@ function sourceShelfHtml() {
 // ---------- Class features and racial traits for character sheets ----------
 const featKey = n => String(n || "").toLowerCase().replace(/armou?r/g, "armor").replace(/favou?r/g, "favor").replace(/\s*\(.*?\)\s*$/, "").replace(/[^a-z]/g, "");
 function detectSrdClass(c) {
+  if (Array.isArray(c.classList) && c.classList.length && c.classList[0].name) return c.classList[0].name;
   if (c.classRef) { const e = S.entries.get(c.classRef); if (e && e.type === "class") return e.title.trim(); }
   const t = String(c.classes || "").toLowerCase(); return allClassNames().sort((a, b) => b.length - a.length).find(k => t.includes(k.toLowerCase())) || "";
 }
@@ -3423,13 +3435,14 @@ function srdFillHtml(c) {
   const withSub = CS.fill && CS.fill.withSub != null ? !!CS.fill.withSub : !!(hb || (cls && classFeats(cls) && c.subclass && c.subclass === classFeats(cls).subs[0]));
   const subs = race && SRD_RACE_TRAITS[race] ? Object.keys(SRD_RACE_TRAITS[race].sub) : [];
   const have = new Set((c.features || []).map(f => featKey(f.name)));
-  const list = [...fillClassFeatures(c, cls, lvl, withSub).map(f => ["Class", f]), ...fillRaceTraits(race, sub || subs[0]).map(f => ["Race", f])];
+  const multi = typeof charMulti === "function" && charMulti(c) && !(CS.fill && CS.fill.cls != null);
+  const list = [...(multi ? fillAllClassFeatures(c, withSub) : fillClassFeatures(c, cls, lvl, withSub)).map(f => ["Class", f]), ...fillRaceTraits(race, sub || subs[0]).map(f => ["Race", f])];
   const newOnes = list.filter(([, f]) => !have.has(featKey(f.n))).length, fills = list.filter(([, f]) => have.has(featKey(f.n)) && (c.features || []).some(x => featKey(x.name) === featKey(f.n) && !String(x.desc || "").trim())).length;
   const hbr = homebrewRaces();
   return `<div class="srdfill"><span class="flabel">Fill from the source books <span class="srcpill">Source</span></span>
     <div class="frow tight">
-      <label><span>Class</span><select id="fill-cls"><option value="">None</option>${allClassNames().map(k => `<option${k === cls ? " selected" : ""}>${k}</option>`).join("")}</select></label>
-      <label><span>Up to level</span><input type="text" value="${lvl}" disabled class="cf mini"></label>
+      ${multi ? `<label><span>Classes</span><input type="text" value="${esc(charClasses(c).map(x => x.name + " " + x.level).join(" / "))}" disabled class="cf"></label>` : `<label><span>Class</span><select id="fill-cls"><option value="">None</option>${allClassNames().map(k => `<option${k === cls ? " selected" : ""}>${k}</option>`).join("")}</select></label>
+      <label><span>Up to level</span><input type="text" value="${lvl}" disabled class="cf mini"></label>`}
       ${subName ? `<label class="check inline"><input type="checkbox" id="fill-sub"${withSub ? " checked" : ""}> Include ${esc(subName)} subclass${hb ? " (your book)" : ""}</label>` : ""}
       <label><span>Race</span><select id="fill-race"><option value="">None</option>${Object.keys(SRD_RACE_TRAITS).map(k => `<option${k === race ? " selected" : ""}>${k}</option>`).join("")}${hbr.length ? `<optgroup label="From your books">${hbr.map(([rid, e]) => `<option value="hb:${esc(rid)}"${race === "hb:" + rid ? " selected" : ""}>${esc(e.title)}</option>`).join("")}</optgroup>` : ""}</select></label>
       ${subs.length ? `<label><span>Subrace</span><select id="fill-subrace">${subs.map(k => `<option${k === (sub || subs[0]) ? " selected" : ""}>${k}</option>`).join("")}<option value="-"${sub === "-" ? " selected" : ""}>None</option></select></label>` : ""}
@@ -3441,7 +3454,8 @@ function srdFillApply(id, c) {
   const cls = ($("#fill-cls") || {}).value || "", race = ($("#fill-race") || {}).value || "", sb = ($("#fill-subrace") || {}).value || "", withSub = !!($("#fill-sub") || {}).checked;
   const lvl = Number(c.level) || 1;
   const raceName = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
-  const add = [...fillClassFeatures(c, cls, lvl, withSub).map(f => ({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + "level " + f.lv, desc: f.d })),
+  const multi = !$("#fill-cls") && typeof charMulti === "function" && charMulti(c);
+  const add = [...(multi ? fillAllClassFeatures(c, withSub) : fillClassFeatures(c, cls, lvl, withSub)).map(f => ({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d })),
     ...fillRaceTraits(race, sb === "-" ? "" : sb).map(f => ({ name: f.n, source: "Race", note: raceName, desc: f.d }))];
   let added = 0, filled = 0;
   charChange(id, x => {
@@ -3548,7 +3562,7 @@ function blankCharacter(name) {
 function charChange(id, mutate, rerender) {
   const cur = S.chars.get(id); if (!cur) return;
   const c = JSON.parse(JSON.stringify(cur));
-  mutate(c); c.updated = new Date().toISOString();
+  mutate(c); c.updated = new Date().toISOString(); if (typeof charDerive === "function") charDerive(c);
   const moved = typeof invNormalize === "function" ? invNormalize(c) : 0;
   if (typeof invUnstack === "function") invUnstack(c);
   if (moved) setTimeout(() => toast(`${moved} item${moved === 1 ? "" : "s"} from a storage item went back to the pack.`));
@@ -3619,7 +3633,7 @@ function viewCharacter(id) {
         ${E && S.assets ? `<button class="btn ghost small" data-act="charimg" data-id="${esc(id)}">${c.image ? "Change" : "Add picture"}</button><button class="btn ghost small" data-act="chartok" data-id="${esc(id)}" title="The picture used on the tabletop">${c.token ? "Change token" : "Add token picture"}</button>${c.token ? `<img class="ctokprev" src="${esc(c.token)}" alt="Token">` : ""}` : ""}</div>
       <div class="cident">
         ${E ? `<div class="frow"><label class="grow"><span>Name</span>${cField("name", c.name)}</label><label><span>Player</span>${cField("player", c.player)}</label></div>
-          <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label><label class="grow"><span>Class</span>${cField("classes", c.classes, { ph: "Fighter" })}</label><label><span>Level</span>${cField("level", c.level, { num: 1 })}</label></div>
+          <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label></div>${classPickHtml(c)}<div class="frow">
           <div class="frow"><label><span>Background</span>${cField("background", c.background)}</label><label><span>Alignment</span>${cField("alignment", c.alignment)}</label><label><span>XP</span>${cField("xp", c.xp)}</label></div>
           ${casterEditHtml(c)}`
         : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}${charRidingHtml(id)}`}
@@ -3638,9 +3652,9 @@ function viewCharacter(id) {
     </div>`;
 
   const hpBlock = `<div class="hpbox">
-      <div class="hpnums"><div><span class="vl">Hit points</span><strong class="hpcur">${Number(hp.cur) || 0}<small> / ${E ? cField("hp.max", hp.max, { num: 1, cls: "mini", label: "Max HP" }) : Number(hp.max) || 0}</small></strong></div>
+      <div class="hpnums"><div><span class="vl">Hit points</span><strong class="hpcur">${Number(hp.cur) || 0}<small> / ${E && !c.hpAuto ? cField("hp.max", hp.max, { num: 1, cls: "mini", label: "Max HP" }) : Number(hp.max) || 0}</small></strong></div>
         <div><span class="vl">Temporary</span><strong>${Number(hp.temp) || 0}</strong></div></div>
-      ${hpBar(c)}
+      ${hpBar(c)}${E ? hpLevelsHtml(c) : ""}
       ${P ? `<div class="hpctl"><input id="hpamt" type="text" inputmode="numeric" placeholder="Amount" aria-label="Amount" value="${esc(CS.amt)}">
         <button class="btn danger" data-act="chp" data-v="dmg" data-id="${esc(id)}">Damage</button><button class="btn" data-act="chp" data-v="heal" data-id="${esc(id)}">Heal</button><button class="btn ghost" data-act="chp" data-v="temp" data-id="${esc(id)}">Temp HP</button></div>` : ""}
       <div class="hdrow"><div><span class="vl">Hit dice <small>${esc(hd.die || "")}</small></span>
@@ -3759,6 +3773,7 @@ async function charAction(a, el, ev) {
   if (a === "cdrink") { let msg = ""; charChange(id, x => { msg = useConsumable(x, el.dataset.v); }); if (msg) toast(msg); return true; }
   if (/^sp(adj|cast|add)$/.test(a)) return spellAction(a, el, id, c);
   if (a === "srdfill") { srdFillApply(id, c); return true; }
+  if (a === "cladd" || a === "clrm") return classListAction(a, el, id);
   if (a === "clsapply") { classBasicsApply(id, c, el.dataset.v); return true; }
   if (a === "cuseac") { charChange(id, x => { x.ac = el.dataset.v; }); toast(el.dataset.v ? "AC updated" : "AC now follows what's worn"); return true; }
   if (a === "cinsp") { charChange(id, x => { x.inspiration = !x.inspiration; }); return true; }
@@ -3802,8 +3817,8 @@ function charInput(t) {
   const sh = t.closest(".sheet"); if (!sh || !t.dataset.cf) return false;
   const id = sh.dataset.id, path = t.dataset.cf;
   let v = t.type === "checkbox" ? t.checked : t.value; if (t.dataset.num && typeof v === "string") v = v.trim() === "" ? 0 : (parseInt(v, 10) || 0);
-  if (t.type === "checkbox" || (t.tagName === "SELECT" && /^(caster\.|resources\.\d+\.(style|amt|reset))/.test(path))) { charChange(id, x => setPath(x, path, v)); return true; }
-  const live = /^(abilities|level|pbOverride|initOverride|hp\.max|hd\.total|resources\.\d+\.max|name|caster\.)/.test(path);
+  if (t.type === "checkbox" || (t.tagName === "SELECT" && /^(caster\.|hpAuto|resources\.\d+\.(style|amt|reset))/.test(path))) { charChange(id, x => setPath(x, path, v)); return true; }
+  const live = /^(abilities|level|hpBonus|pbOverride|initOverride|hp\.max|hd\.total|resources\.\d+\.max|name|caster\.)/.test(path);
   charChange(id, x => setPath(x, path, v), false);
   if (live && t.tagName !== "TEXTAREA") { clearTimeout(CS.redraw); CS.redraw = setTimeout(() => { const f = document.activeElement && document.activeElement.id; render(); const n = f && document.getElementById(f); if (n) { n.focus(); try { n.setSelectionRange(n.value.length, n.value.length); } catch (e) {} } }, 700); }
   return true;
@@ -3860,7 +3875,7 @@ function attacksPerAction(c) {
     else if (/\bextra attack\b/i.test(t)) k = 2;
     if (k > n) { n = k; label = t; }
   });
-  if (/fighter/i.test(String(c.classes || "")) && n > 1) { const lv = Number(c.level) || 1; const f = lv >= 20 ? 4 : lv >= 11 ? 3 : 2; if (f > n) { n = f; label = "Extra Attack (" + (f - 1) + ")"; } }
+  if (/fighter/i.test(String(c.classes || "")) && n > 1) { const lv = (typeof classLevelOf === "function" && classLevelOf(c, "Fighter")) || Number(c.level) || 1; const f = lv >= 20 ? 4 : lv >= 11 ? 3 : 2; if (f > n) { n = f; label = "Extra Attack (" + (f - 1) + ")"; } }
   return { n, label: label || "Extra Attack" };
 }
 
@@ -5386,11 +5401,12 @@ function maxSpellLevel(kind, lvl) {
 }
 function casterOf(c) {
   const k = c.caster || {}; if (!k.on) return null;
-  const lvl = Math.max(0, Number(c.level) || 0), kind = k.kind || "full";
-  const cl = Math.min(20, kind === "half" ? Math.floor(lvl / 2) : kind === "halfup" ? Math.ceil(lvl / 2) : kind === "third" ? Math.floor(lvl / 3) : lvl);
+  const mc = typeof multiCaster === "function" ? multiCaster(c, k.kind) : null; // (a multiclassed character: its casting classes' levels)
+  const lvl = Math.max(0, Number(c.level) || 0), kind = mc ? mc.kind : k.kind || "full";
+  const cl = mc ? mc.cl : Math.min(20, kind === "half" ? Math.floor(lvl / 2) : kind === "halfup" ? Math.ceil(lvl / 2) : kind === "third" ? Math.floor(lvl / 3) : lvl);
   const ab = k.ability || "int", mod = cMod(c, ab), pb = cPB(c);
   const max = String(k.spOverride || "").trim() ? Number(k.spOverride) || 0 : SP_TABLE[cl] || 0;
-  const maxLvl = String(k.maxOverride || "").trim() ? Number(k.maxOverride) || 0 : maxSpellLevel(kind, lvl);
+  const maxLvl = String(k.maxOverride || "").trim() ? Number(k.maxOverride) || 0 : mc ? mc.maxLvl : maxSpellLevel(kind, lvl);
   const used = Math.min(max, Math.max(0, Number(k.used) || 0));
   return { kind, casterLevel: cl, ability: ab, mod, dc: 8 + pb + mod, atk: pb + mod, max, left: max - used, maxLvl, high: k.high || {} };
 }
@@ -5494,37 +5510,48 @@ function charSubclassEntry(c) {
   const cls = detectSrdClass(c), is = e => String(e.title).trim().toLowerCase() === n || String((e.subclass || {}).alias || "").toLowerCase() === n;
   return homebrewSubclasses(cls).find(([, e]) => is(e)) || homebrewSubclasses("").find(([, e]) => is(e)) || null;
 }
+// One block per class: a multiclassed character makes each class's choices at that class's own levels. The first class
+// keeps its subclass in c.subclass and its improvements under plain levels in c.asi; the others keep theirs on their
+// row of c.classList and under "<class>:<level>".
 function levelupHtml(c, id, E, P) {
-  const cls = detectSrdClass(c), d = classFeats(cls), lvl = Number(c.level) || 1;
-  if (!d) return E ? `<p class="muted small">Level-up choices appear when the class line names an SRD class (e.g. "Fighter 8"), or a class from your library.</p>` : "";
+  const L = typeof charClasses === "function" ? charClasses(c) : [];
+  const blocks = (L.length > 1 ? L.map((x, i) => i) : [0]).map(i => levelupBlock(c, id, E, P, i)).join("");
+  return blocks ? blocks + `<datalist id="srdfeats">${featEntries().map(([, fe]) => `<option value="${esc(fe.title)}">${esc([fe.feat && fe.feat.kind, fe.feat && fe.feat.prereq].filter(Boolean).join(" · "))}</option>`).join("") || `<option value="Grappler"></option>`}</datalist>` : "";
+}
+function levelupBlock(c, id, E, P, i) {
+  const L = typeof charClasses === "function" ? charClasses(c) : [], x = L[i] || {}, multi = L.length > 1;
+  const cls = i === 0 ? detectSrdClass(c) : x.name, d = classFeats(cls), lvl = multi ? Number(x.level) || 1 : Number(c.level) || 1;
+  if (!d) return E && i === 0 ? `<p class="muted small">Level-up choices appear once the class is one from the source books or your library.</p>` : "";
   const abilOpts = (sel, none) => `${none ? `<option value="">${none}</option>` : ""}${ABILS.map(([k, l]) => `<option value="${k}"${sel === k ? " selected" : ""}>${l}</option>`).join("")}`;
-  const srdSub = d.subs[0], sub = String(c.subclass || ""), hb = charSubclassEntry(c), hbs = homebrewSubclasses(cls);
-  const isOther = sub && sub !== srdSub && !hb;
+  const srdSub = d.subs[0], sub = String((i === 0 ? c.subclass : x.subclass) || ""), hb = i === 0 ? charSubclassEntry(c) : subEntryOf(cls, x.subclass, x.subclassRef), hbs = homebrewSubclasses(cls);
+  const isOther = i === 0 && sub && sub !== srdSub && !hb, key = L2 => i === 0 ? String(L2) : cls + ":" + L2;
   const hbFeats = hb ? subclassFeatures(hb[1]) : [];
   const hbLine = hb && hbFeats.length ? `<p class="muted small lvhb">${esc(hb[1].title)}: ${hbFeats.map(f => `<span class="${(Number(f.lv) || 1) <= lvl ? "" : "later"}">${lvOrd(f.lv)} ${esc(f.n)}</span>`).join(" · ")} <a href="#entry-${esc(hb[0])}">Read it →</a></p>` : "";
   const subRow = lvl >= d.subLv ? `<div class="lvrow"><span class="lvlv">Level ${d.subLv}</span><span class="lvname">${esc(d.flavor)}</span>
-      ${P ? `<select data-lvsub="1" aria-label="${esc(d.flavor)}"><option value="">Not chosen</option>${srdSub && !hbs.some(([, he]) => (he.subclass || {}).alias === srdSub || he.title === srdSub) ? `<option value="${esc(srdSub)}"${sub === srdSub && !hb ? " selected" : ""}>${esc(srdSub)} (SRD)</option>` : ""}${hbs.length ? `<optgroup label="From your library">${hbs.map(([hid, he]) => `<option value="hb:${esc(hid)}"${hb && hb[0] === hid ? " selected" : ""}>${esc(he.title)}</option>`).join("")}</optgroup>` : ""}<option value="__other"${isOther ? " selected" : ""}>Something else…</option></select>
-        ${isOther || CS.subOther ? cField("subclass", isOther ? sub : "", { ph: "Subclass name", cls: "mid" }) : ""}` : `<strong>${hb ? `<a href="#entry-${esc(hb[0])}">${esc(hb[1].title)}</a>` : esc(sub || "Not chosen")}</strong>`}</div>${hbLine}` : "";
+      ${P ? `<select ${i === 0 ? `data-lvsub="1"` : `data-lvsubi="${i}"`} aria-label="${esc(d.flavor)}"><option value="">Not chosen</option>${srdSub && !hbs.some(([, he]) => (he.subclass || {}).alias === srdSub || he.title === srdSub) ? `<option value="${esc(srdSub)}"${sub === srdSub && !hb ? " selected" : ""}>${esc(srdSub)} (SRD)</option>` : ""}${hbs.length ? `<optgroup label="From your library">${hbs.map(([hid, he]) => `<option value="hb:${esc(hid)}"${hb && hb[0] === hid ? " selected" : ""}>${esc(he.title)}</option>`).join("")}</optgroup>` : ""}<option value="__other"${isOther ? " selected" : ""}>Something else…</option></select>
+        ${isOther || (CS.subOther && i === 0) ? cField("subclass", isOther ? sub : "", { ph: "Subclass name", cls: "mid" }) : ""}` : `<strong>${hb ? `<a href="#entry-${esc(hb[0])}">${esc(hb[1].title)}</a>` : esc(sub || "Not chosen")}</strong>`}</div>${hbLine}` : "";
   const slots = d.asi.filter(L => L <= lvl).map(L => {
-    const p = (c.asi || {})[L] || {};
+    const p = (c.asi || {})[key(L)] || {};
     return `<div class="lvrow"><span class="lvlv">Level ${L}</span><span class="lvname">Ability Score Improvement</span>
-      ${P ? `<select data-asi="${L}" data-part="type" aria-label="Level ${L} improvement"><option value="">Not chosen</option><option value="one"${p.type === "one" ? " selected" : ""}>+2 to one ability</option><option value="two"${p.type === "two" ? " selected" : ""}>+1 to two abilities</option><option value="feat"${p.type === "feat" ? " selected" : ""}>A feat</option></select>
-        ${p.type === "one" ? `<select data-asi="${L}" data-part="a">${abilOpts(p.a, "Ability…")}</select>` : ""}
-        ${p.type === "two" ? `<select data-asi="${L}" data-part="a">${abilOpts(p.a, "First…")}</select><select data-asi="${L}" data-part="b">${abilOpts(p.b, "Second…")}</select>` : ""}
-        ${p.type === "feat" ? `<input type="text" data-asi="${L}" data-part="feat" value="${esc(p.feat || "")}" placeholder="Feat name" list="srdfeats">` : ""}
-        ${p.type && p.type !== "feat" && E ? `<label class="check inline small"><input type="checkbox" data-asi="${L}" data-part="legacy"${p.legacy ? " checked" : ""}> already in the scores</label>` : ""}
+      ${P ? `<select data-asi="${key(L)}" data-part="type" aria-label="Level ${L} improvement"><option value="">Not chosen</option><option value="one"${p.type === "one" ? " selected" : ""}>+2 to one ability</option><option value="two"${p.type === "two" ? " selected" : ""}>+1 to two abilities</option><option value="feat"${p.type === "feat" ? " selected" : ""}>A feat</option></select>
+        ${p.type === "one" ? `<select data-asi="${key(L)}" data-part="a">${abilOpts(p.a, "Ability…")}</select>` : ""}
+        ${p.type === "two" ? `<select data-asi="${key(L)}" data-part="a">${abilOpts(p.a, "First…")}</select><select data-asi="${key(L)}" data-part="b">${abilOpts(p.b, "Second…")}</select>` : ""}
+        ${p.type === "feat" ? `<input type="text" data-asi="${key(L)}" data-part="feat" value="${esc(p.feat || "")}" placeholder="Feat name" list="srdfeats">` : ""}
+        ${p.type && p.type !== "feat" && E ? `<label class="check inline small"><input type="checkbox" data-asi="${key(L)}" data-part="legacy"${p.legacy ? " checked" : ""}> already in the scores</label>` : ""}
         ${p.legacy && !E ? `<span class="muted small">already in the scores</span>` : ""}`
       : `<strong>${esc(asiText(p))}</strong>`}</div>`;
   }).join("");
   const next = d.asi.find(L => L > lvl);
-  return `<div class="levelup"><h3 class="fgh">Level-up choices <span class="muted">${esc(cls)}</span></h3>${subRow}${slots || `<p class="muted small">No Ability Score Improvements yet.</p>`}
-    ${next ? `<p class="muted small">Next Ability Score Improvement at level ${next}.</p>` : ""}
-    <datalist id="srdfeats">${featEntries().map(([, fe]) => `<option value="${esc(fe.title)}">${esc([fe.feat && fe.feat.kind, fe.feat && fe.feat.prereq].filter(Boolean).join(" · "))}</option>`).join("") || `<option value="Grappler"></option>`}</datalist></div>`;
+  return `<div class="levelup"><h3 class="fgh">Level-up choices <span class="muted">${esc(cls)}${multi ? " " + lvl : ""}</span></h3>${subRow}${slots || `<p class="muted small">No Ability Score Improvements yet.</p>`}
+    ${next ? `<p class="muted small">Next Ability Score Improvement at ${multi ? esc(cls) + " " : ""}level ${next}.</p>` : ""}</div>`;
 }
 // Change handler for the level-up selects.
 function levelupInput(t) {
   const sh = t.closest(".sheet"); if (!sh) return false;
   const id = sh.dataset.id;
+  if (t.dataset.lvsubi) { const i = Number(t.dataset.lvsubi), v = t.value;
+    charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (!L[i]) return; delete L[i].subclassRef;
+      if (v.startsWith("hb:")) { const he = S.entries.get(v.slice(3)); L[i].subclassRef = v.slice(3); L[i].subclass = he ? he.title : ""; } else L[i].subclass = v === "__other" ? "" : v; x.classList = L; }); return true; }
   if (t.dataset.lvsub) {
     if (t.value === "__other") { CS.subOther = true; charChange(id, x => { delete x.subclassRef; if (x.subclass && charSubclassEntry(x)) x.subclass = ""; }, false); render(); setTimeout(() => { const i = document.getElementById("cf-subclass"); if (i) i.focus(); }, 30); return true; }
     CS.subOther = false;
@@ -5540,11 +5567,130 @@ function levelupInput(t) {
       if (!p.type) delete x.asi[L]; else x.asi[L] = p;
       // A feat pick also shows up in Features, so its description can be written there.
       x.features = (x.features || []).filter(f => f.asi !== L);
-      if (p.type === "feat" && String(p.feat || "").trim()) { const fe = featByName(p.feat), nf = { name: fe ? fe[1].title : p.feat.trim(), source: "Feat", note: `level ${L} improvement`, desc: fe ? fe[1].body || "" : "", asi: L }; if (fe) nf.ref = fe[0]; x.features.push(nf); }
+      if (p.type === "feat" && String(p.feat || "").trim()) { const fe = featByName(p.feat), nf = { name: fe ? fe[1].title : p.feat.trim(), source: "Feat", note: `${String(L).includes(":") ? String(L).replace(":", " level ") : "level " + L} improvement`, desc: fe ? fe[1].body || "" : "", asi: L }; if (fe) nf.ref = fe[0]; x.features.push(nf); }
     }, part !== "feat");
     return true;
   }
   return false;
+}
+
+// ---------- Classes on the sheet: picked from the library, any number of them (multiclassing) ----------
+// c.classList = [{ name, level, subclass, subclassRef, rolls: { "<class level>": hp roll } }]. The first is the class the
+// character started in; its subclass stays in c.subclass / c.subclassRef as before. c.classes ("Fighter", or
+// "Fighter 5 / Wizard 3" when there's more than one) and c.level (the total) are kept in step, so everything that reads
+// them (proficiency bonus, the tabletop, quick characters) carries on working.
+// Hit points: with c.hpAuto on, max HP comes from the classes' hit dice: the first level of the first class is the die's
+// maximum, every other level the roll written for it, or the average (half the die + 1) if none is; plus the Con modifier
+// each level (at least 1 a level) and c.hpBonus a level (Tough, a hill dwarf). Current HP moves with the max.
+function charClasses(c) {
+  if (Array.isArray(c.classList) && c.classList.length) return c.classList;
+  const t = String(c.classes || "").trim(); if (!t) return [];
+  const names = allClassNames().slice().sort((a, b) => b.length - a.length), out = [];
+  for (const p of t.split(/\s*[\/,&+]\s*|\s+and\s+/i).filter(Boolean)) { const nm = names.find(k => p.toLowerCase().includes(k.toLowerCase())), m = p.match(/\d+/); if (nm) out.push({ name: nm, level: m ? Number(m[0]) : 0 }); }
+  if (!out.length) return [{ name: t.replace(/\s*\d+.*$/, "").trim() || t, level: Math.max(1, Number(c.level) || 1) }];
+  if (out.length === 1) out[0].level = Math.max(1, Number(c.level) || out[0].level || 1); else out.forEach(x => { if (!x.level) x.level = 1; });
+  return out;
+}
+const charMulti = c => charClasses(c).length > 1;
+// How many levels the character has in a class (0 if none).
+function classLevelOf(c, name) { const k = String(name).toLowerCase(); return charClasses(c).filter(x => String(x.name).toLowerCase() === k).reduce((a, x) => a + (Number(x.level) || 0), 0); }
+function hpDie(name) { const d = classFeats(name); return d ? Number((d.basics && d.basics.hd) || d.hd) || 8 : 8; }
+const hpAvg = die => Math.floor(die / 2) + 1;
+function hpAutoMax(c) {
+  const L = charClasses(c); if (!L.length) return 0;
+  const con = cMod(c, "con"), bonus = Number(c.hpBonus) || 0; let t = 0;
+  L.forEach((x, i) => { const die = hpDie(x.name), rolls = x.rolls || {};
+    for (let lv = 1; lv <= (Number(x.level) || 1); lv++) { const r = i === 0 && lv === 1 ? die : Math.min(die, Math.max(1, Number(rolls[lv]) || hpAvg(die))); t += Math.max(1, r + con) + bonus; } });
+  return t;
+}
+// Run on every change to a sheet (from charChange).
+function charDerive(c) {
+  if (Array.isArray(c.classList) && c.classList.length) {
+    c.classList = c.classList.map(x => Object.assign({}, x, { level: Math.max(1, Math.min(20, Math.round(Number(x.level) || 1))) }));
+    c.level = c.classList.reduce((a, x) => a + x.level, 0);
+    c.classes = c.classList.length === 1 ? c.classList[0].name : c.classList.map(x => x.name + " " + x.level).join(" / ");
+    const ce = classEntry(c.classList[0].name); if (ce) c.classRef = ce[0]; else delete c.classRef;
+    if (c.hd && Number(c.hd.total) && Number(c.hd.total) !== c.level) c.hd = Object.assign({}, c.hd, { total: c.level, used: Math.min(Number(c.hd.used) || 0, c.level) });
+  }
+  if (c.hpAuto) { const m = hpAutoMax(c); if (m) { const h = c.hp = Object.assign({ max: 0, cur: 0, temp: 0 }, c.hp), was = Number(h.max) || 0;
+    if (m !== was) { h.cur = Math.max(0, Math.min(m, (Number(h.cur) || 0) + (m - was))); h.max = m; } } }
+}
+// Multiclassing needs 13 in the class's main abilities (in the one you're leaving and the one you're joining).
+function multiclassWarnings(c) {
+  if (!charMulti(c)) return [];
+  return charClasses(c).map(x => { const d = classFeats(x.name), pr = d && d.basics && Array.isArray(d.basics.primary) ? d.basics.primary : [];
+    const either = /^fighter$/i.test(x.name), low = pr.filter(a => cScore(c, a) < 13); // (a fighter needs Strength or Dexterity)
+    return low.length && (!either || low.length === pr.length) ? `${x.name} needs ${pr.filter(a => either || low.includes(a)).map(a => ABIL_LONG[a] + " 13").join(either ? " or " : " and ")}` : ""; }).filter(Boolean);
+}
+// The class rows on the sheet (Edit sheet).
+function classPickHtml(c) {
+  const L = charClasses(c), names = allClassNames(), rows = L.length ? L : [{ name: "", level: Math.max(1, Number(c.level) || 1) }];
+  const opts = sel => `${sel && !names.includes(sel) ? `<option selected>${esc(sel)}</option>` : ""}${sel ? "" : `<option value="" selected>Choose a class…</option>`}${names.map(n => `<option${n === sel ? " selected" : ""}>${esc(n)}</option>`).join("")}`;
+  const warn = multiclassWarnings(c);
+  return `<div class="clpick"><span class="flabel">Class${rows.length > 1 ? `es <small class="muted">level ${rows.reduce((a, x) => a + (Number(x.level) || 0), 0)} in all</small>` : ""}</span>
+    ${rows.map((x, i) => `<div class="clrow"><select data-cl="${i}" data-k="name" aria-label="Class ${i + 1}">${opts(x.name)}</select><label class="cllv"><span>Level</span><input type="number" min="1" max="20" inputmode="numeric" data-cl="${i}" data-k="level" value="${Number(x.level) || 1}"></label>${rows.length > 1 ? `<button class="iconbtn" data-act="clrm" data-k="${i}" aria-label="Take away ${esc(x.name || "this class")}">✕</button>` : ""}</div>`).join("")}
+    <button class="btn ghost small" data-act="cladd"${L.length ? "" : " disabled"}>+ Multiclass</button>
+    ${warn.length ? `<p class="small clwarn">⚠ Multiclassing: ${esc(warn.join("; "))}.</p>` : ""}</div>`;
+}
+// Max HP by level (Edit sheet): automatic from the hit dice, or typed in.
+function hpLevelsHtml(c) {
+  const auto = !!c.hpAuto, L = charClasses(c), con = cMod(c, "con");
+  const head = `<div class="hplv"><div class="frow tight"><label><span>Max HP</span><select class="cf" data-cf="hpAuto"><option value=""${auto ? "" : " selected"}>Typed in</option><option value="1"${auto ? " selected" : ""}>Goes up with level</option></select></label>
+    ${auto ? `<label><span>Extra a level <small class="muted">Tough, hill dwarf</small></span>${cField("hpBonus", c.hpBonus, { num: 1, cls: "mini", ph: "0" })}</label>` : ""}</div>`;
+  if (!auto) return head + `<p class="muted small">Pick "Goes up with level" to work it out from the class hit dice: the average each level, or the dice you rolled.</p></div>`;
+  if (!L.length) return head + `<p class="muted small">Choose a class first.</p></div>`;
+  const rows = L.map((x, i) => { const die = hpDie(x.name), rolls = x.rolls || {};
+    return `<div class="hplvc"><span class="hplvn">${esc(x.name)} <small class="muted">d${die}</small></span><div class="hplvr">${Array.from({ length: Number(x.level) || 1 }, (_, k) => { const lv = k + 1;
+      if (i === 0 && lv === 1) return `<label title="The first level is the die's maximum"><span>${lv}</span><input type="number" value="${die}" disabled></label>`;
+      return `<label><span>${lv}</span><input type="number" min="1" max="${die}" inputmode="numeric" data-hproll="${i}" data-lv="${lv}" value="${rolls[lv] != null ? esc(rolls[lv]) : ""}" placeholder="${hpAvg(die)}" aria-label="${esc(x.name)} level ${lv} roll"></label>`; }).join("")}</div></div>`; }).join("");
+  return head + rows + `<p class="muted small">Leave a level blank for the average. ${con ? `Your Con modifier (${signed(con)}) is added each level` : "Your Con modifier is added each level"}; the total is ${hpAutoMax(c)}.</p></div>`;
+}
+// Changes from the class rows and the HP rolls.
+function classListInput(t) {
+  const sh = t.closest(".sheet"); if (!sh) return false; const id = sh.dataset.id;
+  if (t.dataset.cl != null) { const i = Number(t.dataset.cl), k = t.dataset.k, v = t.value; if (k === "name" && !v) return true;
+    charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (!L[i]) L[i] = { name: "", level: Math.max(1, Number(x.level) || 1) };
+      if (k === "name") { if (L[i].name !== v) { L[i].name = v; L[i].rolls = {}; if (i === 0) { delete x.subclass; delete x.subclassRef; } else { delete L[i].subclass; delete L[i].subclassRef; } } }
+      else L[i].level = Math.max(1, Math.min(20, Number(v) || 1));
+      x.classList = L.filter(q => q.name); }, false); setTimeout(render, 0);
+    return true; }
+  if (t.dataset.hproll != null) { const i = Number(t.dataset.hproll), lv = t.dataset.lv, v = t.value.trim();
+    charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (!L[i]) return; const r = Object.assign({}, L[i].rolls);
+      if (v === "") delete r[lv]; else r[lv] = Math.max(1, Math.min(hpDie(L[i].name), Number(v) || 1)); L[i].rolls = r; x.classList = L; }, false); setTimeout(render, 0);
+    return true; }
+  return false;
+}
+function classListAction(a, el, id) {
+  if (a === "cladd") { charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)), have = new Set(L.map(q => q.name)), nm = allClassNames().find(n => !have.has(n)) || "Fighter";
+    L.push({ name: nm, level: 1 }); x.classList = L; }); return true; }
+  if (a === "clrm") { const i = Number(el.dataset.k); charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (L.length < 2) return;
+    if (i === 0) { x.subclass = L[1].subclass || ""; if (L[1].subclassRef) x.subclassRef = L[1].subclassRef; else delete x.subclassRef; delete L[1].subclass; delete L[1].subclassRef; }
+    L.splice(i, 1); x.classList = L; }); return true; }
+  return false;
+}
+// A class's subclass entry from the library (by link, or by name).
+function subEntryOf(cls, sub, ref) {
+  if (ref && S.entries.has(ref)) return [ref, S.entries.get(ref)];
+  const n = String(sub || "").trim().toLowerCase(); if (!n) return null; const is = e => String(e.title).trim().toLowerCase() === n || String((e.subclass || {}).alias || "").toLowerCase() === n;
+  return homebrewSubclasses(cls).find(([, e]) => is(e)) || null;
+}
+// Spellcasting across classes (the multiclass spellcaster rule): two or more classes that cast add up their caster
+// levels (all of a full caster's, half a half caster's, a third of a third caster's; pact magic stays apart) and use the
+// full caster table. One casting class among others uses that class's own level.
+function multiCaster(c, kind) {
+  if (!(Array.isArray(c.classList) && c.classList.length > 1)) return null;
+  const ks = c.classList.map(x => ({ x, kd: ((classFeats(x.name) || {}).basics || {}).caster || "" })), cast = ks.filter(q => q.kd && q.kd !== "pact");
+  if (cast.length >= 2) { const cl = cast.reduce((a, q) => a + (q.kd === "full" ? q.x.level : q.kd === "half" ? Math.floor(q.x.level / 2) : q.kd === "halfup" ? Math.ceil(q.x.level / 2) : q.kd === "third" ? Math.floor(q.x.level / 3) : 0), 0);
+    return { cl: Math.min(20, cl), maxLvl: maxSpellLevel("full", Math.min(20, cl)), kind: "full" }; }
+  const one = cast[0] || ks.find(q => q.kd === "pact") || ks[0], lvl = one.x.level, k = kind || one.kd || "full";
+  return { cl: Math.min(20, k === "half" ? Math.floor(lvl / 2) : k === "halfup" ? Math.ceil(lvl / 2) : k === "third" ? Math.floor(lvl / 3) : lvl), maxLvl: maxSpellLevel(k, lvl), kind: k };
+}
+// Class features for every class, each up to its own level (Fill from the source books).
+function fillAllClassFeatures(c, withSub) {
+  return charClasses(c).flatMap((x, i) => { const hb = i === 0 ? charSubclassEntry(c) : subEntryOf(x.name, x.subclass, x.subclassRef), d = classFeats(x.name);
+    const srdSub = !hb && d && (i === 0 ? c.subclass : x.subclass) && (i === 0 ? c.subclass : x.subclass) === d.subs[0];
+    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title })) : [];
+    return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => Object.assign({}, f, { cls: x.name })); });
 }
 
 // ---------- Spellbook: SRD spells plus your own, each with its own page ----------
@@ -20217,7 +20363,7 @@ document.addEventListener("click", async ev => {
   if (/^srd(group|open|copy)$/.test(a)) { if (READONLY && a === "srdcopy") return; await srdAction(a, el); return; }
   if (/^(inv(kind|pick|add|new|slot|close|qty|rm|rows|take1|split|dup)|paygo|payundo)$/.test(a)) { if (READONLY && !PLAYER) return; await invAction(a, el); return; }
   if (/^(enc(new|dup|del|add|party|next|prev|end|roll|to)|cb(pick|rm|hp|cond))$/.test(a)) { encAction(a, el); return; }
-  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
+  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|cladd|clrm|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
   if (a === "sbf") { SBS[el.dataset.k] = el.dataset.v; render(); return; }
   if (a === "spellcopy") { if (!READONLY) await spellCopy(el.dataset.v); return; }
   if (a === "new") { const rv = route().v; const t = el.dataset.type || (rv === "bestiary" ? "creature" : rv === "items" ? "item" : null); openEditor(null, t ? { type: t } : null); }
@@ -20442,7 +20588,8 @@ document.addEventListener("change", ev => {
   const t = ev.target;
   if (t.dataset && t.dataset.cf && (t.tagName === "SELECT" || t.type === "checkbox")) { charInput(t); return; }
   if (t.dataset && t.dataset.eqpick && t.value) { const id = t.dataset.id, from = t.value; let ok = false; charChange(id, x => { ok = invEquipFromGrid(x, from); }); if (!ok) toast("No free equipped slot for that.", "bad"); return; }
-  if (t.dataset && (t.dataset.lvsub || t.dataset.asi)) { levelupInput(t); return; }
+  if (t.dataset && (t.dataset.cl != null || t.dataset.hproll != null)) { classListInput(t); return; }
+  if (t.dataset && (t.dataset.lvsub || t.dataset.lvsubi || t.dataset.asi)) { levelupInput(t); return; }
   if (["fill-cls", "fill-race", "fill-subrace", "fill-sub"].includes(t.id)) { CS.fill = Object.assign({}, CS.fill, t.id === "fill-cls" ? { cls: t.value } : t.id === "fill-race" ? { race: t.value, sub: "" } : t.id === "fill-subrace" ? { sub: t.value } : { withSub: t.checked }); render(); return; }
   if (t.id === "spcls") { SBS.cls = t.value; render(); return; }
   if (t.id === "spsrc") { SBS.src = t.value; render(); return; }

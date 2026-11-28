@@ -13,11 +13,12 @@ function maxSpellLevel(kind, lvl) {
 }
 function casterOf(c) {
   const k = c.caster || {}; if (!k.on) return null;
-  const lvl = Math.max(0, Number(c.level) || 0), kind = k.kind || "full";
-  const cl = Math.min(20, kind === "half" ? Math.floor(lvl / 2) : kind === "halfup" ? Math.ceil(lvl / 2) : kind === "third" ? Math.floor(lvl / 3) : lvl);
+  const mc = typeof multiCaster === "function" ? multiCaster(c, k.kind) : null; // (a multiclassed character: its casting classes' levels)
+  const lvl = Math.max(0, Number(c.level) || 0), kind = mc ? mc.kind : k.kind || "full";
+  const cl = mc ? mc.cl : Math.min(20, kind === "half" ? Math.floor(lvl / 2) : kind === "halfup" ? Math.ceil(lvl / 2) : kind === "third" ? Math.floor(lvl / 3) : lvl);
   const ab = k.ability || "int", mod = cMod(c, ab), pb = cPB(c);
   const max = String(k.spOverride || "").trim() ? Number(k.spOverride) || 0 : SP_TABLE[cl] || 0;
-  const maxLvl = String(k.maxOverride || "").trim() ? Number(k.maxOverride) || 0 : maxSpellLevel(kind, lvl);
+  const maxLvl = String(k.maxOverride || "").trim() ? Number(k.maxOverride) || 0 : mc ? mc.maxLvl : maxSpellLevel(kind, lvl);
   const used = Math.min(max, Math.max(0, Number(k.used) || 0));
   return { kind, casterLevel: cl, ability: ab, mod, dc: 8 + pb + mod, atk: pb + mod, max, left: max - used, maxLvl, high: k.high || {} };
 }

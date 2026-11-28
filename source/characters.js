@@ -25,7 +25,7 @@ function blankCharacter(name) {
 function charChange(id, mutate, rerender) {
   const cur = S.chars.get(id); if (!cur) return;
   const c = JSON.parse(JSON.stringify(cur));
-  mutate(c); c.updated = new Date().toISOString();
+  mutate(c); c.updated = new Date().toISOString(); if (typeof charDerive === "function") charDerive(c);
   const moved = typeof invNormalize === "function" ? invNormalize(c) : 0;
   if (typeof invUnstack === "function") invUnstack(c);
   if (moved) setTimeout(() => toast(`${moved} item${moved === 1 ? "" : "s"} from a storage item went back to the pack.`));
@@ -96,7 +96,7 @@ function viewCharacter(id) {
         ${E && S.assets ? `<button class="btn ghost small" data-act="charimg" data-id="${esc(id)}">${c.image ? "Change" : "Add picture"}</button><button class="btn ghost small" data-act="chartok" data-id="${esc(id)}" title="The picture used on the tabletop">${c.token ? "Change token" : "Add token picture"}</button>${c.token ? `<img class="ctokprev" src="${esc(c.token)}" alt="Token">` : ""}` : ""}</div>
       <div class="cident">
         ${E ? `<div class="frow"><label class="grow"><span>Name</span>${cField("name", c.name)}</label><label><span>Player</span>${cField("player", c.player)}</label></div>
-          <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label><label class="grow"><span>Class</span>${cField("classes", c.classes, { ph: "Fighter" })}</label><label><span>Level</span>${cField("level", c.level, { num: 1 })}</label></div>
+          <div class="frow"><label><span>Race</span>${cField("race", c.race)}</label></div>${classPickHtml(c)}<div class="frow">
           <div class="frow"><label><span>Background</span>${cField("background", c.background)}</label><label><span>Alignment</span>${cField("alignment", c.alignment)}</label><label><span>XP</span>${cField("xp", c.xp)}</label></div>
           ${casterEditHtml(c)}`
         : `<h1>${esc(c.name)}</h1><p class="csub">${esc(charSub(c)) || "—"}${c.alignment ? ` · ${esc(c.alignment)}` : ""}</p>${c.player ? `<p class="muted small">Played by ${esc(c.player)}</p>` : ""}${charRidingHtml(id)}`}
@@ -115,9 +115,9 @@ function viewCharacter(id) {
     </div>`;
 
   const hpBlock = `<div class="hpbox">
-      <div class="hpnums"><div><span class="vl">Hit points</span><strong class="hpcur">${Number(hp.cur) || 0}<small> / ${E ? cField("hp.max", hp.max, { num: 1, cls: "mini", label: "Max HP" }) : Number(hp.max) || 0}</small></strong></div>
+      <div class="hpnums"><div><span class="vl">Hit points</span><strong class="hpcur">${Number(hp.cur) || 0}<small> / ${E && !c.hpAuto ? cField("hp.max", hp.max, { num: 1, cls: "mini", label: "Max HP" }) : Number(hp.max) || 0}</small></strong></div>
         <div><span class="vl">Temporary</span><strong>${Number(hp.temp) || 0}</strong></div></div>
-      ${hpBar(c)}
+      ${hpBar(c)}${E ? hpLevelsHtml(c) : ""}
       ${P ? `<div class="hpctl"><input id="hpamt" type="text" inputmode="numeric" placeholder="Amount" aria-label="Amount" value="${esc(CS.amt)}">
         <button class="btn danger" data-act="chp" data-v="dmg" data-id="${esc(id)}">Damage</button><button class="btn" data-act="chp" data-v="heal" data-id="${esc(id)}">Heal</button><button class="btn ghost" data-act="chp" data-v="temp" data-id="${esc(id)}">Temp HP</button></div>` : ""}
       <div class="hdrow"><div><span class="vl">Hit dice <small>${esc(hd.die || "")}</small></span>
@@ -236,6 +236,7 @@ async function charAction(a, el, ev) {
   if (a === "cdrink") { let msg = ""; charChange(id, x => { msg = useConsumable(x, el.dataset.v); }); if (msg) toast(msg); return true; }
   if (/^sp(adj|cast|add)$/.test(a)) return spellAction(a, el, id, c);
   if (a === "srdfill") { srdFillApply(id, c); return true; }
+  if (a === "cladd" || a === "clrm") return classListAction(a, el, id);
   if (a === "clsapply") { classBasicsApply(id, c, el.dataset.v); return true; }
   if (a === "cuseac") { charChange(id, x => { x.ac = el.dataset.v; }); toast(el.dataset.v ? "AC updated" : "AC now follows what's worn"); return true; }
   if (a === "cinsp") { charChange(id, x => { x.inspiration = !x.inspiration; }); return true; }
@@ -279,8 +280,8 @@ function charInput(t) {
   const sh = t.closest(".sheet"); if (!sh || !t.dataset.cf) return false;
   const id = sh.dataset.id, path = t.dataset.cf;
   let v = t.type === "checkbox" ? t.checked : t.value; if (t.dataset.num && typeof v === "string") v = v.trim() === "" ? 0 : (parseInt(v, 10) || 0);
-  if (t.type === "checkbox" || (t.tagName === "SELECT" && /^(caster\.|resources\.\d+\.(style|amt|reset))/.test(path))) { charChange(id, x => setPath(x, path, v)); return true; }
-  const live = /^(abilities|level|pbOverride|initOverride|hp\.max|hd\.total|resources\.\d+\.max|name|caster\.)/.test(path);
+  if (t.type === "checkbox" || (t.tagName === "SELECT" && /^(caster\.|hpAuto|resources\.\d+\.(style|amt|reset))/.test(path))) { charChange(id, x => setPath(x, path, v)); return true; }
+  const live = /^(abilities|level|hpBonus|pbOverride|initOverride|hp\.max|hd\.total|resources\.\d+\.max|name|caster\.)/.test(path);
   charChange(id, x => setPath(x, path, v), false);
   if (live && t.tagName !== "TEXTAREA") { clearTimeout(CS.redraw); CS.redraw = setTimeout(() => { const f = document.activeElement && document.activeElement.id; render(); const n = f && document.getElementById(f); if (n) { n.focus(); try { n.setSelectionRange(n.value.length, n.value.length); } catch (e) {} } }, 700); }
   return true;
@@ -337,6 +338,6 @@ function attacksPerAction(c) {
     else if (/\bextra attack\b/i.test(t)) k = 2;
     if (k > n) { n = k; label = t; }
   });
-  if (/fighter/i.test(String(c.classes || "")) && n > 1) { const lv = Number(c.level) || 1; const f = lv >= 20 ? 4 : lv >= 11 ? 3 : 2; if (f > n) { n = f; label = "Extra Attack (" + (f - 1) + ")"; } }
+  if (/fighter/i.test(String(c.classes || "")) && n > 1) { const lv = (typeof classLevelOf === "function" && classLevelOf(c, "Fighter")) || Number(c.level) || 1; const f = lv >= 20 ? 4 : lv >= 11 ? 3 : 2; if (f > n) { n = f; label = "Extra Attack (" + (f - 1) + ")"; } }
   return { n, label: label || "Extra Attack" };
 }

@@ -28,6 +28,7 @@ function sourceShelfHtml() {
 // ---------- Class features and racial traits for character sheets ----------
 const featKey = n => String(n || "").toLowerCase().replace(/armou?r/g, "armor").replace(/favou?r/g, "favor").replace(/\s*\(.*?\)\s*$/, "").replace(/[^a-z]/g, "");
 function detectSrdClass(c) {
+  if (Array.isArray(c.classList) && c.classList.length && c.classList[0].name) return c.classList[0].name;
   if (c.classRef) { const e = S.entries.get(c.classRef); if (e && e.type === "class") return e.title.trim(); }
   const t = String(c.classes || "").toLowerCase(); return allClassNames().sort((a, b) => b.length - a.length).find(k => t.includes(k.toLowerCase())) || "";
 }
@@ -69,13 +70,14 @@ function srdFillHtml(c) {
   const withSub = CS.fill && CS.fill.withSub != null ? !!CS.fill.withSub : !!(hb || (cls && classFeats(cls) && c.subclass && c.subclass === classFeats(cls).subs[0]));
   const subs = race && SRD_RACE_TRAITS[race] ? Object.keys(SRD_RACE_TRAITS[race].sub) : [];
   const have = new Set((c.features || []).map(f => featKey(f.name)));
-  const list = [...fillClassFeatures(c, cls, lvl, withSub).map(f => ["Class", f]), ...fillRaceTraits(race, sub || subs[0]).map(f => ["Race", f])];
+  const multi = typeof charMulti === "function" && charMulti(c) && !(CS.fill && CS.fill.cls != null);
+  const list = [...(multi ? fillAllClassFeatures(c, withSub) : fillClassFeatures(c, cls, lvl, withSub)).map(f => ["Class", f]), ...fillRaceTraits(race, sub || subs[0]).map(f => ["Race", f])];
   const newOnes = list.filter(([, f]) => !have.has(featKey(f.n))).length, fills = list.filter(([, f]) => have.has(featKey(f.n)) && (c.features || []).some(x => featKey(x.name) === featKey(f.n) && !String(x.desc || "").trim())).length;
   const hbr = homebrewRaces();
   return `<div class="srdfill"><span class="flabel">Fill from the source books <span class="srcpill">Source</span></span>
     <div class="frow tight">
-      <label><span>Class</span><select id="fill-cls"><option value="">None</option>${allClassNames().map(k => `<option${k === cls ? " selected" : ""}>${k}</option>`).join("")}</select></label>
-      <label><span>Up to level</span><input type="text" value="${lvl}" disabled class="cf mini"></label>
+      ${multi ? `<label><span>Classes</span><input type="text" value="${esc(charClasses(c).map(x => x.name + " " + x.level).join(" / "))}" disabled class="cf"></label>` : `<label><span>Class</span><select id="fill-cls"><option value="">None</option>${allClassNames().map(k => `<option${k === cls ? " selected" : ""}>${k}</option>`).join("")}</select></label>
+      <label><span>Up to level</span><input type="text" value="${lvl}" disabled class="cf mini"></label>`}
       ${subName ? `<label class="check inline"><input type="checkbox" id="fill-sub"${withSub ? " checked" : ""}> Include ${esc(subName)} subclass${hb ? " (your book)" : ""}</label>` : ""}
       <label><span>Race</span><select id="fill-race"><option value="">None</option>${Object.keys(SRD_RACE_TRAITS).map(k => `<option${k === race ? " selected" : ""}>${k}</option>`).join("")}${hbr.length ? `<optgroup label="From your books">${hbr.map(([rid, e]) => `<option value="hb:${esc(rid)}"${race === "hb:" + rid ? " selected" : ""}>${esc(e.title)}</option>`).join("")}</optgroup>` : ""}</select></label>
       ${subs.length ? `<label><span>Subrace</span><select id="fill-subrace">${subs.map(k => `<option${k === (sub || subs[0]) ? " selected" : ""}>${k}</option>`).join("")}<option value="-"${sub === "-" ? " selected" : ""}>None</option></select></label>` : ""}
@@ -87,7 +89,8 @@ function srdFillApply(id, c) {
   const cls = ($("#fill-cls") || {}).value || "", race = ($("#fill-race") || {}).value || "", sb = ($("#fill-subrace") || {}).value || "", withSub = !!($("#fill-sub") || {}).checked;
   const lvl = Number(c.level) || 1;
   const raceName = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
-  const add = [...fillClassFeatures(c, cls, lvl, withSub).map(f => ({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + "level " + f.lv, desc: f.d })),
+  const multi = !$("#fill-cls") && typeof charMulti === "function" && charMulti(c);
+  const add = [...(multi ? fillAllClassFeatures(c, withSub) : fillClassFeatures(c, cls, lvl, withSub)).map(f => ({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d })),
     ...fillRaceTraits(race, sb === "-" ? "" : sb).map(f => ({ name: f.n, source: "Race", note: raceName, desc: f.d }))];
   let added = 0, filled = 0;
   charChange(id, x => {

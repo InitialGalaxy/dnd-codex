@@ -2240,7 +2240,7 @@ document.addEventListener("click", async ev => {
   if (/^srd(group|open|copy)$/.test(a)) { if (READONLY && a === "srdcopy") return; await srdAction(a, el); return; }
   if (/^(inv(kind|pick|add|new|slot|close|qty|rm|rows|take1|split|dup)|paygo|payundo)$/.test(a)) { if (READONLY && !PLAYER) return; await invAction(a, el); return; }
   if (/^(enc(new|dup|del|add|party|next|prev|end|roll|to)|cb(pick|rm|hp|cond))$/.test(a)) { encAction(a, el); return; }
-  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
+  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|cladd|clrm|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
   if (a === "sbf") { SBS[el.dataset.k] = el.dataset.v; render(); return; }
   if (a === "spellcopy") { if (!READONLY) await spellCopy(el.dataset.v); return; }
   if (a === "new") { const rv = route().v; const t = el.dataset.type || (rv === "bestiary" ? "creature" : rv === "items" ? "item" : null); openEditor(null, t ? { type: t } : null); }
@@ -2465,7 +2465,8 @@ document.addEventListener("change", ev => {
   const t = ev.target;
   if (t.dataset && t.dataset.cf && (t.tagName === "SELECT" || t.type === "checkbox")) { charInput(t); return; }
   if (t.dataset && t.dataset.eqpick && t.value) { const id = t.dataset.id, from = t.value; let ok = false; charChange(id, x => { ok = invEquipFromGrid(x, from); }); if (!ok) toast("No free equipped slot for that.", "bad"); return; }
-  if (t.dataset && (t.dataset.lvsub || t.dataset.asi)) { levelupInput(t); return; }
+  if (t.dataset && (t.dataset.cl != null || t.dataset.hproll != null)) { classListInput(t); return; }
+  if (t.dataset && (t.dataset.lvsub || t.dataset.lvsubi || t.dataset.asi)) { levelupInput(t); return; }
   if (["fill-cls", "fill-race", "fill-subrace", "fill-sub"].includes(t.id)) { CS.fill = Object.assign({}, CS.fill, t.id === "fill-cls" ? { cls: t.value } : t.id === "fill-race" ? { race: t.value, sub: "" } : t.id === "fill-subrace" ? { sub: t.value } : { withSub: t.checked }); render(); return; }
   if (t.id === "spcls") { SBS.cls = t.value; render(); return; }
   if (t.id === "spsrc") { SBS.src = t.value; render(); return; }
