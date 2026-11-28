@@ -170,6 +170,26 @@ async function migrateClassEntries() {
   finally { migrating = false; setTimeout(maybeMigrate, 800); }
 }
 
+// The SRD's choices (Fighting Style, Favoured Enemy, Metamagic, Eldritch Invocations, Pact Boon…) go onto the matching
+// features of the classes and subclasses in the library that don't have choices of their own.
+async function migrateFeatOpts() {
+  if (migrating || MIG_DONE.featOpts) return;
+  migrating = true; MIG_DONE.featOpts = true;
+  try {
+    const now = new Date().toISOString(); let n = 0;
+    for (const [id, e] of [...S.entries]) {
+      const isCls = e.type === "class" && e.cls, isSub = e.type === "subclass" && e.subclass, cls = isCls ? e.title : isSub ? e.subclass.cls : ""; if (!cls) continue;
+      const list = (isCls ? e.cls.features : e.subclass.features) || []; let hit = 0;
+      const next = list.map(f => { if (Array.isArray(f.opts) && f.opts.length) return f; const s = srdFeatOpts(cls, f.n); if (!s) return f; hit++; return Object.assign({}, f, { opts: s.opts, pick: s.pickLv ? s.pickLv[0][1] : 1 }, s.pickLv ? { pickLv: s.pickLv } : {}); });
+      if (!hit) continue;
+      const doc = JSON.parse(JSON.stringify(e)); if (isCls) doc.cls.features = next; else doc.subclass.features = next; doc.updated = now;
+      await S.db.doc("entries/" + id).set(doc); S.entries.set(id, doc); n += hit;
+    }
+    await S.db.doc("settings/imports").set(Object.assign({}, S.imports, { featOpts: now }));
+    if (n) toast(`Added the source books' choices to ${n} class feature${n === 1 ? "" : "s"} (Fighting Style, Metamagic and the like).`);
+  } catch (err) { console.warn("Feature choices failed", err); }
+  finally { migrating = false; setTimeout(maybeMigrate, 800); }
+}
 // The Player's Handbook subclasses (SRD ones in full, the rest summarised) become subclass entries.
 async function migratePhbSubclasses() {
   if (migrating || MIG_DONE.phbSubs) return;

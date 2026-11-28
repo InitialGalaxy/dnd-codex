@@ -114,12 +114,18 @@ function multiCaster(c, kind) {
   const one = cast[0] || ks.find(q => q.kd === "pact") || ks[0], lvl = one.x.level, k = kind || one.kd || "full";
   return { cl: Math.min(20, k === "half" ? Math.floor(lvl / 2) : k === "halfup" ? Math.ceil(lvl / 2) : k === "third" ? Math.floor(lvl / 3) : lvl), maxLvl: maxSpellLevel(k, lvl), kind: k };
 }
+// The SRD's choices for a class's feature (Fighting Style, Metamagic…), for one that has none of its own.
+function srdFeatOpts(cls, name) { if (typeof SRD_FEAT_OPTS === "undefined") return null; const k = Object.keys(SRD_CLASS_FEATS).find(q => q.toLowerCase() === String(cls || "").trim().toLowerCase()); return k ? SRD_FEAT_OPTS[k + "|" + featKey(name)] || null : null; }
+// How many picks at a class level: f.pickLv = [[level, picks], …] (Eldritch Invocations, Metamagic), else f.pick.
+function featPickAt(f, lvl) { if (Array.isArray(f.pickLv) && f.pickLv.length) { let n = 0; f.pickLv.forEach(([L, k]) => { if (lvl >= L) n = Math.max(n, k); }); return n || f.pickLv[0][1]; } return Number(f.pick) || 1; }
+function withOpts(f, cls, lvl) { let o = f; if (!(Array.isArray(f.opts) && f.opts.length)) { const s = srdFeatOpts(cls, f.n); if (s) o = Object.assign({}, f, { opts: s.opts, pickLv: s.pickLv, optNote: s.note }); }
+  return Array.isArray(o.opts) && o.opts.length ? Object.assign({}, o, { pick: featPickAt(o, lvl) }) : o; }
 // Class features for every class, each up to its own level (Fill from the source books).
 function fillAllClassFeatures(c, withSub) {
   return charClasses(c).flatMap((x, i) => { const hb = i === 0 ? charSubclassEntry(c) : subEntryOf(x.name, x.subclass, x.subclassRef), d = classFeats(x.name);
     const srdSub = !hb && d && (i === 0 ? c.subclass : x.subclass) && (i === 0 ? c.subclass : x.subclass) === d.subs[0];
-    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})) : [];
-    return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => Object.assign({}, f, { cls: x.name })); });
+    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: f.pick, pickLv: f.pickLv } : {})) : [];
+    return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => withOpts(Object.assign({}, f, { cls: x.name }), x.name, x.level)); });
 }
 // ---------- Features from the books, automatically ----------
 // What the classes (each up to its level, the chosen subclass's too) and the race give is worked out every time, not
@@ -130,7 +136,7 @@ function autoFeatures(c) {
   const out = [];
   try {
     const multi = charMulti(c);
-    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push(Object.assign({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }, f.opts ? { opts: f.opts, pick: f.pick } : {})));
+    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push(Object.assign({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }, f.opts ? { opts: f.opts, pick: f.pick, optNote: f.optNote } : {})));
     const race = detectRaceChoice(c);
     if (race) { const rd = !race.startsWith("hb:") && SRD_RACE_TRAITS[race], t = String(c.race || "").toLowerCase(), sub = rd ? Object.keys(rd.sub).find(s => t.includes(s.toLowerCase())) || "" : "";
       const rn = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
@@ -155,7 +161,7 @@ function featPicksHtml(c, f, P) {
   if (!Array.isArray(f.opts) || !f.opts.length) return ""; const k = featKey(f.name), got = (c.featPicks || {})[k] || [], n = Math.min(Number(f.pick) || 1, f.opts.length);
   const picked = got.slice(0, n).map(v => f.opts.find(o => o.n === v)).filter(Boolean);
   const boxes = P ? Array.from({ length: n }, (_, j) => `<select data-fpick="${esc(k)}" data-j="${j}" aria-label="${esc(f.name)} choice ${j + 1}"><option value="">Choose…</option>${f.opts.map(o => `<option${got[j] === o.n ? " selected" : ""}${got.includes(o.n) && got[j] !== o.n ? " disabled" : ""}>${esc(o.n)}</option>`).join("")}</select>`).join("") : "";
-  return `<div class="fpicks">${boxes}${picked.map(o => `<details class="fitem fpicked"><summary><strong>${esc(o.n)}</strong></summary><div class="prose">${md(o.d || "", { base: 3 })}</div></details>`).join("")}${!P && !picked.length ? `<span class="muted small">Not chosen yet</span>` : ""}</div>`;
+  return `<div class="fpicks">${f.optNote && P ? `<span class="muted small">${esc(f.optNote)}</span>` : ""}${boxes}${picked.map(o => `<details class="fitem fpicked"><summary><strong>${esc(o.n)}</strong></summary><div class="prose">${md(o.d || "", { base: 3 })}</div></details>`).join("")}${!P && !picked.length ? `<span class="muted small">Not chosen yet</span>` : ""}</div>`;
 }
 // + Feat (Edit sheet): feats from the library, added as they are (their text is the library's).
 function featAddHtml(c) {

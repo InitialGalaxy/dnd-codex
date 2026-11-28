@@ -19,8 +19,9 @@ function raceTraits(e) {
   return out.concat((r.traits || []).filter(t => (t.n || "").trim()));
 }
 // The choices of a feature in the class or subclass page.
-function hbOptsHtml(f, id) { if (!Array.isArray(f.opts) || !f.opts.length) return ""; const n = Number(f.pick) || 1;
-  return `<div class="hboptsview"><p class="small muted">Choose ${n === 1 ? "one" : n} of these:</p>${f.opts.map(o => `<div class="prose hbtrait">${md(`***${String(o.n).replace(/\.$/, "")}.*** ${o.d || ""}`, { entryId: id, noEmbed: true })}</div>`).join("")}</div>`; }
+function hbOptsHtml(f, id) { if (!Array.isArray(f.opts) || !f.opts.length) return ""; const n = Array.isArray(f.pickLv) && f.pickLv.length ? f.pickLv[0][1] : Number(f.pick) || 1;
+  const more = Array.isArray(f.pickLv) && f.pickLv.length > 1 ? ` (${f.pickLv.slice(1).map(([L, k]) => `${k} at ${lvOrd(L)} level`).join(", ")})` : "";
+  return `<div class="hboptsview"><p class="small muted">Choose ${n === 1 ? "one" : n} of these${more}:</p>${f.opts.map(o => `<div class="prose hbtrait">${md(`***${String(o.n).replace(/\.$/, "")}.*** ${o.d || ""}`, { entryId: id, noEmbed: true })}</div>`).join("")}</div>`; }
 const lvOrd = n => { n = Number(n) || 1; const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 function subclassHtml(id, e, noTitle) {
@@ -57,7 +58,7 @@ function hbRow(kind, f) {
       <button type="button" class="btn ghost small hbdel" data-act="hbdel" title="Remove">✕</button></div>
     <div class="field"><textarea class="hb-d" rows="3" placeholder="What it does">${esc(f.d || "")}</textarea></div>
     ${kind !== "rc" ? `<label class="check small hboptson"><input type="checkbox" class="hb-optson"${on ? " checked" : ""}> A list to choose from <small class="muted">(like Fighting Style: players pick on their sheet)</small></label>
-    <div class="hbopts"${on ? "" : " hidden"}><label class="small">Players pick <input type="number" min="1" max="20" class="hb-pick mini" value="${esc(f.pick || 1)}"></label>
+    <div class="hbopts"${on ? "" : " hidden"}${Array.isArray(f.pickLv) && f.pickLv.length ? ` data-picklv="${esc(JSON.stringify(f.pickLv))}"` : ""}><label class="small">Players pick <input type="number" min="1" max="20" class="hb-pick mini" value="${esc(Array.isArray(f.pickLv) && f.pickLv.length ? f.pickLv[0][1] : f.pick || 1)}"></label>${Array.isArray(f.pickLv) && f.pickLv.length > 1 ? `<span class="muted small"> more as they level: ${f.pickLv.map(([L, k]) => `${k} at ${lvOrd(L)}`).join(", ")} (set the first number to start over)</span>` : ""}
       <div class="hboptlist">${(on ? f.opts : [{}]).map(hbOptRow).join("")}</div><button type="button" class="btn ghost small" data-act="hboptadd">+ Add a choice</button></div>` : ""}
   </div>`;
 }
@@ -91,7 +92,8 @@ function readHbRows(kind) {
     if (kind !== "rc") o.lv = Math.max(1, Math.min(20, Number(r.querySelector(".hb-lv").value) || 1));
     const on = r.querySelector(".hb-optson");
     if (on && on.checked) { const opts = [...r.querySelectorAll(".hbopt")].map(x => ({ n: x.querySelector(".hbo-n").value.trim(), d: x.querySelector(".hbo-d").value.trim() })).filter(x => x.n);
-      if (opts.length) { o.opts = opts; o.pick = Math.max(1, Math.min(opts.length, Number(r.querySelector(".hb-pick").value) || 1)); } }
+      if (opts.length) { o.opts = opts; o.pick = Math.max(1, Math.min(opts.length, Number(r.querySelector(".hb-pick").value) || 1));
+        const pl = r.querySelector(".hbopts").dataset.picklv; if (pl) { try { const a = JSON.parse(pl); if (a[0] && a[0][1] === o.pick) o.pickLv = a; } catch (e) {} } } }
     return o;
   }).filter(o => o.n || o.d);
 }

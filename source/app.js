@@ -1511,6 +1511,7 @@ async function maybeMigrate() {
   if (!S.imports.srdFeatsRaces && (S.imports.classLevelSplit || MIG_DONE.classLevelSplit)) { await migrateSrdFeatsRaces(); return; }
   if (!S.imports.bookLib && S.loaded.books && (S.imports.srdFeatsRaces || MIG_DONE.srdFeatsRaces)) { await migrateBookLib(); return; }
   if (!S.imports.classLevelSplit && S.loaded.chars && (S.imports.noActionImages || MIG_DONE.noActionImages)) { await migrateClassLevel(); return; }
+  if (!S.imports.featOpts && (S.imports.classEntries || MIG_DONE.classEntries)) { await migrateFeatOpts(); return; }
   if (S.imports.imageLinks) return;
   migrating = true;
   try {

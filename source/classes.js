@@ -25,7 +25,7 @@ function classFeats(name) {
   const c = ce[1].cls || {};
   return { id: ce[0], hd: Number(c.hd) || 8, subs: srd ? srd.subs : [], flavor: c.subTitle || (srd || {}).flavor || "Subclass", subLv: Number(c.subLv) || (srd || {}).subLv || 3,
     asi: (Array.isArray(c.asi) && c.asi.length ? c.asi : (srd || {}).asi || [4, 8, 12, 16, 19]).map(Number),
-    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
+    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1, pickLv: f.pickLv } : {})), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
 }
 // A class entry built from the SRD (or the Artificer summary), for the one-time move into the library.
 function srdClassDoc(name, now) {
