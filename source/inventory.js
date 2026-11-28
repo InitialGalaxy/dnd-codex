@@ -204,7 +204,7 @@ function invGridHtml(c, id) {
         ${P ? (invStackable(sel.ref, sel.name) ? `<div class="qty"><button class="iconbtn" data-act="invqty" data-v="-1" aria-label="One fewer">−</button><span>${Number(sel.qty) || 1}</span><button class="iconbtn" data-act="invqty" data-v="1" aria-label="One more">+</button></div>
         ${(Number(sel.qty) || 1) > 1 ? `<button class="btn ghost small" data-act="invtake1" title="Move one into its own slot">Take one</button><button class="btn ghost small" data-act="invsplit" title="Move some into their own slot">Split…</button>` : ""}`
           : `<button class="btn ghost small" data-act="invdup" title="Put another one in a free slot">+ Another</button>`) + `
-        <button class="btn ghost small" data-act="invrm">Remove</button>` : ""}
+        <button class="btn ghost small" data-act="invgive" title="Give it to another player character">Give to…</button><button class="btn ghost small" data-act="invrm">Remove</button>` : ""}
         ${r.id ? `<a class="btn ghost small" href="#entry-${esc(r.id)}">Open in codex</a>` : ""}
         <button class="iconbtn" data-act="invclose" aria-label="Close">✕</button></div>
       ${r.src === "custom" ? `<p class="muted small">A quick item with just a name. Make it a codex Item to give it stats, uses and a description.</p>` : r.src === "gone" ? `<p class="muted small">This item was deleted from the codex. Its slot keeps the name.</p>` : `<div class="invcard">${itemPageHtml(r.id || "", r.e).replace(/<div class="iimg"><button[^>]*data-act="(addlore|portrait)"[^>]*>[^<]*<\/button><\/div>/g, "")}</div>`}
@@ -251,6 +251,25 @@ function invViewHtml(c, id) {
 async function invAction(a, el) {
   const sh = document.querySelector(".sheet"), id = sh && sh.dataset.id, c = id && S.chars.get(id);
   if (!c) return false;
+  // Give an item to another player character: pick who (and how many of a stack); it goes onto a stack of the same thing
+  // in their pack, else a free pack slot (a row is added if the pack is full). Whatever it holds and its uses go with it.
+  if (a === "invgive") { const k = INV.sel, s = k != null && invOf(c).slots[k]; if (!s) return true; const r = invResolve(s.ref, s.name), qty = Number(s.qty) || 1;
+    const others = [...S.chars].filter(([cid, x]) => cid !== id && !x.hidden).sort((p, q) => byName(p[1].name, q[1].name));
+    openModal(`<h2>Give ${esc(r.name)}</h2>${qty > 1 ? `<label class="givqty"><span>How many</span><input id="givqty" type="number" min="1" max="${qty}" value="${qty}" inputmode="numeric"> <small class="muted">of ${qty}</small></label>` : ""}
+      <p class="muted small">To which player character?</p>
+      <div class="givlist">${others.length ? others.map(([cid, x]) => `<button class="givto" data-act="invgiveto" data-v="${esc(cid)}" data-k="${esc(k)}">${x.token || x.image ? `<img src="${esc(x.token || x.image)}" alt="">` : `<span class="pcinit">${esc((x.name || "?")[0])}</span>`}<span><strong>${esc(x.name)}</strong><small class="muted">${esc(charSub(x))}</small></span></button>`).join("") : `<p class="muted">There are no other player characters.</p>`}</div>
+      <div class="acts"><button class="btn ghost" type="button" data-act="closemodal">Cancel</button></div>`);
+    return true; }
+  if (a === "invgiveto") { const to = el.dataset.v, k = el.dataset.k, tc = S.chars.get(to), s = invOf(c).slots[k]; if (!tc || !s) { closeModal(); return true; }
+    const have = Number(s.qty) || 1, n = Math.max(1, Math.min(have, Math.round(Number(($("#givqty") || {}).value) || have))), r = invResolve(s.ref, s.name), stack = invStackable(s.ref, s.name);
+    let ok = true;
+    charChange(to, x => { const ti = invOf(x), slots = Object.assign({}, ti.slots); let slot = stack ? Object.keys(slots).find(q => isGridKey(q) && slots[q] && slots[q].ref === s.ref) : null;
+      if (slot) { slots[slot] = Object.assign({}, slots[slot], { qty: (Number(slots[slot].qty) || 1) + n }); x.inv = Object.assign({}, ti, x.inv, { slots }); return; }
+      x.inv = Object.assign({}, ti, x.inv, { slots }); slot = invFreeOrGrow(x); if (slot == null) { ok = false; return; }
+      const iv = invOf(x); x.inv = Object.assign({}, iv, x.inv, { slots: Object.assign({}, iv.slots, { [slot]: Object.assign(JSON.parse(JSON.stringify(s)), { qty: stack ? n : 1 }) }) }); }, false);
+    if (!ok) { toast(`${tc.name}'s pack is full.`, "bad"); return true; }
+    charChange(id, x => { const iv = invOf(x), slots = Object.assign({}, iv.slots); if (n >= have) delete slots[k]; else slots[k] = Object.assign({}, slots[k], { qty: have - n }); x.inv = Object.assign({}, iv, x.inv, { slots }); });
+    if (n >= have) INV.sel = null; closeModal(); toast(`Gave ${n > 1 ? n + " × " : ""}${r.name} to ${tc.name}`); return true; }
   if (a === "paygo") {
     const cost = payCp(), spend = el.dataset.v === "spend";
     if (!cost) { toast("Type an amount first.", "bad"); const i = $("#payamt"); if (i) i.focus(); return true; }
