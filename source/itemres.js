@@ -121,6 +121,7 @@ function resourcesSectionHtml(c, id, E, P) {
         <label><span>Shown as</span><select class="cf" data-cf="resources.${k}.style">${RES_STYLES.map(([v, l]) => `<option value="${v}"${(r.style || "box") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
         <label><span>Colour</span><input type="color" class="cf" data-cf="resources.${k}.color" value="${esc(resColor(r.color))}"></label>
         <label><span>${ctr ? "Back to 0 on" : "Resets on"}</span><select class="cf" data-cf="resources.${k}.reset"><option value="short"${r.reset === "short" ? " selected" : ""}>Short rest</option><option value="long"${!r.reset || r.reset === "long" ? " selected" : ""}>Long rest</option><option value="none"${r.reset === "none" ? " selected" : ""}>Never</option></select></label>
+        ${!ctr && r.style !== "slider" ? `<label class="check small"><input type="checkbox" class="cf" data-cf="resources.${k}.bubble"${r.bubble ? " checked" : ""}> Bubbles on the token</label>` : ""}
         <label class="grow"><span>Note</span>${cField(`resources.${k}.note`, r.note)}</label><button class="iconbtn" data-act="clistdel" data-v="resources" data-k="${k}" aria-label="Remove ${esc(r.name)}">✕</button></div>
       </div>`; }).join("")}</div><button class="btn ghost small" data-act="clistadd" data-v="resources">+ Add resource</button>
       ${items.length ? `<p class="muted small">Resource lines from equipped items (${items.map(i => esc(i.name)).join(", ")}) are set up on the item itself.</p>` : ""}`;

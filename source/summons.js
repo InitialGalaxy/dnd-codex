@@ -185,10 +185,10 @@ function smOwnRes(s, P) {
     return `<div class="fresline"><span class="fresname">${esc(r.name)} <small class="muted">${esc(resResetText(r))}${r.amt === "pb" ? " · = proficiency bonus" : ""}</small></span>${ctl}</div>`; }).join("");
 }
 function smResInput(t) {
-  const sh = t.closest(".sheet"), id = sh && sh.dataset.id; if (!id) return; const sid = t.dataset.smres, k = Number(t.dataset.k), key = t.dataset.f, v = t.value;
+  const sh = t.closest(".sheet"), id = sh && sh.dataset.id; if (!id) return; const sid = t.dataset.smres, k = Number(t.dataset.k), key = t.dataset.f, v = t.type === "checkbox" ? t.checked : t.value;
   charChange(id, x => { x.summons = smList(x).map(s => { if (s.id !== sid) return s; s = JSON.parse(JSON.stringify(s)); const r = (s.res || [])[k]; if (!r) return s;
     if (key === "max") r.max = Math.max(1, Math.min(999, Number(v) || 1)); else r[key] = v; if (key === "style" && v === "counter") r.count = 0; return s; }); }, false);
-  if (t.tagName === "SELECT") setTimeout(render, 0);
+  if (t.tagName === "SELECT" || t.type === "checkbox") setTimeout(render, 0);
 }
 function smResEditHtml(s) {
   const list = s.res || [], f = (k, key, v, extra) => `data-smres="${esc(s.id)}" data-k="${k}" data-f="${key}"${extra || ""}`;
@@ -196,6 +196,7 @@ function smResEditHtml(s) {
       ${resIsCounter(r) ? "" : `<label><span>Amount</span><select ${f(k, "amt")}><option value=""${r.amt === "pb" ? "" : " selected"}>Number</option><option value="pb"${r.amt === "pb" ? " selected" : ""}>Prof. bonus</option></select></label>${r.amt === "pb" ? "" : `<label><span>Max</span><input type="number" min="1" max="999" class="mini" ${f(k, "max")} value="${esc(r.max || "")}"></label>`}`}
       <label><span>Shown as</span><select ${f(k, "style")}>${RES_STYLES.map(([v, l]) => `<option value="${v}"${(r.style || "box") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label><span>Colour</span><input type="color" ${f(k, "color")} value="${esc(resColor(r.color))}"></label>
+      ${!resIsCounter(r) && r.style !== "slider" ? `<label class="check small"><input type="checkbox" ${f(k, "bubble")}${r.bubble ? " checked" : ""}> Bubbles on the token</label>` : ""}
       <label><span>${resIsCounter(r) ? "Back to 0 on" : "Resets on"}</span><select ${f(k, "reset")}><option value="short"${r.reset === "short" ? " selected" : ""}>Short rest</option><option value="long"${!r.reset || r.reset === "long" ? " selected" : ""}>Long rest</option><option value="none"${r.reset === "none" ? " selected" : ""}>Never</option></select></label>
       <button type="button" class="iconbtn" data-act="smrsdel" data-sm="${esc(s.id)}" data-k="${k}" aria-label="Remove ${esc(r.name || "this resource")}">✕</button></div>`).join("")}
     <div class="acts"><button type="button" class="btn ghost small" data-act="smrsadd" data-sm="${esc(s.id)}">+ Add resource</button><button type="button" class="btn small" data-act="smrsedit" data-sm="${esc(s.id)}">Done</button></div></div>`;

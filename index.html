@@ -4637,6 +4637,7 @@ function resourcesSectionHtml(c, id, E, P) {
         <label><span>Shown as</span><select class="cf" data-cf="resources.${k}.style">${RES_STYLES.map(([v, l]) => `<option value="${v}"${(r.style || "box") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
         <label><span>Colour</span><input type="color" class="cf" data-cf="resources.${k}.color" value="${esc(resColor(r.color))}"></label>
         <label><span>${ctr ? "Back to 0 on" : "Resets on"}</span><select class="cf" data-cf="resources.${k}.reset"><option value="short"${r.reset === "short" ? " selected" : ""}>Short rest</option><option value="long"${!r.reset || r.reset === "long" ? " selected" : ""}>Long rest</option><option value="none"${r.reset === "none" ? " selected" : ""}>Never</option></select></label>
+        ${!ctr && r.style !== "slider" ? `<label class="check small"><input type="checkbox" class="cf" data-cf="resources.${k}.bubble"${r.bubble ? " checked" : ""}> Bubbles on the token</label>` : ""}
         <label class="grow"><span>Note</span>${cField(`resources.${k}.note`, r.note)}</label><button class="iconbtn" data-act="clistdel" data-v="resources" data-k="${k}" aria-label="Remove ${esc(r.name)}">✕</button></div>
       </div>`; }).join("")}</div><button class="btn ghost small" data-act="clistadd" data-v="resources">+ Add resource</button>
       ${items.length ? `<p class="muted small">Resource lines from equipped items (${items.map(i => esc(i.name)).join(", ")}) are set up on the item itself.</p>` : ""}`;
@@ -4946,10 +4947,10 @@ function smOwnRes(s, P) {
     return `<div class="fresline"><span class="fresname">${esc(r.name)} <small class="muted">${esc(resResetText(r))}${r.amt === "pb" ? " · = proficiency bonus" : ""}</small></span>${ctl}</div>`; }).join("");
 }
 function smResInput(t) {
-  const sh = t.closest(".sheet"), id = sh && sh.dataset.id; if (!id) return; const sid = t.dataset.smres, k = Number(t.dataset.k), key = t.dataset.f, v = t.value;
+  const sh = t.closest(".sheet"), id = sh && sh.dataset.id; if (!id) return; const sid = t.dataset.smres, k = Number(t.dataset.k), key = t.dataset.f, v = t.type === "checkbox" ? t.checked : t.value;
   charChange(id, x => { x.summons = smList(x).map(s => { if (s.id !== sid) return s; s = JSON.parse(JSON.stringify(s)); const r = (s.res || [])[k]; if (!r) return s;
     if (key === "max") r.max = Math.max(1, Math.min(999, Number(v) || 1)); else r[key] = v; if (key === "style" && v === "counter") r.count = 0; return s; }); }, false);
-  if (t.tagName === "SELECT") setTimeout(render, 0);
+  if (t.tagName === "SELECT" || t.type === "checkbox") setTimeout(render, 0);
 }
 function smResEditHtml(s) {
   const list = s.res || [], f = (k, key, v, extra) => `data-smres="${esc(s.id)}" data-k="${k}" data-f="${key}"${extra || ""}`;
@@ -4957,6 +4958,7 @@ function smResEditHtml(s) {
       ${resIsCounter(r) ? "" : `<label><span>Amount</span><select ${f(k, "amt")}><option value=""${r.amt === "pb" ? "" : " selected"}>Number</option><option value="pb"${r.amt === "pb" ? " selected" : ""}>Prof. bonus</option></select></label>${r.amt === "pb" ? "" : `<label><span>Max</span><input type="number" min="1" max="999" class="mini" ${f(k, "max")} value="${esc(r.max || "")}"></label>`}`}
       <label><span>Shown as</span><select ${f(k, "style")}>${RES_STYLES.map(([v, l]) => `<option value="${v}"${(r.style || "box") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label><span>Colour</span><input type="color" ${f(k, "color")} value="${esc(resColor(r.color))}"></label>
+      ${!resIsCounter(r) && r.style !== "slider" ? `<label class="check small"><input type="checkbox" ${f(k, "bubble")}${r.bubble ? " checked" : ""}> Bubbles on the token</label>` : ""}
       <label><span>${resIsCounter(r) ? "Back to 0 on" : "Resets on"}</span><select ${f(k, "reset")}><option value="short"${r.reset === "short" ? " selected" : ""}>Short rest</option><option value="long"${!r.reset || r.reset === "long" ? " selected" : ""}>Long rest</option><option value="none"${r.reset === "none" ? " selected" : ""}>Never</option></select></label>
       <button type="button" class="iconbtn" data-act="smrsdel" data-sm="${esc(s.id)}" data-k="${k}" aria-label="Remove ${esc(r.name || "this resource")}">✕</button></div>`).join("")}
     <div class="acts"><button type="button" class="btn ghost small" data-act="smrsadd" data-sm="${esc(s.id)}">+ Add resource</button><button type="button" class="btn small" data-act="smrsedit" data-sm="${esc(s.id)}">Done</button></div></div>`;
@@ -10557,6 +10559,7 @@ async function vttAction(a, el, ev) {
   if (/^vttpen/.test(a)) return vPenAction(a, el);
   if (/^vttq/.test(a) && !/^vttq(new|edit|del|show|step)$/.test(a)) return vQuestAction(a, el);
   if (a === "vttinitmin") { VTT.initMin = !VTT.initMin; vInitDraw(true); return; }
+  if (a === "vttbarpip") { const id = el.dataset.id, key = el.dataset.k, t = S.vttTokens.get(id), b = t && vBars(t).find(x => vBarEdKey(x) === key); if (b && vBarCanEdit(t, b)) { const j = Number(el.dataset.j); vBarSetValue(id, key, j < b.cur ? j : j + 1); } return; }
   if (a === "vttbarstep" || a === "vttbared" || a === "vttbarop") {
     const id = el.dataset.id, key = el.dataset.k, t = S.vttTokens.get(id), b = t && vBars(t).find(x => vBarEdKey(x) === key);
     if (!b || !vBarCanEdit(t, b)) return;
@@ -10763,7 +10766,7 @@ function vBars(t) {
     if (!c) { const h = t.npc && t.npc.hp; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); return out; }
     const k = typeof casterOf === "function" ? casterOf(c) : null; if (k && k.max) out.push({ cur: k.left, max: k.max, color: "#6f8cff", label: "Spell points", ed: "sp" });
     // (Resources shown as boxes come too, marked box: the side panel lists them; on the token they're bubbles, if that's on.)
-    (c.resources || []).forEach((r, ri) => { if (r && !resIsCounter(r) && resMax(r, c) && (r.style === "slider" || r.name)) out.push({ cur: charResHave(c, r), max: resMax(r, c), color: resColor(r.color), label: r.name, ed: "r:" + ri, box: r.style !== "slider" }); });
+    (c.resources || []).forEach((r, ri) => { if (r && !resIsCounter(r) && resMax(r, c) && (r.style === "slider" || r.name)) out.push({ cur: charResHave(c, r), max: resMax(r, c), color: resColor(r.color), label: r.name, ed: "r:" + ri, box: r.style !== "slider", bubble: !!r.bubble }); });
     if (typeof equippedResItems === "function") equippedResItems(c).forEach(it => it.lines.forEach((r, i) => { if (resValid(r) && r.style === "slider" && resMax(r, c)) out.push({ ed: "i:" + i + ":" + it.ref, cur: itemResHave(c, it.ref, i, r), max: resMax(r, c), color: resColor(r.color), label: r.name }); }));
     const hp = c.hp || {}; if (Number(hp.max)) out.push({ cur: Number(hp.cur) || 0, max: Number(hp.max), temp: Number(hp.temp) || 0, hp: true, label: "HP" });
   } else if (t.ref && t.ref.startsWith("s:")) {
@@ -10771,7 +10774,7 @@ function vBars(t) {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
     // The summon's own slider resources (set up on its card).
-    if (sm && Array.isArray(sm.res) && typeof smPbc === "function") { const pbc = smPbc(sm); sm.res.forEach((r, k) => { if (resValid(r) && !resIsCounter(r) && resMax(r, pbc)) out.push({ cur: charResHave(pbc, r), max: resMax(r, pbc), color: resColor(r.color), label: r.name, ed: "sr:" + k, box: r.style !== "slider" }); }); }
+    if (sm && Array.isArray(sm.res) && typeof smPbc === "function") { const pbc = smPbc(sm); sm.res.forEach((r, k) => { if (resValid(r) && !resIsCounter(r) && resMax(r, pbc)) out.push({ cur: charResHave(pbc, r), max: resMax(r, pbc), color: resColor(r.color), label: r.name, ed: "sr:" + k, box: r.style !== "slider", bubble: !!r.bubble }); }); }
     if (sm && smNowMax(sm)) out.push({ cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0, hp: true, label: "HP" });
     else if (!sm) { const h = (t.npc && t.npc.hp) || t.php; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); }
   } else {
@@ -10823,7 +10826,7 @@ function vBarsFor(t) {
 }
 // Resources shown as boxes, as rows of small bubbles across the top of the token (t.resBubbles, off unless set).
 function vBubblesHtml(t) {
-  if (!t.resBubbles) return ""; const list = vBarsFor(t).filter(b => b.box && b.max <= 20); if (!list.length) return "";
+  const list = vBarsFor(t).filter(b => b.box && b.bubble && b.max <= 20); if (!list.length) return "";
   return `<div class="vbubs">${list.map(b => `<div class="vbubrow${b.pvis === "hide" ? " gmonly" : ""}" title="${esc(b.label)}${b.vis === "full" ? ` ${b.cur}/${b.max}` : ""}" style="--rc:${b.color}">${Array.from({ length: b.max }, (_, j) => `<i class="${j < b.cur ? "on" : ""}"></i>`).join("")}</div>`).join("")}</div>`;
 }
 function vBarsHtml(t) {
@@ -10888,7 +10891,7 @@ function vTokSideHtml(id, t) {
     const editor = open ? `<div class="vbared"><input type="number" min="0" inputmode="numeric" placeholder="Amount" aria-label="Amount for ${esc(b.label)}"><button class="btn ghost small" data-act="vttbarop" data-op="sub" data-id="${esc(id)}" data-k="${esc(ek)}">− Subtract</button><button class="btn ghost small" data-act="vttbarop" data-op="add" data-id="${esc(id)}" data-k="${esc(ek)}">+ Add</button><button class="btn small" data-act="vttbarop" data-op="set" data-id="${esc(id)}" data-k="${esc(ek)}" title="Set it to this number">Set</button></div>` : "";
     const ctl = !canEd ? (canHp && b.ex ? "" : "") : `<span class="vsbctl">${steps}</span>`;
     const ctl2 = canHp && b.ex ? `<span class="vsbctl"><button class="btn ghost small" data-act="vttexfill" data-id="${esc(id)}" title="${b.cur ? "Fill the meter back up" : "It broke: refill it" + (vExOf(t).rise ? `, ${vExOf(t).rise} bigger` : "")}">${b.cur ? "Refill" : `Refill${vExOf(t).rise ? " +" + vExOf(t).rise : ""}`}</button></span>` : "";
-    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}${gm && b.pvis === "hide" ? ` <small class="vbvn" title="Players can't see this bar">🙈</small>` : gm && b.pvis === "bar" ? ` <small class="vbvn" title="Players see the bar but not the numbers">◐</small>` : ""}</span>${b.vis === "full" ? `<strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>` : `<strong class="muted">${b.cur <= 0 ? "Down" : (b.cur / b.max) > .5 ? "Healthy" : (b.cur / b.max) > .25 ? "Hurt" : "Badly hurt"}</strong>`}${ctl}${ctl2}</div><div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div>${editor}</div>`; }).join("")}</div>` : "";
+    return `<div class="vsbar${b.ex && !b.cur ? " broken" : ""}"><div class="vsbl"><span>${esc(b.label)}${b.ex && !b.cur ? " · broken" : ""}${gm && b.pvis === "hide" ? ` <small class="vbvn" title="Players can't see this bar">🙈</small>` : gm && b.pvis === "bar" ? ` <small class="vbvn" title="Players see the bar but not the numbers">◐</small>` : ""}</span>${b.vis === "full" ? `<strong>${b.cur}<small> / ${b.max}${b.temp ? ` · +${b.temp} temp` : ""}</small></strong>` : `<strong class="muted">${b.cur <= 0 ? "Down" : (b.cur / b.max) > .5 ? "Healthy" : (b.cur / b.max) > .25 ? "Hurt" : "Badly hurt"}</strong>`}${ctl}${ctl2}</div>${b.box && b.max <= 30 ? resPipsHtml(b.cur, b.max, b.color, canEd ? j => `data-act="vttbarpip" data-id="${esc(id)}" data-k="${esc(ek)}" data-j="${j}" aria-label="${esc(b.label)} ${j + 1}"` : null) : `<div class="vsbt"><i style="width:${pct}%;background:${b.hp ? hpc : b.color}"></i>${b.temp ? `<b style="width:${Math.min(100, (b.temp / b.max) * 100)}%"></b>` : ""}</div>`}${editor}</div>`; }).join("")}</div>` : "";
   const sm = t.ref && t.ref.startsWith("s:") ? vSummonOf(t.ref) : null;
   const canFly = gm || mine, fly = Math.max(0, Number(t.fly) || 0);
   const dmgMode = VTT.dmgMode || "bps", exT = !isChar && vExOf(t);
@@ -10947,7 +10950,6 @@ function vTokOptions(id) {
     <label><span>Layer</span><select data-vf="layer"><option value="token"${t.layer !== "gm" ? " selected" : ""}>Tokens (players see it)</option><option value="gm"${t.layer === "gm" ? " selected" : ""}>GM only</option></select></label>
     <label><span>Controlled by <small class="muted">its player can move it and sees through its eyes</small></span><select data-vf="owner"><option value="">Nobody (GM only)</option>${chars.map(([cid, c]) => `<option value="${esc(cid)}"${t.owner === cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
     <label><span>Darkvision (ft) <small class="muted">blank: from the sheet or stat block${(d => d ? ` (${d} ft)` : "")(vDarkvisionAuto(t))}</small></span><input type="number" min="0" step="5" data-vf="dv" value="${t.dv != null ? t.dv : ""}" placeholder="auto"></label>
-    ${vBars(t).some(b => b.box) ? `<label><span>Resource bubbles <small class="muted">boxes (Rage, Ki…) as small bubbles across the top of the token</small></span><select data-vf="resBubbles"><option value=""${t.resBubbles ? "" : " selected"}>Off</option><option value="1"${t.resBubbles ? " selected" : ""}>On</option></select></label>` : ""}
     ${vPlayerTok(t) ? "" : `<label><span>AC shown to <small class="muted">players always see the party's</small></span><select data-vf="acShow"><option value=""${t.acShow !== "all" ? " selected" : ""}>GM only</option><option value="all"${t.acShow === "all" ? " selected" : ""}>Everyone</option></select></label>`}
     ${(() => { const bl = vBars(t); if (!bl.length) return `<label><span>Bars shown to</span><select data-vf="bars"><option value="all"${vBarsPublic(t) ? " selected" : ""}>Everyone</option><option value="gm"${!vBarsPublic(t) ? " selected" : ""}>GM only</option></select></label>`;
       const seg = (k, v) => `<div class="seg vbvseg">${[["hide", "Hidden"], ["bar", "Bar only"], ["full", "Bar + numbers"]].map(([x, l]) => `<button type="button" class="${v === x ? "on" : ""}" data-act="vttbarvis" data-id="${esc(id)}" data-k="${esc(k)}" data-v="${x}">${l}</button>`).join("")}</div>`;
