@@ -18,6 +18,9 @@ function raceTraits(e) {
   if ((r.speed || "").trim()) out.push({ n: "Speed", d: "Your base walking speed is " + r.speed.trim().replace(/\.$/, "") + "." });
   return out.concat((r.traits || []).filter(t => (t.n || "").trim()));
 }
+// The choices of a feature in the class or subclass page.
+function hbOptsHtml(f, id) { if (!Array.isArray(f.opts) || !f.opts.length) return ""; const n = Number(f.pick) || 1;
+  return `<div class="hboptsview"><p class="small muted">Choose ${n === 1 ? "one" : n} of these:</p>${f.opts.map(o => `<div class="prose hbtrait">${md(`***${String(o.n).replace(/\.$/, "")}.*** ${o.d || ""}`, { entryId: id, noEmbed: true })}</div>`).join("")}</div>`; }
 const lvOrd = n => { n = Number(n) || 1; const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 function subclassHtml(id, e, noTitle) {
@@ -27,7 +30,7 @@ function subclassHtml(id, e, noTitle) {
     ${noTitle ? "" : `<h2 class="hbtitle">${esc(e.title)}</h2>`}
     ${e.body && e.body.trim() ? `<div class="prose hbdesc">${md(e.body, { entryId: id, noEmbed: true })}</div>` : ""}
     ${feats.length ? `<table class="hbtable"><thead><tr><th>${esc(sc.cls || "Class")} level</th><th>Feature</th></tr></thead><tbody>${feats.map(f => `<tr><td>${lvOrd(f.lv)}</td><td>${esc(f.n)}</td></tr>`).join("")}</tbody></table>
-      ${feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || `<p class="muted">No description yet.</p>`}</div></div>`).join("")}`
+      ${feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || (f.opts && f.opts.length ? "" : `<p class="muted">No description yet.</p>`)}</div>${hbOptsHtml(f, id)}</div>`).join("")}`
       : `<p class="muted">No features yet.</p>`}
   </div>`;
 }
@@ -43,13 +46,19 @@ function raceHtml(id, e, noTitle) {
 }
 
 // ----- Editor fields (inside the entry editor) -----
+// A class or subclass feature can be a choice (Fighting Style, Favoured Enemy): f.opts = [{ n, d }], players pick f.pick
+// of them on their sheet.
+function hbOptRow(o) { o = o || {}; return `<div class="hbopt"><div class="frow tight"><label class="grow"><span>Choice</span><input type="text" class="hbo-n" value="${esc(o.n || "")}" placeholder="e.g. Archery"></label><button type="button" class="btn ghost small" data-act="hboptdel" title="Remove this choice">✕</button></div><textarea class="hbo-d" rows="2" placeholder="What it does">${esc(o.d || "")}</textarea></div>`; }
 function hbRow(kind, f) {
-  f = f || {};
+  f = f || {}; const on = Array.isArray(f.opts) && f.opts.length > 0;
   return `<div class="hbrow" data-hbrow="${kind}">
     <div class="frow tight">${kind !== "rc" ? `<label class="lvin"><span>Level</span><input type="number" min="1" max="20" class="hb-lv" value="${esc(f.lv || "")}"></label>` : ""}
       <label class="grow"><span>${kind !== "rc" ? "Feature" : "Trait"}</span><input type="text" class="hb-n" value="${esc(f.n || "")}" placeholder="${kind === "sc" ? "e.g. Dragon Binding" : kind === "cl" ? "e.g. Extra Attack" : "e.g. Darkvision"}"></label>
       <button type="button" class="btn ghost small hbdel" data-act="hbdel" title="Remove">✕</button></div>
     <div class="field"><textarea class="hb-d" rows="3" placeholder="What it does">${esc(f.d || "")}</textarea></div>
+    ${kind !== "rc" ? `<label class="check small hboptson"><input type="checkbox" class="hb-optson"${on ? " checked" : ""}> A list to choose from <small class="muted">(like Fighting Style: players pick on their sheet)</small></label>
+    <div class="hbopts"${on ? "" : " hidden"}><label class="small">Players pick <input type="number" min="1" max="20" class="hb-pick mini" value="${esc(f.pick || 1)}"></label>
+      <div class="hboptlist">${(on ? f.opts : [{}]).map(hbOptRow).join("")}</div><button type="button" class="btn ghost small" data-act="hboptadd">+ Add a choice</button></div>` : ""}
   </div>`;
 }
 function subclassFields(e) {
@@ -80,6 +89,9 @@ function readHbRows(kind) {
   return [...document.querySelectorAll(`#${kind}-rows .hbrow`)].map(r => {
     const o = { n: r.querySelector(".hb-n").value.trim(), d: r.querySelector("textarea.hb-d").value.trim() };
     if (kind !== "rc") o.lv = Math.max(1, Math.min(20, Number(r.querySelector(".hb-lv").value) || 1));
+    const on = r.querySelector(".hb-optson");
+    if (on && on.checked) { const opts = [...r.querySelectorAll(".hbopt")].map(x => ({ n: x.querySelector(".hbo-n").value.trim(), d: x.querySelector(".hbo-d").value.trim() })).filter(x => x.n);
+      if (opts.length) { o.opts = opts; o.pick = Math.max(1, Math.min(opts.length, Number(r.querySelector(".hb-pick").value) || 1)); } }
     return o;
   }).filter(o => o.n || o.d);
 }

@@ -25,7 +25,7 @@ function classFeats(name) {
   const c = ce[1].cls || {};
   return { id: ce[0], hd: Number(c.hd) || 8, subs: srd ? srd.subs : [], flavor: c.subTitle || (srd || {}).flavor || "Subclass", subLv: Number(c.subLv) || (srd || {}).subLv || 3,
     asi: (Array.isArray(c.asi) && c.asi.length ? c.asi : (srd || {}).asi || [4, 8, 12, 16, 19]).map(Number),
-    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" })), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
+    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
 }
 // A class entry built from the SRD (or the Artificer summary), for the one-time move into the library.
 function srdClassDoc(name, now) {
@@ -70,7 +70,7 @@ function classHtml(id, e, noTitle) {
     <h3 class="hbsub">The ${esc(e.title)}</h3>
     <div class="tablewrap doc"><table class="hbtable cltable"><thead><tr><th>Level</th><th>Proficiency bonus</th><th>Features</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
     <h3 class="hbsub">Class features</h3>
-    ${feats.length ? feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd2(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || `<p class="muted">No description yet.</p>`}</div></div>`).join("") : `<p class="muted">No features yet.</p>`}
+    ${feats.length ? feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd2(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || (f.opts && f.opts.length ? "" : `<p class="muted">No description yet.</p>`)}</div>${hbOptsHtml(f, id)}</div>`).join("") : `<p class="muted">No features yet.</p>`}
     <h3 class="hbsub">${esc(subT)}s</h3>
     <p>${[...(srd ? srd.subs.filter(s => !subs.some(([, se]) => (se.subclass || {}).alias === s || se.title === s)).map(s => `<span class="flink">${esc(s)} <span class="srcpill">SRD</span></span>`) : []), ...subs.map(([sid, se]) => `<a class="flink" href="#entry-${esc(sid)}">${esc(se.title)}</a>`)].join(" ") || `<span class="muted">None yet. Add one with + Subclass in a book, or + New entry.</span>`}</p>
   </div>`;

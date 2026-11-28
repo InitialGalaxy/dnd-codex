@@ -2004,6 +2004,13 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .hplvr { display: flex; flex-wrap: wrap; gap: 6px; }
 .hplvr label { display: grid; justify-items: center; gap: 2px; } .hplvr label span { font-size: .7rem; color: var(--muted); }
 .hplvr input { width: 46px; text-align: center; padding: 4px 2px; }
+.hboptson { margin: 4px 0; } .hbopts { display: grid; gap: 6px; margin: 4px 0 4px 18px; padding-left: 10px; border-left: 2px solid var(--line); }
+.hboptlist { display: grid; gap: 6px; } .hbopt textarea { width: 100%; }
+.hboptsview { margin: 4px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+.fpicks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -2px 0 6px 18px; }
+.fpicks select { max-width: 240px; } .fpicks .fpicked { flex: 1 1 100%; border-left: 2px solid var(--accent, #d9a52b); }
+.featadd { margin: 8px 0; } .featchips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.featchip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); font-size: .9rem; }
 .vtok.vinvis { filter: grayscale(1) brightness(1.25) contrast(.8); animation: vinvis 3.2s ease-in-out infinite; }
 @keyframes vinvis { 0%, 100% { opacity: .38; } 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .vtok.vinvis { animation: none; opacity: .45; } }

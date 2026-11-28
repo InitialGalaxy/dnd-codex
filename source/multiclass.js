@@ -72,6 +72,10 @@ function hpLevelsHtml(c) {
 // Changes from the class rows and the HP rolls.
 function classListInput(t) {
   const sh = t.closest(".sheet"); if (!sh) return false; const id = sh.dataset.id;
+  // A pick from a feature's list of choices (c.featPicks = { "<feature key>": [choice names] }).
+  if (t.dataset.fpick != null) { const k = t.dataset.fpick, j = Number(t.dataset.j) || 0, v = t.value;
+    charChange(id, x => { const P = Object.assign({}, x.featPicks), a = (P[k] || []).slice(); a[j] = v; P[k] = a.map(q => q || ""); x.featPicks = P; }, false); setTimeout(render, 0); return true; }
+  if (t.id === "featpick") { const v = t.value; if (!v) return true; charChange(id, x => { const e = S.entries.get(v); x.feats = (x.feats || []).filter(f => f.ref !== v).concat([{ ref: v, name: e ? e.title : "" }]); }, false); setTimeout(render, 0); return true; }
   if (t.dataset.cl != null) { const i = Number(t.dataset.cl), k = t.dataset.k, v = t.value; if (k === "name" && !v) return true;
     charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (!L[i]) L[i] = { name: "", level: Math.max(1, Number(x.level) || 1) };
       if (k === "name") { if (L[i].name !== v) { L[i].name = v; L[i].rolls = {}; if (i === 0) { delete x.subclass; delete x.subclassRef; } else { delete L[i].subclass; delete L[i].subclassRef; } } }
@@ -85,6 +89,7 @@ function classListInput(t) {
   return false;
 }
 function classListAction(a, el, id) {
+  if (a === "featrm") { const ref = el.dataset.v; charChange(id, x => { x.feats = (x.feats || []).filter(f => f.ref !== ref); }); return true; }
   if (a === "cladd") { charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)), have = new Set(L.map(q => q.name)), nm = allClassNames().find(n => !have.has(n)) || "Fighter";
     L.push({ name: nm, level: 1 }); x.classList = L; }); return true; }
   if (a === "clrm") { const i = Number(el.dataset.k); charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (L.length < 2) return;
@@ -113,7 +118,7 @@ function multiCaster(c, kind) {
 function fillAllClassFeatures(c, withSub) {
   return charClasses(c).flatMap((x, i) => { const hb = i === 0 ? charSubclassEntry(c) : subEntryOf(x.name, x.subclass, x.subclassRef), d = classFeats(x.name);
     const srdSub = !hb && d && (i === 0 ? c.subclass : x.subclass) && (i === 0 ? c.subclass : x.subclass) === d.subs[0];
-    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title })) : [];
+    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})) : [];
     return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => Object.assign({}, f, { cls: x.name })); });
 }
 // ---------- Features from the books, automatically ----------
@@ -125,11 +130,13 @@ function autoFeatures(c) {
   const out = [];
   try {
     const multi = charMulti(c);
-    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }));
+    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push(Object.assign({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }, f.opts ? { opts: f.opts, pick: f.pick } : {})));
     const race = detectRaceChoice(c);
     if (race) { const rd = !race.startsWith("hb:") && SRD_RACE_TRAITS[race], t = String(c.race || "").toLowerCase(), sub = rd ? Object.keys(rd.sub).find(s => t.includes(s.toLowerCase())) || "" : "";
       const rn = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
       fillRaceTraits(race, sub).forEach(f => out.push({ name: f.n, source: "Race", note: rn, desc: f.d || "", auto: 1 })); }
+    // Feats added with + Feat (c.feats = [{ ref, name }]): the library's feat, not editable on the sheet.
+    (c.feats || []).forEach(ft => { const e = ft.ref && S.entries.get(ft.ref); out.push({ name: e ? e.title : ft.name || "Feat", source: "Feat", note: e && e.feat ? [e.feat.kind, e.feat.prereq].filter(Boolean).join(" · ") : "", desc: e ? e.body || "" : "", auto: 1, featRef: ft.ref }); });
   } catch (e) { console.warn(e); }
   const seen = new Set(); return out.filter(f => { const k = featKey(f.name); if (!k || seen.has(k)) return false; seen.add(k); return true; });
 }
@@ -142,3 +149,18 @@ function charFeatures(c) {
 }
 const charFeatList = c => charFeatures(c).map(x => x[0]);
 function featIsBookCopy(c, f, auto) { const a = (auto || autoFeatures(c)).find(x => featKey(x.name) === featKey(f.name)); return !!a && (!String(f.desc || "").trim() || String(f.desc).trim() === String(a.desc || "").trim()); }
+
+// The choice boxes under a feature with a list (on the sheet), and what's been picked.
+function featPicksHtml(c, f, P) {
+  if (!Array.isArray(f.opts) || !f.opts.length) return ""; const k = featKey(f.name), got = (c.featPicks || {})[k] || [], n = Math.min(Number(f.pick) || 1, f.opts.length);
+  const picked = got.slice(0, n).map(v => f.opts.find(o => o.n === v)).filter(Boolean);
+  const boxes = P ? Array.from({ length: n }, (_, j) => `<select data-fpick="${esc(k)}" data-j="${j}" aria-label="${esc(f.name)} choice ${j + 1}"><option value="">Choose…</option>${f.opts.map(o => `<option${got[j] === o.n ? " selected" : ""}${got.includes(o.n) && got[j] !== o.n ? " disabled" : ""}>${esc(o.n)}</option>`).join("")}</select>`).join("") : "";
+  return `<div class="fpicks">${boxes}${picked.map(o => `<details class="fitem fpicked"><summary><strong>${esc(o.n)}</strong></summary><div class="prose">${md(o.d || "", { base: 3 })}</div></details>`).join("")}${!P && !picked.length ? `<span class="muted small">Not chosen yet</span>` : ""}</div>`;
+}
+// + Feat (Edit sheet): feats from the library, added as they are (their text is the library's).
+function featAddHtml(c) {
+  const have = new Set((c.feats || []).map(f => f.ref)), list = featEntries().filter(([fid]) => !have.has(fid));
+  return `<div class="featadd"><span class="flabel">Feats</span><div class="featchips">${(c.feats || []).map(f => { const e = S.entries.get(f.ref); return `<span class="featchip">${esc(e ? e.title : f.name || "Feat")}<button type="button" class="iconbtn" data-act="featrm" data-v="${esc(f.ref)}" aria-label="Take away ${esc(e ? e.title : "this feat")}">✕</button></span>`; }).join("")}
+    <select id="featpick" aria-label="Add a feat"><option value="">+ Feat…</option>${list.map(([fid, e]) => `<option value="${esc(fid)}">${esc(e.title)}${e.feat && e.feat.prereq ? " (" + esc(e.feat.prereq) + ")" : ""}</option>`).join("")}</select></div>
+    <p class="muted small">Feats from your library show on the sheet with their library text. Edit a feat in the library to change it everywhere.</p></div>`;
+}

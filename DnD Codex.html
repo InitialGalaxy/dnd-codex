@@ -2005,6 +2005,13 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .hplvr { display: flex; flex-wrap: wrap; gap: 6px; }
 .hplvr label { display: grid; justify-items: center; gap: 2px; } .hplvr label span { font-size: .7rem; color: var(--muted); }
 .hplvr input { width: 46px; text-align: center; padding: 4px 2px; }
+.hboptson { margin: 4px 0; } .hbopts { display: grid; gap: 6px; margin: 4px 0 4px 18px; padding-left: 10px; border-left: 2px solid var(--line); }
+.hboptlist { display: grid; gap: 6px; } .hbopt textarea { width: 100%; }
+.hboptsview { margin: 4px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+.fpicks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -2px 0 6px 18px; }
+.fpicks select { max-width: 240px; } .fpicks .fpicked { flex: 1 1 100%; border-left: 2px solid var(--accent, #d9a52b); }
+.featadd { margin: 8px 0; } .featchips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.featchip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); font-size: .9rem; }
 .vtok.vinvis { filter: grayscale(1) brightness(1.25) contrast(.8); animation: vinvis 3.2s ease-in-out infinite; }
 @keyframes vinvis { 0%, 100% { opacity: .38; } 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .vtok.vinvis { animation: none; opacity: .45; } }
@@ -3695,14 +3702,14 @@ function viewCharacter(id) {
   const allFeats = charFeatures(c), autoF = E ? autoFeatures(c) : [];
   const groups = FEATURE_SOURCES.map(src => ({ src, items: allFeats.filter(([f]) => (f.source || "Other") === src) })).filter(g => g.items.length);
   groups.forEach(g => { if (g.src === "Class") g.items = classFeatOrder(c, g.items); });
-  const feats = sec("features", "cfeat", "Features &amp; traits", levelupHtml(c, id, E, P) + (E ? `${classBasicsHtml(c)}<p class="muted small fauto">Class features (each class up to its level, and the subclass's) and racial traits from the books and your library show on the sheet by themselves${autoF.length ? ` (${autoF.length} right now)` : ""}. Add anything else here. To change one from the books, add a feature with the same name.</p><div class="featedit">${(c.features || []).map((f, k) => [f, k]).filter(([f]) => !featIsBookCopy(c, f, autoF)).map(([f, k]) => `<div class="sbitem">
+  const feats = sec("features", "cfeat", "Features &amp; traits", levelupHtml(c, id, E, P) + (E ? `${classBasicsHtml(c)}<p class="muted small fauto">Class features (each class up to its level, and the subclass's) and racial traits from the books and your library show on the sheet by themselves${autoF.length ? ` (${autoF.length} right now)` : ""}. Add anything else here. To change one from the books, add a feature with the same name.</p>${featAddHtml(c)}<div class="featedit">${(c.features || []).map((f, k) => [f, k]).filter(([f]) => !featIsBookCopy(c, f, autoF)).map(([f, k]) => `<div class="sbitem">
         <div class="frow tight"><label class="grow"><span>Name</span>${cField(`features.${k}.name`, f.name)}</label>
           <label><span>From</span><select class="cf" data-cf="features.${k}.source">${FEATURE_SOURCES.map(s => `<option${(f.source || "Other") === s ? " selected" : ""}>${s}</option>`).join("")}</select></label>
           <label class="grow"><span>Short note</span>${cField(`features.${k}.note`, f.note, { ph: "e.g. 60 ft, 1 per short rest" })}</label><button class="iconbtn" data-act="clistdel" data-v="features" data-k="${k}" aria-label="Remove ${esc(f.name)}">✕</button></div>
         ${cField(`features.${k}.desc`, f.desc, { area: 1, rich: 1, rows: 2, ph: "What it does (optional)" })}</div>`).join("")}</div>
       <button class="btn ghost small" data-act="clistadd" data-v="features">+ Add feature</button>`
-    : groups.length ? groups.map(g => `<h3 class="fgh">${g.src === "DM" ? "From the DM" : g.src === "Item" ? "From items" : g.src}</h3><div class="flist">${g.items.map(([f, , lv]) => f.desc ? `<details class="fitem"><summary>${lv ? `<span class="flv" title="Level ${lv}">${lv}</span>` : ""}<strong>${esc(f.name)}</strong>${f.note ? ` <span class="muted">${esc(f.note)}</span>` : ""}</summary><div class="prose">${md(f.desc, { base: 3 })}</div></details>`
-      : `<div class="fitem plain">${lv ? `<span class="flv" title="Level ${lv}">${lv}</span>` : ""}<strong>${esc(f.name)}</strong>${f.note ? ` <span class="muted">${esc(f.note)}</span>` : ""}</div>`).join("")}</div>`).join("") : `<p class="muted small">No features yet.</p>`));
+    : groups.length ? groups.map(g => `<h3 class="fgh">${g.src === "DM" ? "From the DM" : g.src === "Item" ? "From items" : g.src}</h3><div class="flist">${g.items.map(([f, , lv]) => (f.desc ? `<details class="fitem"><summary>${lv ? `<span class="flv" title="Level ${lv}">${lv}</span>` : ""}<strong>${esc(f.name)}</strong>${f.note ? ` <span class="muted">${esc(f.note)}</span>` : ""}</summary><div class="prose">${md(f.desc, { base: 3 })}</div></details>`
+      : `<div class="fitem plain">${lv ? `<span class="flv" title="Level ${lv}">${lv}</span>` : ""}<strong>${esc(f.name)}</strong>${f.note ? ` <span class="muted">${esc(f.note)}</span>` : ""}</div>`) + featPicksHtml(c, f, P)).join("")}</div>`).join("") : `<p class="muted small">No features yet.</p>`));
 
   const pr = c.profs || {};
   const profs = sec("features", "cprof", "Proficiencies &amp; languages", profSectionHtml(c, E));
@@ -5649,6 +5656,10 @@ function hpLevelsHtml(c) {
 // Changes from the class rows and the HP rolls.
 function classListInput(t) {
   const sh = t.closest(".sheet"); if (!sh) return false; const id = sh.dataset.id;
+  // A pick from a feature's list of choices (c.featPicks = { "<feature key>": [choice names] }).
+  if (t.dataset.fpick != null) { const k = t.dataset.fpick, j = Number(t.dataset.j) || 0, v = t.value;
+    charChange(id, x => { const P = Object.assign({}, x.featPicks), a = (P[k] || []).slice(); a[j] = v; P[k] = a.map(q => q || ""); x.featPicks = P; }, false); setTimeout(render, 0); return true; }
+  if (t.id === "featpick") { const v = t.value; if (!v) return true; charChange(id, x => { const e = S.entries.get(v); x.feats = (x.feats || []).filter(f => f.ref !== v).concat([{ ref: v, name: e ? e.title : "" }]); }, false); setTimeout(render, 0); return true; }
   if (t.dataset.cl != null) { const i = Number(t.dataset.cl), k = t.dataset.k, v = t.value; if (k === "name" && !v) return true;
     charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (!L[i]) L[i] = { name: "", level: Math.max(1, Number(x.level) || 1) };
       if (k === "name") { if (L[i].name !== v) { L[i].name = v; L[i].rolls = {}; if (i === 0) { delete x.subclass; delete x.subclassRef; } else { delete L[i].subclass; delete L[i].subclassRef; } } }
@@ -5662,6 +5673,7 @@ function classListInput(t) {
   return false;
 }
 function classListAction(a, el, id) {
+  if (a === "featrm") { const ref = el.dataset.v; charChange(id, x => { x.feats = (x.feats || []).filter(f => f.ref !== ref); }); return true; }
   if (a === "cladd") { charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)), have = new Set(L.map(q => q.name)), nm = allClassNames().find(n => !have.has(n)) || "Fighter";
     L.push({ name: nm, level: 1 }); x.classList = L; }); return true; }
   if (a === "clrm") { const i = Number(el.dataset.k); charChange(id, x => { const L = charClasses(x).map(q => Object.assign({}, q)); if (L.length < 2) return;
@@ -5690,7 +5702,7 @@ function multiCaster(c, kind) {
 function fillAllClassFeatures(c, withSub) {
   return charClasses(c).flatMap((x, i) => { const hb = i === 0 ? charSubclassEntry(c) : subEntryOf(x.name, x.subclass, x.subclassRef), d = classFeats(x.name);
     const srdSub = !hb && d && (i === 0 ? c.subclass : x.subclass) && (i === 0 ? c.subclass : x.subclass) === d.subs[0];
-    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title })) : [];
+    const own = hb && withSub ? subclassFeatures(hb[1], x.level).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "", sub: hb[1].title }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})) : [];
     return [...srdClassFeatures(x.name, x.level, withSub && srdSub), ...own].map(f => Object.assign({}, f, { cls: x.name })); });
 }
 // ---------- Features from the books, automatically ----------
@@ -5702,11 +5714,13 @@ function autoFeatures(c) {
   const out = [];
   try {
     const multi = charMulti(c);
-    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }));
+    if (charClasses(c).length) fillAllClassFeatures(c, true).forEach(f => out.push(Object.assign({ name: f.n, source: "Class", note: (f.sub ? f.sub + " · " : "") + (multi ? f.cls + " " : "") + "level " + f.lv, desc: f.d || "", auto: 1 }, f.opts ? { opts: f.opts, pick: f.pick } : {})));
     const race = detectRaceChoice(c);
     if (race) { const rd = !race.startsWith("hb:") && SRD_RACE_TRAITS[race], t = String(c.race || "").toLowerCase(), sub = rd ? Object.keys(rd.sub).find(s => t.includes(s.toLowerCase())) || "" : "";
       const rn = race.startsWith("hb:") ? ((S.entries.get(race.slice(3)) || {}).title || "Race") : race;
       fillRaceTraits(race, sub).forEach(f => out.push({ name: f.n, source: "Race", note: rn, desc: f.d || "", auto: 1 })); }
+    // Feats added with + Feat (c.feats = [{ ref, name }]): the library's feat, not editable on the sheet.
+    (c.feats || []).forEach(ft => { const e = ft.ref && S.entries.get(ft.ref); out.push({ name: e ? e.title : ft.name || "Feat", source: "Feat", note: e && e.feat ? [e.feat.kind, e.feat.prereq].filter(Boolean).join(" · ") : "", desc: e ? e.body || "" : "", auto: 1, featRef: ft.ref }); });
   } catch (e) { console.warn(e); }
   const seen = new Set(); return out.filter(f => { const k = featKey(f.name); if (!k || seen.has(k)) return false; seen.add(k); return true; });
 }
@@ -5719,6 +5733,21 @@ function charFeatures(c) {
 }
 const charFeatList = c => charFeatures(c).map(x => x[0]);
 function featIsBookCopy(c, f, auto) { const a = (auto || autoFeatures(c)).find(x => featKey(x.name) === featKey(f.name)); return !!a && (!String(f.desc || "").trim() || String(f.desc).trim() === String(a.desc || "").trim()); }
+
+// The choice boxes under a feature with a list (on the sheet), and what's been picked.
+function featPicksHtml(c, f, P) {
+  if (!Array.isArray(f.opts) || !f.opts.length) return ""; const k = featKey(f.name), got = (c.featPicks || {})[k] || [], n = Math.min(Number(f.pick) || 1, f.opts.length);
+  const picked = got.slice(0, n).map(v => f.opts.find(o => o.n === v)).filter(Boolean);
+  const boxes = P ? Array.from({ length: n }, (_, j) => `<select data-fpick="${esc(k)}" data-j="${j}" aria-label="${esc(f.name)} choice ${j + 1}"><option value="">Choose…</option>${f.opts.map(o => `<option${got[j] === o.n ? " selected" : ""}${got.includes(o.n) && got[j] !== o.n ? " disabled" : ""}>${esc(o.n)}</option>`).join("")}</select>`).join("") : "";
+  return `<div class="fpicks">${boxes}${picked.map(o => `<details class="fitem fpicked"><summary><strong>${esc(o.n)}</strong></summary><div class="prose">${md(o.d || "", { base: 3 })}</div></details>`).join("")}${!P && !picked.length ? `<span class="muted small">Not chosen yet</span>` : ""}</div>`;
+}
+// + Feat (Edit sheet): feats from the library, added as they are (their text is the library's).
+function featAddHtml(c) {
+  const have = new Set((c.feats || []).map(f => f.ref)), list = featEntries().filter(([fid]) => !have.has(fid));
+  return `<div class="featadd"><span class="flabel">Feats</span><div class="featchips">${(c.feats || []).map(f => { const e = S.entries.get(f.ref); return `<span class="featchip">${esc(e ? e.title : f.name || "Feat")}<button type="button" class="iconbtn" data-act="featrm" data-v="${esc(f.ref)}" aria-label="Take away ${esc(e ? e.title : "this feat")}">✕</button></span>`; }).join("")}
+    <select id="featpick" aria-label="Add a feat"><option value="">+ Feat…</option>${list.map(([fid, e]) => `<option value="${esc(fid)}">${esc(e.title)}${e.feat && e.feat.prereq ? " (" + esc(e.feat.prereq) + ")" : ""}</option>`).join("")}</select></div>
+    <p class="muted small">Feats from your library show on the sheet with their library text. Edit a feat in the library to change it everywhere.</p></div>`;
+}
 
 // ---------- Spellbook: SRD spells plus your own, each with its own page ----------
 // Homebrew spells are codex entries of type "spell": e.spell = { level, school, time, range, comp, dur, conc, ritual, classes,
@@ -6619,7 +6648,7 @@ function classFeats(name) {
   const c = ce[1].cls || {};
   return { id: ce[0], hd: Number(c.hd) || 8, subs: srd ? srd.subs : [], flavor: c.subTitle || (srd || {}).flavor || "Subclass", subLv: Number(c.subLv) || (srd || {}).subLv || 3,
     asi: (Array.isArray(c.asi) && c.asi.length ? c.asi : (srd || {}).asi || [4, 8, 12, 16, 19]).map(Number),
-    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => ({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" })), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
+    f: [...(c.features || []).filter(f => (f.n || "").trim()).map(f => Object.assign({ n: f.n, lv: Number(f.lv) || 1, d: f.d || "" }, Array.isArray(f.opts) && f.opts.length ? { opts: f.opts, pick: Number(f.pick) || 1 } : {})), ...(srd ? srd.f.filter(f => f.sub) : [])], basics: c };
 }
 // A class entry built from the SRD (or the Artificer summary), for the one-time move into the library.
 function srdClassDoc(name, now) {
@@ -6664,7 +6693,7 @@ function classHtml(id, e, noTitle) {
     <h3 class="hbsub">The ${esc(e.title)}</h3>
     <div class="tablewrap doc"><table class="hbtable cltable"><thead><tr><th>Level</th><th>Proficiency bonus</th><th>Features</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>
     <h3 class="hbsub">Class features</h3>
-    ${feats.length ? feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd2(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || `<p class="muted">No description yet.</p>`}</div></div>`).join("") : `<p class="muted">No features yet.</p>`}
+    ${feats.length ? feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd2(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || (f.opts && f.opts.length ? "" : `<p class="muted">No description yet.</p>`)}</div>${hbOptsHtml(f, id)}</div>`).join("") : `<p class="muted">No features yet.</p>`}
     <h3 class="hbsub">${esc(subT)}s</h3>
     <p>${[...(srd ? srd.subs.filter(s => !subs.some(([, se]) => (se.subclass || {}).alias === s || se.title === s)).map(s => `<span class="flink">${esc(s)} <span class="srcpill">SRD</span></span>`) : []), ...subs.map(([sid, se]) => `<a class="flink" href="#entry-${esc(sid)}">${esc(se.title)}</a>`)].join(" ") || `<span class="muted">None yet. Add one with + Subclass in a book, or + New entry.</span>`}</p>
   </div>`;
@@ -6771,6 +6800,9 @@ function raceTraits(e) {
   if ((r.speed || "").trim()) out.push({ n: "Speed", d: "Your base walking speed is " + r.speed.trim().replace(/\.$/, "") + "." });
   return out.concat((r.traits || []).filter(t => (t.n || "").trim()));
 }
+// The choices of a feature in the class or subclass page.
+function hbOptsHtml(f, id) { if (!Array.isArray(f.opts) || !f.opts.length) return ""; const n = Number(f.pick) || 1;
+  return `<div class="hboptsview"><p class="small muted">Choose ${n === 1 ? "one" : n} of these:</p>${f.opts.map(o => `<div class="prose hbtrait">${md(`***${String(o.n).replace(/\.$/, "")}.*** ${o.d || ""}`, { entryId: id, noEmbed: true })}</div>`).join("")}</div>`; }
 const lvOrd = n => { n = Number(n) || 1; const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 function subclassHtml(id, e, noTitle) {
@@ -6780,7 +6812,7 @@ function subclassHtml(id, e, noTitle) {
     ${noTitle ? "" : `<h2 class="hbtitle">${esc(e.title)}</h2>`}
     ${e.body && e.body.trim() ? `<div class="prose hbdesc">${md(e.body, { entryId: id, noEmbed: true })}</div>` : ""}
     ${feats.length ? `<table class="hbtable"><thead><tr><th>${esc(sc.cls || "Class")} level</th><th>Feature</th></tr></thead><tbody>${feats.map(f => `<tr><td>${lvOrd(f.lv)}</td><td>${esc(f.n)}</td></tr>`).join("")}</tbody></table>
-      ${feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || `<p class="muted">No description yet.</p>`}</div></div>`).join("")}`
+      ${feats.map(f => `<div class="hbfeat"><h4>${esc(f.n)} <span class="lvchip">${lvOrd(f.lv)} level</span></h4><div class="prose">${md(f.d || "", { entryId: id, noEmbed: true }) || (f.opts && f.opts.length ? "" : `<p class="muted">No description yet.</p>`)}</div>${hbOptsHtml(f, id)}</div>`).join("")}`
       : `<p class="muted">No features yet.</p>`}
   </div>`;
 }
@@ -6796,13 +6828,19 @@ function raceHtml(id, e, noTitle) {
 }
 
 // ----- Editor fields (inside the entry editor) -----
+// A class or subclass feature can be a choice (Fighting Style, Favoured Enemy): f.opts = [{ n, d }], players pick f.pick
+// of them on their sheet.
+function hbOptRow(o) { o = o || {}; return `<div class="hbopt"><div class="frow tight"><label class="grow"><span>Choice</span><input type="text" class="hbo-n" value="${esc(o.n || "")}" placeholder="e.g. Archery"></label><button type="button" class="btn ghost small" data-act="hboptdel" title="Remove this choice">✕</button></div><textarea class="hbo-d" rows="2" placeholder="What it does">${esc(o.d || "")}</textarea></div>`; }
 function hbRow(kind, f) {
-  f = f || {};
+  f = f || {}; const on = Array.isArray(f.opts) && f.opts.length > 0;
   return `<div class="hbrow" data-hbrow="${kind}">
     <div class="frow tight">${kind !== "rc" ? `<label class="lvin"><span>Level</span><input type="number" min="1" max="20" class="hb-lv" value="${esc(f.lv || "")}"></label>` : ""}
       <label class="grow"><span>${kind !== "rc" ? "Feature" : "Trait"}</span><input type="text" class="hb-n" value="${esc(f.n || "")}" placeholder="${kind === "sc" ? "e.g. Dragon Binding" : kind === "cl" ? "e.g. Extra Attack" : "e.g. Darkvision"}"></label>
       <button type="button" class="btn ghost small hbdel" data-act="hbdel" title="Remove">✕</button></div>
     <div class="field"><textarea class="hb-d" rows="3" placeholder="What it does">${esc(f.d || "")}</textarea></div>
+    ${kind !== "rc" ? `<label class="check small hboptson"><input type="checkbox" class="hb-optson"${on ? " checked" : ""}> A list to choose from <small class="muted">(like Fighting Style: players pick on their sheet)</small></label>
+    <div class="hbopts"${on ? "" : " hidden"}><label class="small">Players pick <input type="number" min="1" max="20" class="hb-pick mini" value="${esc(f.pick || 1)}"></label>
+      <div class="hboptlist">${(on ? f.opts : [{}]).map(hbOptRow).join("")}</div><button type="button" class="btn ghost small" data-act="hboptadd">+ Add a choice</button></div>` : ""}
   </div>`;
 }
 function subclassFields(e) {
@@ -6833,6 +6871,9 @@ function readHbRows(kind) {
   return [...document.querySelectorAll(`#${kind}-rows .hbrow`)].map(r => {
     const o = { n: r.querySelector(".hb-n").value.trim(), d: r.querySelector("textarea.hb-d").value.trim() };
     if (kind !== "rc") o.lv = Math.max(1, Math.min(20, Number(r.querySelector(".hb-lv").value) || 1));
+    const on = r.querySelector(".hb-optson");
+    if (on && on.checked) { const opts = [...r.querySelectorAll(".hbopt")].map(x => ({ n: x.querySelector(".hbo-n").value.trim(), d: x.querySelector(".hbo-d").value.trim() })).filter(x => x.n);
+      if (opts.length) { o.opts = opts; o.pick = Math.max(1, Math.min(opts.length, Number(r.querySelector(".hb-pick").value) || 1)); } }
     return o;
   }).filter(o => o.n || o.d);
 }
@@ -20390,7 +20431,7 @@ document.addEventListener("click", async ev => {
   if (/^srd(group|open|copy)$/.test(a)) { if (READONLY && a === "srdcopy") return; await srdAction(a, el); return; }
   if (/^(inv(kind|pick|add|new|slot|close|qty|rm|rows|take1|split|dup)|paygo|payundo)$/.test(a)) { if (READONLY && !PLAYER) return; await invAction(a, el); return; }
   if (/^(enc(new|dup|del|add|party|next|prev|end|roll|to)|cb(pick|rm|hp|cond))$/.test(a)) { encAction(a, el); return; }
-  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|cladd|clrm|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
+  if (/^(smadd|smrm|smrefresh|smhp|smtoggle|smslot|smgive|smgiveback|smdrop|smuse|smires|smiresbar|smirespip|smnew|smedit|smsave|smabil|smabilsave|smabiledit|smabildel|smtok|newchar|srdfill|clsapply|cladd|clrm|featrm|spadj|spcast|spadd|cdrink|cuneq|cuseac|cview|cedit|ctab|chp|cinsp|cdeath|chd|cres|cresadj|cresbar|cires|ciresadj|ciresbar|csave|cskill|crest|clistadd|clistdel|charimg|chartok|cdel)$/.test(a)) { if (READONLY && !PLAYER && a !== "ctab" && a !== "cview") return; await charAction(a, el, ev); return; }
   if (a === "sbf") { SBS[el.dataset.k] = el.dataset.v; render(); return; }
   if (a === "spellcopy") { if (!READONLY) await spellCopy(el.dataset.v); return; }
   if (a === "new") { const rv = route().v; const t = el.dataset.type || (rv === "bestiary" ? "creature" : rv === "items" ? "item" : null); openEditor(null, t ? { type: t } : null); }
@@ -20502,6 +20543,8 @@ document.addEventListener("click", async ev => {
   else if (a === "editbook") location.hash = "bookedit-" + v;
   else if (a === "newbook") beNewBook();
   else if (a === "hbadd") hbAddRow(v);
+  else if (a === "hboptadd") { const box = el.parentElement.querySelector(".hboptlist"); box.insertAdjacentHTML("beforeend", hbOptRow({})); const n = box.lastElementChild.querySelector(".hbo-n"); if (n) n.focus(); }
+  else if (a === "hboptdel") { const row = el.closest(".hbopt"); if (row) row.remove(); }
   else if (a === "spimport") spellImportApply();
   else if (a === "ftimport") featImportApply();
   else if (a === "impopen" || a === "impgo") impAction(a);
@@ -20615,7 +20658,8 @@ document.addEventListener("change", ev => {
   const t = ev.target;
   if (t.dataset && t.dataset.cf && (t.tagName === "SELECT" || t.type === "checkbox")) { charInput(t); return; }
   if (t.dataset && t.dataset.eqpick && t.value) { const id = t.dataset.id, from = t.value; let ok = false; charChange(id, x => { ok = invEquipFromGrid(x, from); }); if (!ok) toast("No free equipped slot for that.", "bad"); return; }
-  if (t.dataset && (t.dataset.cl != null || t.dataset.hproll != null)) { classListInput(t); return; }
+  if (t.classList && t.classList.contains("hb-optson")) { const b = t.closest(".hbrow").querySelector(".hbopts"); if (b) b.hidden = !t.checked; return; }
+  if (t.dataset && (t.dataset.cl != null || t.dataset.hproll != null || t.dataset.fpick != null || t.id === "featpick")) { classListInput(t); return; }
   if (t.dataset && (t.dataset.lvsub || t.dataset.lvsubi || t.dataset.asi)) { levelupInput(t); return; }
   if (["fill-cls", "fill-race", "fill-subrace", "fill-sub"].includes(t.id)) { CS.fill = Object.assign({}, CS.fill, t.id === "fill-cls" ? { cls: t.value } : t.id === "fill-race" ? { race: t.value, sub: "" } : t.id === "fill-subrace" ? { sub: t.value } : { withSub: t.checked }); render(); return; }
   if (t.id === "spcls") { SBS.cls = t.value; render(); return; }
