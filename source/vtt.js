@@ -1594,6 +1594,8 @@ function vBars(t) {
     const sm = vSummonOf(t.ref);
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
+    // The summon's own slider resources (set up on its card).
+    if (sm && Array.isArray(sm.res) && typeof smPbc === "function") { const pbc = smPbc(sm); sm.res.forEach((r, k) => { if (resValid(r) && r.style === "slider" && resMax(r, pbc)) out.push({ cur: charResHave(pbc, r), max: resMax(r, pbc), color: resColor(r.color), label: r.name, ed: "sr:" + k }); }); }
     if (sm && smNowMax(sm)) out.push({ cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0, hp: true, label: "HP" });
     else if (!sm) { const h = (t.npc && t.npc.hp) || t.php; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); }
   } else {
@@ -1621,6 +1623,8 @@ function vBarSetValue(id, key, v) {
   if (b.cbar) { vPatch("vtttokens/" + id, { cbars: (t.cbars || []).map(x => x.id === b.cbar ? Object.assign({}, x, { cur: v }) : x) }); return; }
   if (b.ex) { vExSave(id, t, { ex: v }); if (!v && b.cur) toast(`${t.name || "It"}'s Exhaust Meter is broken.`); return; }
   if (key === "fuel") { S.vttTokens.set(id, Object.assign({}, t, { fuel: v })); vPatch("vtttokens/" + id, { fuel: v }); return; }
+  if (key.startsWith("sr:") && (t.ref || "").startsWith("s:")) { const [, scid, sid] = t.ref.split(":"), k = Number(key.slice(3));
+    charChange(scid, x => { x.summons = smList(x).map(s => { if (s.id !== sid) return s; s = JSON.parse(JSON.stringify(s)); const r = (s.res || [])[k]; if (r) charResSet(smPbc(s), r, v); return s; }); }); return; }
   const cid = (t.ref || "").slice(2);
   if (key === "sp") charChange(cid, x => { const k = casterOf(x); if (!k) return; x.caster = Object.assign({}, x.caster, { used: k.max - Math.min(k.max, v) }); });
   else if (key.startsWith("r:")) { const ri = Number(key.slice(2)); charChange(cid, x => { x.resources = (x.resources || []).map((r, i) => { if (i !== ri) return r; const r2 = Object.assign({}, r); charResSet(x, r2, v); return r2; }); }); }

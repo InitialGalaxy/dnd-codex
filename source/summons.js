@@ -171,11 +171,39 @@ function smRest(s, long) {
   const pbc = smPbc(s);
   equippedResItems(s, smEqKeys(s)).forEach(it => it.lines.forEach((r, k) => { if (!resValid(r)) return; const rs = r.reset || "long"; if (/^short/.test(rs) || (long && /^long/.test(rs))) smItemSet(s, it.ref, k, r, resIsCounter(r) || /empty/.test(rs) ? 0 : resMax(r, pbc)); }));
   s.fres = fresRest(s.fres || {}, smView(s).sb, long);
+  (s.res || []).forEach(r => { const rs = r.reset || "long"; if (rs === "none" || !(long || rs === "short")) return; if (resIsCounter(r)) r.count = 0; else r.used = 0; });
   return s;
 }
+// A summon's own resources (s.res, like a character's: name, max, shown as boxes / a slider / a counter, colour, reset),
+// with the summon's proficiency bonus for "= proficiency bonus".
+function smOwnRes(s, P) {
+  const pbc = smPbc(s), list = s.res || [];
+  return list.map((r, k) => { if (!resValid(r)) return ""; const have = charResHave(pbc, r), m = resMax(r, pbc), a = `data-sm="${esc(s.id)}" data-k="${k}"`;
+    const ctl = resIsCounter(r) ? resCounterHtml(have, r.color, "", P ? `data-act="smrsadj" ${a} data-v` : "")
+      : r.style === "slider" ? resBarHtml(have, m, r.color, "", P ? { adj: `<span class="spadj"><button class="iconbtn" data-act="smrsadj" ${a} data-v="-1" aria-label="Spend one">−</button><button class="iconbtn" data-act="smrsadj" ${a} data-v="1" aria-label="Gain one">+</button></span>`, bar: `data-act="smrsbar" ${a}` } : null)
+      : resPipsHtml(have, m, r.color, P ? j => `data-act="smrspip" ${a} data-j="${j}" aria-label="${esc(r.name)} ${j + 1}"` : null);
+    return `<div class="fresline"><span class="fresname">${esc(r.name)} <small class="muted">${esc(resResetText(r))}${r.amt === "pb" ? " · = proficiency bonus" : ""}</small></span>${ctl}</div>`; }).join("");
+}
+function smResInput(t) {
+  const sh = t.closest(".sheet"), id = sh && sh.dataset.id; if (!id) return; const sid = t.dataset.smres, k = Number(t.dataset.k), key = t.dataset.f, v = t.value;
+  charChange(id, x => { x.summons = smList(x).map(s => { if (s.id !== sid) return s; s = JSON.parse(JSON.stringify(s)); const r = (s.res || [])[k]; if (!r) return s;
+    if (key === "max") r.max = Math.max(1, Math.min(999, Number(v) || 1)); else r[key] = v; if (key === "style" && v === "counter") r.count = 0; return s; }); }, false);
+  if (t.tagName === "SELECT") setTimeout(render, 0);
+}
+function smResEditHtml(s) {
+  const list = s.res || [], f = (k, key, v, extra) => `data-smres="${esc(s.id)}" data-k="${k}" data-f="${key}"${extra || ""}`;
+  return `<div class="smresedit">${list.map((r, k) => `<div class="frow tight smresrow"><label class="grow"><span>Name</span><input type="text" ${f(k, "name")} value="${esc(r.name || "")}" placeholder="e.g. Breath weapon"></label>
+      ${resIsCounter(r) ? "" : `<label><span>Amount</span><select ${f(k, "amt")}><option value=""${r.amt === "pb" ? "" : " selected"}>Number</option><option value="pb"${r.amt === "pb" ? " selected" : ""}>Prof. bonus</option></select></label>${r.amt === "pb" ? "" : `<label><span>Max</span><input type="number" min="1" max="999" class="mini" ${f(k, "max")} value="${esc(r.max || "")}"></label>`}`}
+      <label><span>Shown as</span><select ${f(k, "style")}>${RES_STYLES.map(([v, l]) => `<option value="${v}"${(r.style || "box") === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label><span>Colour</span><input type="color" ${f(k, "color")} value="${esc(resColor(r.color))}"></label>
+      <label><span>${resIsCounter(r) ? "Back to 0 on" : "Resets on"}</span><select ${f(k, "reset")}><option value="short"${r.reset === "short" ? " selected" : ""}>Short rest</option><option value="long"${!r.reset || r.reset === "long" ? " selected" : ""}>Long rest</option><option value="none"${r.reset === "none" ? " selected" : ""}>Never</option></select></label>
+      <button type="button" class="iconbtn" data-act="smrsdel" data-sm="${esc(s.id)}" data-k="${k}" aria-label="Remove ${esc(r.name || "this resource")}">✕</button></div>`).join("")}
+    <div class="acts"><button type="button" class="btn ghost small" data-act="smrsadd" data-sm="${esc(s.id)}">+ Add resource</button><button type="button" class="btn small" data-act="smrsedit" data-sm="${esc(s.id)}">Done</button></div></div>`;
+}
 function smResHtml(s, P) {
-  const items = equippedResItems(s, smEqKeys(s)); if (!items.length) return "";
-  const pbc = smPbc(s), rows = [];
+  const items = equippedResItems(s, smEqKeys(s)), own = smOwnRes(s, P), editing = P && SM.resEdit === s.id;
+  if (!items.length && !own && !editing) return P ? `<div class="smresadd"><button type="button" class="btn ghost small" data-act="smrsedit" data-sm="${esc(s.id)}">+ Resources</button></div>` : "";
+  const pbc = smPbc(s), rows = own ? [own] : [];
   items.forEach(it => it.lines.forEach((r, k) => {
     if (!resValid(r)) return;
     const have = smItemHave(s, it.ref, k, r), m = resMax(r, pbc), a = `data-sm="${esc(s.id)}" data-ref="${esc(it.ref)}" data-k="${k}"`;
@@ -184,7 +212,7 @@ function smResHtml(s, P) {
       : resPipsHtml(have, m, r.color, P ? j => `data-act="smirespip" ${a} data-j="${j}" aria-label="${esc(r.name)} ${j + 1}"` : null);
     rows.push(`<div class="fresline"><span class="fresname">${esc(r.name)} <small class="muted">${esc(it.name)} · ${esc(resResetText(r))}</small></span>${ctl}</div>`);
   }));
-  return rows.length ? `<h3 class="fgh">Resources</h3><div class="fres live smres">${rows.join("")}</div>` : "";
+  return `<h3 class="fgh">Resources${P && !editing ? ` <button type="button" class="linkbtn small" data-act="smrsedit" data-sm="${esc(s.id)}">Edit</button>` : ""}</h3>${rows.length ? `<div class="fres live smres">${rows.join("")}</div>` : ""}${editing ? smResEditHtml(s) : ""}`;
 }
 function smConsHtml(s, P) {
   const slots = smSlots(s), g = smGrid(s), keys = Array.from({ length: g.cols }, (_, k) => "r1c" + k).filter(k => slots[k]);
@@ -216,6 +244,12 @@ function summonAction(a, el, id, c) {
       x.inv = v; x.summons = smList(x).filter(t => t.id !== sid);
     });
     toast("Released. Its items went back to the inventory.");
+  } else if (a === "smrsedit") { SM.resEdit = SM.resEdit === sid ? null : sid; render();
+  } else if (a === "smrsadd") { upd(s => { s.res = (s.res || []).concat([{ name: "", max: 2, style: "box", reset: "long", used: 0 }]); return s; });
+  } else if (a === "smrsdel") { const k = Number(el.dataset.k); upd(s => { s.res = (s.res || []).filter((_, i) => i !== k); return s; });
+  } else if (a === "smrsadj" || a === "smrspip" || a === "smrsbar") { const k = Number(el.dataset.k);
+    upd(s => { const r = (s.res || [])[k]; if (!r) return s; const pbc = smPbc(s), have = charResHave(pbc, r), j = Number(el.dataset.j);
+      charResSet(pbc, r, a === "smrsbar" ? barValue(el, window.event || {}, resMax(r, pbc)) : a === "smrsadj" ? have + Number(el.dataset.v) : (j < have ? j : j + 1)); return s; });
   } else if (a === "smtok") {
     pickImage(async res => { upd(s => { s.token = assetPath(res); return s; }); });
   } else if (a === "smtoggle") {

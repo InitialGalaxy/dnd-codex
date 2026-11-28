@@ -216,7 +216,7 @@ async function charAction(a, el, ev) {
   const c = S.chars.get(id);
   if (a === "newchar") { qcDialog(); return true; }
   if (resAction(a, el, ev, id)) return true;
-  if (/^sm(add|rm|refresh|hp|toggle|slot|give|giveback|drop|use|new|edit|save|abil|abilsave|abiledit|abildel|ires|iresbar|irespip|tok)$/.test(a)) { summonAction(a, el, id, c); return true; }
+  if (/^sm(add|rm|refresh|hp|toggle|slot|give|giveback|drop|use|new|edit|save|abil|abilsave|abiledit|abildel|ires|iresbar|irespip|tok|rsedit|rsadd|rsdel|rsadj|rspip|rsbar)$/.test(a)) { summonAction(a, el, id, c); return true; }
   if (a === "cview") { CS.view = el.dataset.v; INV.sel = null; INV.pick = null; render(); return true; }
   if (a === "cedit") { CS.fill = null; CS.edit = !CS.edit; render(); return true; }
   if (a === "ctab") { CS.tab = el.dataset.v; const sh = document.querySelector(".sheet"); if (sh) { sh.dataset.tab = CS.tab; document.querySelectorAll(".ctabs button").forEach(b => { b.classList.toggle("on", b.dataset.v === CS.tab); b.setAttribute("aria-pressed", b.dataset.v === CS.tab); }); } return true; }
