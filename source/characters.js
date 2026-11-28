@@ -237,7 +237,7 @@ async function charAction(a, el, ev) {
   if (a === "cdrink") { let msg = ""; charChange(id, x => { msg = useConsumable(x, el.dataset.v); }); if (msg) toast(msg); return true; }
   if (/^sp(adj|cast|add)$/.test(a)) return spellAction(a, el, id, c);
   if (a === "srdfill") { srdFillApply(id, c); return true; }
-  if (a === "cladd" || a === "clrm") return classListAction(a, el, id);
+  if (a === "cladd" || a === "clrm" || a === "featrm") return classListAction(a, el, id);
   if (a === "clsapply") { classBasicsApply(id, c, el.dataset.v); return true; }
   if (a === "cuseac") { charChange(id, x => { x.ac = el.dataset.v; }); toast(el.dataset.v ? "AC updated" : "AC now follows what's worn"); return true; }
   if (a === "cinsp") { charChange(id, x => { x.inspiration = !x.inspiration; }); return true; }
