@@ -47,11 +47,18 @@ function playerSees(p, doc) {
   // Maps: only the one the party is on, and any the GM has opened to players.
   if (col === "vttpages") return !!doc && vttVisible(id, doc);
   if (col === "vttfog") return !!doc && vttVisible(id);
-  if (col === "vtttokens") return !!doc && doc.layer !== "gm" && vttVisible(doc.page);
+  if (col === "vtttokens") return !!doc && doc.layer !== "gm" && !invisHidden(doc) && vttVisible(doc.page);
   if (col === "vttlive") return !!doc && vttVisible(doc.page);
   if (col === "vttdraw") return !!doc && vttVisible(doc.page);
   return false;
 }
+// An invisible token (the Invisible condition, or a condition of the GM's with "invisib" in its name) isn't sent to
+// players, nor its place in the turn order, unless it's one of the party's (a character players can see controls it).
+function tokInvisible(t) {
+  if (!t || !Array.isArray(t.conds)) return false; const lib = docs["settings/vttconds"], list = lib && Array.isArray(lib.list) ? lib.list : [];
+  return t.conds.some(x => x && (x.n == null || Number(x.n) > 0) && (x.c === "invisible" || /invisib/i.test(String((list.find(c => c && c.id === x.c) || {}).name || ""))));
+}
+function invisHidden(t) { if (!tokInvisible(t)) return false; const c = t.owner && docs["characters/" + t.owner]; return !(c && !c.hidden); }
 function vttVisible(pageId, pageDoc) {
   const pg = pageDoc || docs["vttpages/" + pageId]; if (!pg) return false;
   if (pg.open) return true;
@@ -71,7 +78,7 @@ function playerCopy(p, doc) {
   if (doc && p.startsWith("vttcamps/") && Array.isArray(doc.quests) && doc.quests.some(q => q && q.hidden)) doc = Object.assign({}, doc, { quests: doc.quests.filter(q => q && !q.hidden) });
   if (doc && p.startsWith("vttcamps/") && doc.init && Array.isArray(doc.init.list)) {
     // Turn order: leave out GM-only tokens, so hidden monsters don't give themselves away.
-    const hide = e => e && e.tok && (!docs["vtttokens/" + e.tok] || docs["vtttokens/" + e.tok].layer === "gm");
+    const hide = e => e && e.tok && (!docs["vtttokens/" + e.tok] || docs["vtttokens/" + e.tok].layer === "gm" || invisHidden(docs["vtttokens/" + e.tok]));
     const list = doc.init.list.filter(e => !hide(e)), cur = list.some(e => e.id === doc.init.cur) ? doc.init.cur : "";
     return Object.assign({}, doc, { init: Object.assign({}, doc.init, { list, cur }) });
   }
@@ -434,6 +441,12 @@ function broadcast(msg, event) {
   }
 }
 setInterval(() => { for (const c of clients) c.write(": ping\n\n"); }, 25000);
+// A token went invisible or came back: its campaign goes to players again (the turn order leaves it out or shows it).
+function campChanged(pageId) {
+  const pg = docs["vttpages/" + pageId], k = pg && "vttcamps/" + pg.camp, c = k && docs[k]; if (!c || !playerSees(k, c)) return;
+  const line = "data: " + JSON.stringify({ path: k, doc: playerCopy(k, c) }) + "\n\n";
+  for (const cl of clients) if (cl.role === "player") cl.write(line);
+}
 // Tokens for a hidden sheet or entry carry what players may see of it, so they're sent again when it changes.
 function npcTokensChanged(ref) {
   if (![...clients].some(c => c.role === "player")) return;
@@ -556,7 +569,8 @@ async function handle(req, res) {
         if (role !== "gm" && op.doc) { op.doc = Object.assign({}, op.doc); delete op.doc.hidden; }
         if (op.doc && op.path.startsWith("vttlive/")) op.doc = Object.assign({}, op.doc, { _at: Date.now() });
         const sq = ++SEQ; saved[op.path] = { seq: sq };
-        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; broadcast({ path: op.path, doc: d, from: body.from, seq: sq }); if (merged) saved[op.path].doc = playerCopy(op.path, d); if (op.path.startsWith("characters/")) npcTokensChanged("c:" + op.path.slice(11)); else if (op.path.startsWith("entries/")) npcTokensChanged("e:" + op.path.slice(8)); }
+        const invBefore = op.path.startsWith("vtttokens/") && invisHidden(docs[op.path]);
+        if (op.doc) { const d = unpackImages(op.doc); docs[op.path] = d; if (op.path.startsWith("vtttokens/") && invBefore !== invisHidden(d)) setImmediate(() => campChanged(d.page)); broadcast({ path: op.path, doc: d, from: body.from, seq: sq }); if (merged) saved[op.path].doc = playerCopy(op.path, d); if (op.path.startsWith("characters/")) npcTokensChanged("c:" + op.path.slice(11)); else if (op.path.startsWith("entries/")) npcTokensChanged("e:" + op.path.slice(8)); }
         else { delete docs[op.path]; broadcast({ path: op.path, doc: null, from: body.from, seq: sq }); }
       }
       // Opening or closing maps to players: their devices reload what they're allowed to see.

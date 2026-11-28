@@ -1994,6 +1994,7 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .vac svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: #2a3242; stroke: #c9d3e3; stroke-width: 1.6; }
 .vac b { position: relative; font: 800 .72rem/1 var(--ui); color: #fff; }
 .vac.pub svg { stroke: #e6c36a; }
+.vtok.vinvis { opacity: .42; filter: saturate(.35) brightness(1.15); }
 .vmeas .vboxsel { fill: rgba(127,208,255,.12); stroke: #7fd0ff; stroke-width: 2; stroke-dasharray: 6 4; }
 .vdrawl { pointer-events: none; overflow: visible; } .vdrawl path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .vpen { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -9371,7 +9372,7 @@ function vDraw() {
   const lvlCls = l => vLvlHid(l) ? " lvlhid" : gm && !VTT.preview && (l || 0) > VTT.lvl ? " above" : gm && !VTT.preview && (l || 0) < 0 && (l || 0) < VTT.lvl ? " lvlhid" : "";
   const img = o => `<img class="vobj${lvlCls(o.level)}${VTT.sel && VTT.sel.kind === "obj" && VTT.sel.id === o.id ? " sel" : ""}${o.layer === "gm" ? " gmonly" : ""}" data-oid="${esc(o.id)}" data-layer="${o.layer}" data-level="${o.level || 0}"${o.far ? ' data-far="1"' : ""} ${o.far ? `src="${esc(o.img)}"` : vImgAttr(o)} alt="" draggable="false" style="left:${o.x * VCELL}px;top:${o.y * VCELL}px;width:${o.w * VCELL}px;height:${o.h * VCELL}px${o.rot ? `;transform:rotate(${Number(o.rot) || 0}deg)` : ""}">`;
   const tok = ([id, t]) => { const src = vTokSrc(t), s = vTokSz(t) * VCELL, fly = Math.max(0, Number(t.fly) || 0);
-    return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t, id) : vAcPlayer(t)}
+    return `<div class="vtok${vDead(t) ? " vdead" : ""}${vIsTurn(id, t) ? " vturn" : ""}${(VTT.sel && VTT.sel.kind === "tok" && VTT.sel.id === id) || VTT.multi.has(id) ? " sel" : ""}${t.layer === "gm" ? " gmonly" : ""}${vInvisible(t) ? " vinvis" : ""}${t.owner && (S.chars.get(t.owner) ? !S.chars.get(t.owner).hidden : false) ? " owned" : ""}${fly ? " flying" : ""}${lvlCls(t.lvl)}" data-tid="${esc(id)}" data-layer="${t.layer}" style="left:${t.x * VCELL}px;top:${t.y * VCELL}px;width:${s}px;height:${s}px;--fly:${Math.min(fly, 6)}">${fly ? `<span class="vfly" title="Flight band ${fly}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 14c3-1 6-4 8-8 1 3 1 6-1 9 3-1 6-3 8-7 1 4-1 9-6 11-4 1-7 0-9-5z"/></svg>${fly}</span>` : ""}${t.lvl ? `<span class="vlvl" title="Standing on ${esc(vLevelName(p, t.lvl))}">⌂${vLevelBadge(Number(t.lvl) || 0)}</span>` : ""}${vCondBadges(t)}${gm && !VTT.preview ? vAcBadge(t, id) : vAcPlayer(t)}
       ${vDead(t) ? `<span class="vdeadx" aria-label="Down"></span>` : vBarsHtml(t)}${src ? `<img src="${esc(src)}" alt="" draggable="false">` : `<span class="vinit">${esc((t.name || "?")[0])}</span>`}<span class="vname">${esc(t.name || "")}</span></div>`; };
   const grid = p.grid !== false && vHexOf(p) ? vHexGridSvg(p, W, H) : p.grid !== false ? `<canvas id="vgridcv" class="vgrid vgridcv" aria-hidden="true"></canvas>` : ""; // (drawn for the screen only: vWallsPaint)
   const showWalls = gm && !VTT.preview;
@@ -9380,7 +9381,7 @@ function vDraw() {
   const walls = showWalls ? `<svg class="vwalls${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">${""/* (the areas are drawn on the canvas with the walls: vWallsPaint) */}
     </svg><canvas id="vwallcv" class="vwallcv" aria-hidden="true"></canvas><svg class="vwalls vwdraft${VTT.layer === "walls" ? " active" : ""}" width="${W}" height="${H}" aria-hidden="true">
     ${VTT.draft && VTT.draft.length ? `<polyline class="draft${VTT.tool === "area" ? " areadraft" : ""}" points="${VTT.draft.map(q => q[0] * VCELL + "," + q[1] * VCELL).join(" ")}${VTT.hover ? " " + VTT.hover[0] * VCELL + "," + VTT.hover[1] * VCELL : ""}${VTT.tool === "area" && VTT.draft.length > 1 ? " " + VTT.draft[0][0] * VCELL + "," + VTT.draft[0][1] * VCELL : ""}"/>${VTT.draft.map(q => `<circle cx="${q[0] * VCELL}" cy="${q[1] * VCELL}" r="4"/>`).join("")}` : ""}</svg>` : "";
-  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t)).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
+  const visToks = toks.filter(([, t]) => (t.layer !== "gm" || gm) && !vIsShip(t) && (vCanEdit() || !vInvisHidden(t))).sort((a, b) => (a[1].mount ? 1 : 0) - (b[1].mount ? 1 : 0) || (Number(a[1].z) || 0) - (Number(b[1].z) || 0));
   // Remember where each token was drawn, so ones moved by someone else can slide to their new spot.
   const prevPos = new Map(); stage.querySelectorAll(".vtok").forEach(e => { if (!e.classList.contains("dragging")) { const cs = getComputedStyle(e); prevPos.set(e.dataset.tid, [parseFloat(cs.left), parseFloat(cs.top), parseFloat(e.style.left), parseFloat(e.style.top), e.dataset.slideT]); } });
   const oldCv = vCvTake(stage);
@@ -10892,6 +10893,10 @@ const VCOND_DEFAULTS = [
 const VCOND_EMOJI = ["🔥", "🧊", "⚡", "🩸", "☠️", "🤢", "💤", "😵", "😱", "💘", "🙈", "👻", "🛡️", "✨", "🎯", "🌀", "🕸️", "🪨", "💧", "🌿", "🐾", "🗡️", "🧠", "💀", "🌑", "☀️", "❄️", "🌪️", "⛓️", "🍄"];
 function vConds() { const l = S.vttCondDoc && Array.isArray(S.vttCondDoc.list) ? S.vttCondDoc.list : VCOND_DEFAULTS; return l; }
 const vCond = id => vConds().find(c => c.id === id);
+// Invisible (the condition, or one of the GM's own conditions with "invisib" in its name): the GM and the party see the
+// token faded; players don't see anyone else's at all (the server doesn't send it to them, nor its place in the turn order).
+const vInvisible = t => vTokConds(t).some(x => (Number(x.n) || 0) > 0 && (x.c === "invisible" || /invisib/i.test((vCond(x.c) || {}).name || "")));
+const vInvisHidden = t => vInvisible(t) && !vPlayerTok(t);
 const vTokConds = t => (Array.isArray(t.conds) ? t.conds : []).filter(x => x && vCond(x.c));
 function vCondBadges(t) {
   const list = vTokConds(t); if (!list.length) return "";
