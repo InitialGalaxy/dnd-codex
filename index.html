@@ -2005,6 +2005,8 @@ body.vttmode footer, body.vttmode .site-foot { display: none; }
 .hplvr { display: flex; flex-wrap: wrap; gap: 6px; }
 .hplvr label { display: grid; justify-items: center; gap: 2px; } .hplvr label span { font-size: .7rem; color: var(--muted); }
 .hplvr input { width: 46px; text-align: center; padding: 4px 2px; }
+.smpic { flex: none; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; border: 2px solid var(--line); background: var(--panel-2); display: grid; place-items: center; padding: 0; cursor: pointer; color: var(--muted); }
+.smpic img { width: 100%; height: 100%; object-fit: cover; } .smpic span { display: grid; line-height: 1; font-size: 1.1rem; } .smpic small { font-size: .55rem; } span.smpic { cursor: default; }
 .hboptson { margin: 4px 0; } .hbopts[hidden] { display: none; } .hbopts { display: grid; gap: 6px; margin: 4px 0 4px 18px; padding-left: 10px; border-left: 2px solid var(--line); }
 .hboptlist { display: grid; gap: 6px; } .hbopt textarea { width: 100%; }
 .hboptsview { margin: 4px 0 8px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
@@ -4734,6 +4736,8 @@ function fresEditorHtml(it) {
 // c.summons = [{ id, ref, kind, name, sb, hp, temp, active, inv: { slots } }]
 // The stat block is copied in. Each summon has a small inventory sized by its size:
 // row 1 = equipped, row 2 = consumables, the rest = pack.
+// A summon's picture: the form it's in, else its own (s.token, set with the picture button), else its creature's.
+function smPic(s) { const f = s.form && S.entries.get(s.form); if (f && (f.token || f.image)) return f.token || f.image; if (s.token) return s.token; const e = s.ref && S.entries.get(s.ref); return e ? e.token || e.image || "" : ""; }
 const smList = c => Array.isArray(c.summons) ? c.summons : [];
 const smMax = s => parseInt(String((s.sb || {}).hp || "").match(/\d+/) || [0], 10) || 0;
 const smCur = s => s.hp == null ? smMax(s) : Number(s.hp) || 0;
@@ -4847,6 +4851,7 @@ function summonCardHtml(c, s, cid, P) {
   const pickOpen = P && SM.pick && SM.pick.sid === s.id;
   return `<article class="summon${formE ? " shifted" : ""}${s.ref ? "" : " custom"}" data-sm="${esc(s.id)}">
     <header class="smhead">
+      ${(() => { const src = smPic(s); return P ? `<button type="button" class="smpic" data-act="smtok" data-sm="${esc(s.id)}" title="${src ? "Change its picture (used on the tabletop too)" : "Add a picture (used on the tabletop too)"}">${src ? `<img src="${esc(src)}" alt="">` : `<span>＋<small>Picture</small></span>`}</button>` : src ? `<span class="smpic"><img src="${esc(src)}" alt=""></span>` : ""; })()}
       ${P ? `<input class="smname" type="text" value="${esc(s.name)}" data-smname="${esc(s.id)}" aria-label="Summon's name">` : `<h2 class="smname">${esc(s.name)}</h2>`}
       <span class="muted small">${s.ref ? esc(s.kind || "") : ""}${(s.sb || {}).subtitle ? (s.ref ? " · " : "") + esc(s.sb.subtitle) : ""}${formE ? ` · <span class="ssbadge">in ${esc(formE.title)} form</span>` : ""}${s.ref ? "" : ` <span class="smcust">custom summon</span>`}</span>
       <span class="spacer"></span>

@@ -2,6 +2,8 @@
 // c.summons = [{ id, ref, kind, name, sb, hp, temp, active, inv: { slots } }]
 // The stat block is copied in. Each summon has a small inventory sized by its size:
 // row 1 = equipped, row 2 = consumables, the rest = pack.
+// A summon's picture: the form it's in, else its own (s.token, set with the picture button), else its creature's.
+function smPic(s) { const f = s.form && S.entries.get(s.form); if (f && (f.token || f.image)) return f.token || f.image; if (s.token) return s.token; const e = s.ref && S.entries.get(s.ref); return e ? e.token || e.image || "" : ""; }
 const smList = c => Array.isArray(c.summons) ? c.summons : [];
 const smMax = s => parseInt(String((s.sb || {}).hp || "").match(/\d+/) || [0], 10) || 0;
 const smCur = s => s.hp == null ? smMax(s) : Number(s.hp) || 0;
@@ -115,6 +117,7 @@ function summonCardHtml(c, s, cid, P) {
   const pickOpen = P && SM.pick && SM.pick.sid === s.id;
   return `<article class="summon${formE ? " shifted" : ""}${s.ref ? "" : " custom"}" data-sm="${esc(s.id)}">
     <header class="smhead">
+      ${(() => { const src = smPic(s); return P ? `<button type="button" class="smpic" data-act="smtok" data-sm="${esc(s.id)}" title="${src ? "Change its picture (used on the tabletop too)" : "Add a picture (used on the tabletop too)"}">${src ? `<img src="${esc(src)}" alt="">` : `<span>＋<small>Picture</small></span>`}</button>` : src ? `<span class="smpic"><img src="${esc(src)}" alt=""></span>` : ""; })()}
       ${P ? `<input class="smname" type="text" value="${esc(s.name)}" data-smname="${esc(s.id)}" aria-label="Summon's name">` : `<h2 class="smname">${esc(s.name)}</h2>`}
       <span class="muted small">${s.ref ? esc(s.kind || "") : ""}${(s.sb || {}).subtitle ? (s.ref ? " · " : "") + esc(s.sb.subtitle) : ""}${formE ? ` · <span class="ssbadge">in ${esc(formE.title)} form</span>` : ""}${s.ref ? "" : ` <span class="smcust">custom summon</span>`}</span>
       <span class="spacer"></span>
