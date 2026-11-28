@@ -19,7 +19,9 @@ const vTokenImg = ref => {
   if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)); if (c) return c.token || c.image || ""; const t = [...S.vttTokens.values()].find(x => x.ref === ref && x.npc); return t ? t.npc.img || "" : ""; }
   if (ref.startsWith("s:")) {
     // A summon: the creature it has shapeshifted into, else its own token picture, else its creature's.
-    const sm = vSummonOf(ref); if (!sm) return "";
+    // (An NPC's summon, or one from a hidden bestiary entry: players get its picture from the server, on the token.)
+    const sm = vSummonOf(ref), np = () => { const t = [...S.vttTokens.values()].find(x => x.ref === ref && x.npc); return t ? t.npc.img || "" : ""; }; if (!sm) return np();
+    if (READONLY && np()) return np();
     const f = sm.form && S.entries.get(sm.form); if (f) return f.token || f.image || "";
     if (sm.token) return sm.token;
     const e = sm.ref && S.entries.get(sm.ref); return e ? (e.token || e.image || "") : "";
@@ -180,7 +182,7 @@ function vSizeCat(t) {
   const ref = t.ref || "", k = vShiftKey(t), f = k && S.entries.get(k), cs = e => typeof creatureSize === "function" ? creatureSize(e) : "", sub = x => typeof sizeFromSubtitle === "function" ? sizeFromSubtitle(x) : "";
   let name = "";
   if (f) name = cs(f);
-  else if (ref.startsWith("s:")) { const sm = vSummonOf(ref), e = sm && sm.ref && S.entries.get(sm.ref); name = (sm && sub((sm.sb || {}).subtitle)) || (e ? cs(e) : ""); }
+  else if (ref.startsWith("s:")) { const sm = vSummonOf(ref), e = sm && sm.ref && S.entries.get(sm.ref); name = (sm && sub((sm.sb || {}).subtitle)) || (e ? cs(e) : "") || sub(t.npc && t.npc.sb && t.npc.sb.subtitle); }
   else if (ref.startsWith("e:")) { const e = S.entries.get(ref.slice(2)); name = e ? cs(e) : sub(t.npc && t.npc.sb && t.npc.sb.subtitle); }
   else if (ref.startsWith("c:")) { const c = S.chars.get(ref.slice(2)), r = String((c && c.race) || "").trim().toLowerCase();
     const re = r && [...S.entries.values()].find(e => e.type === "race" && String(e.title || "").toLowerCase() === r), srd = r && typeof SRD_RACE_DOCS !== "undefined" && SRD_RACE_DOCS.find(d => r.includes(String(d.title).toLowerCase()));
@@ -1585,6 +1587,7 @@ function vBars(t) {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
     if (sm && smNowMax(sm)) out.push({ cur: smNowCur(sm), max: smNowMax(sm), temp: Number(sm.temp) || 0, hp: true, label: "HP" });
+    else if (!sm) { const h = t.npc && t.npc.hp; if (h && h.max) out.push({ cur: h.cur, max: h.max, temp: h.temp || 0, hp: true, label: "HP" }); }
   } else {
     vCBars(t).forEach(b => out.push({ cur: Math.max(0, Math.min(Number(b.max), Number(b.cur) || 0)), max: Number(b.max), color: b.color || "#6f8cff", label: b.name || "Bar", cbar: b.id }));
     const ex = vExOf(t); if (ex) out.push({ cur: ex.cur, max: ex.max, color: "#e39a32", label: "Exhaust", ex: true });
