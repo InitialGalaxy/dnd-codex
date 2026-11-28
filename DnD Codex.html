@@ -10489,12 +10489,16 @@ function vBarSetValue(id, key, v) {
 }
 // What players see of each bar: "hide", "bar" (the bar but not the numbers) or "full". Set per bar in
 // Options (t.barVis, keyed hp / ex / c:<bar id>); bars without a setting follow "Bars shown to".
-const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : b.fuel ? "fuel" : "c:" + b.cbar;
-function vBarVis(t, b) { const v = t && t.barVis && t.barVis[vBarKey(b)]; return v === "hide" || v === "bar" || v === "full" ? v : vBarsPublic(t) ? "full" : "hide"; }
+// (A character's own bars, spell points "sp" and resources "r:<n>" / "i:<n>:<item>", are keyed by b.ed. They all used to
+// share one key, "c:undefined": that setting still counts for them until each is set on its own.)
+const vBarKey = b => b.hp ? "hp" : b.ex ? "ex" : b.fuel ? "fuel" : b.cbar ? "c:" + b.cbar : "e:" + (b.ed || b.label || "");
+function vBarSet(t, b) { const bv = (t && t.barVis) || {}, k = vBarKey(b), v = bv[k] != null ? bv[k] : !b.cbar && b.ed ? bv["c:undefined"] : null; return v === "hide" || v === "bar" || v === "full" ? v : null; }
+function vBarVis(t, b) { return vBarSet(t, b) || (vBarsPublic(t) ? "full" : "hide"); }
 // The bars this viewer gets, each with how much of it they see. The GM, and players on their own tokens, see everything.
 function vBarsFor(t) {
   const all = vBars(t), mine = !vCanEdit() && PLAYER && vPlayerTok(t);
-  if (vCanEdit() || mine) return all.map(b => Object.assign({}, b, { vis: "full", pvis: vCanEdit() ? vBarVis(t, b) : "full" }));
+  // (A bar the GM has hidden from players stays hidden on their own tokens too: it's still on their sheet.)
+  if (vCanEdit() || mine) return all.filter(b => vCanEdit() || vBarSet(t, b) !== "hide").map(b => Object.assign({}, b, { vis: "full", pvis: vCanEdit() ? vBarVis(t, b) : "full" }));
   return all.map(b => Object.assign({}, b, { vis: vBarVis(t, b) })).filter(b => b.vis !== "hide");
 }
 function vBarsHtml(t) {
